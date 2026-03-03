@@ -59,32 +59,50 @@ function getControllerLevel(roomName) {
   return controller ? controller.level : 0;
 }
 
+const statusList = ["Initializing", "Stage 0", "Stage 1"];
+
 function getRoomStatus(roomName) {
   const room = Game.rooms[roomName];
   const structures = room.find(FIND_STRUCTURES);
 
   let controllerLevel = 0;
-  let roomLevel = 0;
+  let roomLevel = statusList[0];
 
-  let planned = false;
 
   // Check if already planned
+  let extensionPlanned = 0;
   Object.keys(Game.flags).forEach((flagName) => {
     if (flagName.startsWith("extension")) {
-      planned = true;
+      extensionPlanned++;
     }
   });
 
+  // Check if extensions are already built
+  const extensions = structures.filter(
+    (s) => s.structureType === STRUCTURE_EXTENSION,
+  );
+  const extensionBuilt = extensions.length;
+
+  const harvesters = _.filter(
+    Game.creeps,
+    (creep) => creep.memory.role == "harvester",
+  );
+
   controllerLevel = getControllerLevel(roomName);
 
-  if (!planned) {
-    roomLevel = -1;
+  if (harvesters.length < 1) {
+    roomLevel = statusList[0];
+  } else if (controllerLevel == 1) {
+    roomLevel = statusList[1];
+  } else if (controllerLevel >= 1) {
+    roomLevel = statusList[2];
   }
 
   return {
     roomLevel,
     details: {
       controllerLevel,
+      totalExtensions: extensionPlanned + extensionBuilt,
     },
   };
 }
@@ -145,13 +163,31 @@ function planExtensionPlacement(roomName, maxExtensions = 5) {
   return extensionPositions;
 }
 
+function placeExtensionConstructionSites(roomName) {
+  const room = Game.rooms[roomName];
+  const flags = room.find(FIND_FLAGS, {
+    filter: (f) => f.name.startsWith("extension"),
+  });
+
+  flags.forEach((flag) => {
+    const result = room.createConstructionSite(
+      flag.pos.x,
+      flag.pos.y,
+      STRUCTURE_EXTENSION,
+    );
+    if (result === OK) {
+      flag.remove();
+    }
+  });
+}
+
 const baseName = "Spawn1"; // TODO - make it dynamic or default
 
 module.exports.loop = function () {
   clearCreepsMemory();
 
   let roster = {
-    harvester: 0,
+    harvester: 2,
     builder: 0,
     upgrader: 0,
   };
@@ -162,19 +198,28 @@ module.exports.loop = function () {
     roster.upgrader = 2;
   }
 
-  console.log(`Room status: ${JSON.stringify(roomStatus)}`);
+  utils.periodicLogger(`Room status: ${JSON.stringify(roomStatus)}`);
 
-//   if (roomStatus.roomLevel === -1) {
-//     planExtensionPlacement(roomName, 5);
-//   }
+  if (roomStatus.roomLevel === "Initializing") {
+    roster.harvester = 2;
+  } else if (roomStatus.roomLevel === "Stage 0") {
+    roster.upgrader = 2;
+    if (roomStatus.details.totalExtensions < 5) {
+      planExtensionPlacement(roomName, 5 - roomStatus.details.totalExtensions);
+    }
+  } else if (roomStatus.roomLevel === "Stage 1") {
+    roster.builder = 1;
+    roster.upgrader = 1;
+    placeExtensionConstructionSites(roomName);
+  }
 
-//   spawnProcedure(roster, baseName);
+  spawnProcedure(roster, baseName);
 
-  // //   utils.getPositionsByPathCost(roomName, [{ x: 25, y: 25 }], { visual: true });
+  //   utils.getPositionsByPathCost(roomName, [{ x: 25, y: 25 }], { visual: true });
 
-  //   const distance_transform = utils.getDistanceTransform(roomName, {
-  //     visual: false,
-  //   });
+  // const distance_transform = utils.getDistanceTransform(roomName, {
+  //   visual: true,
+  // });
 
-//   handleCreeps();
+  handleCreeps();
 };
