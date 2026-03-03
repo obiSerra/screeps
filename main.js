@@ -2,6 +2,8 @@ const roleHarvester = require('role.harvester');
 const roleUpgrader = require('role.upgrader');
 const roleBuilder = require('role.builder');
 
+const utils = require('utils');
+
 module.exports.loop = function () {
 
 const base_name = 'FirstBase'
@@ -12,14 +14,16 @@ const roster = {
 }
 
 
+
+
 function spawnProcedure() {
     Object.keys(roster).forEach(role => {
         const creeps = _.filter(Game.creeps, (creep) => creep.memory.role == role);
-        console.log(`${role}s: ${creeps.length}`);
+        // console.log(`${role}s: ${creeps.length}`);
 
         if (creeps.length < roster[role]) {
             const newName = `${role.charAt(0).toUpperCase() + role.slice(1)}${Game.time}`;
-            console.log(`Spawning new ${role}: ${newName}`);
+            // console.log(`Spawning new ${role}: ${newName}`);
             Game.spawns[base_name].spawnCreep([WORK, CARRY, MOVE], newName, { memory: { role: role } });
         }
     });
@@ -30,7 +34,7 @@ function spawnProcedure() {
 for(var name in Memory.creeps) {
         if(!Game.creeps[name]) {
             delete Memory.creeps[name];
-            console.log('Clearing non-existing creep memory:', name);
+            // console.log('Clearing non-existing creep memory:', name);
         }
     }
 
