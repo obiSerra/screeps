@@ -59,7 +59,7 @@ function getControllerLevel(roomName) {
   return controller ? controller.level : 0;
 }
 
-const statusList = ["Initializing", "Stage 0", "Stage 1"];
+const statusList = ["Initializing", "Stage 0", "Stage 1", "Beyond"];
 
 function getRoomStatus(roomName) {
   const room = Game.rooms[roomName];
@@ -96,6 +96,9 @@ function getRoomStatus(roomName) {
     roomLevel = statusList[1];
   } else if (controllerLevel >= 1) {
     roomLevel = statusList[2];
+  }
+  else {
+    roomLevel = statusList.length - 1;
   }
 
   return {
@@ -208,9 +211,15 @@ module.exports.loop = function () {
       planExtensionPlacement(roomName, 5 - roomStatus.details.totalExtensions);
     }
   } else if (roomStatus.roomLevel === "Stage 1") {
-    roster.builder = 1;
+    roster.builder = 4;
     roster.upgrader = 1;
+    roster.harvester = 1;
     placeExtensionConstructionSites(roomName);
+  }
+  else if (roomStatus.roomLevel === "Beyond") {
+    roster.builder = 1;
+    roster.upgrader = 2;
+    roster.harvester = 1;
   }
 
   spawnProcedure(roster, baseName);
