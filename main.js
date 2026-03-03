@@ -5,6 +5,27 @@ const roleBuilder = require('role.builder');
 module.exports.loop = function () {
 
 const base_name = 'FirstBase'
+const roster = {
+    'harvester': 2,
+    'builder': 0,
+    'upgrader': 0
+}
+
+
+function spawnProcedure() {
+    roster.forEach(role => {
+        const creeps = _.filter(Game.creeps, (creep) => creep.memory.role == role);
+        console.log(`${role}s: ${creeps.length}`);
+
+        if (creeps.length < roster[role]) {
+            const newName = `${role.charAt(0).toUpperCase() + role.slice(1)}${Game.time}`;
+            console.log(`Spawning new ${role}: ${newName}`);
+            Game.spawns[base_name].spawnCreep([WORK, CARRY, MOVE], newName, { memory: { role: role } });
+        }
+    });
+
+}
+
 
 for(var name in Memory.creeps) {
         if(!Game.creeps[name]) {
@@ -13,27 +34,7 @@ for(var name in Memory.creeps) {
         }
     }
 
-    var harvesters = _.filter(Game.creeps, (creep) => creep.memory.role == 'harvester');
-    console.log('Harvesters: ' + harvesters.length);
-
-
-    const builders = _.filter(Game.creeps, (creep) => creep.memory.role == 'builder');
-    console.log('Builders: ' + builders.length);
-
-    if (builders.length < 2) {
-        var newName = 'Builder' + Game.time;
-        console.log('Spawning new builder: ' + newName);
-        Game.spawns[base_name].spawnCreep([WORK,CARRY,MOVE], newName,
-            {memory: {role: 'builder'}});
-    }
-
-
-    if(harvesters.length < 2) {
-        var newName = 'Harvester' + Game.time;
-        console.log('Spawning new harvester: ' + newName);
-        Game.spawns[base_name].spawnCreep([WORK,CARRY,MOVE], newName,
-            {memory: {role: 'harvester'}});
-    }
+    spawnProcedure();
 
     if(Game.spawns[base_name].spawning) {
         var spawningCreep = Game.creeps[Game.spawns['Spawn1'].spawning.name];
