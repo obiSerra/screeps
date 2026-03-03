@@ -3,7 +3,6 @@ const roleUpgrader = require('role.upgrader');
 const roleBuilder = require('role.builder');
 
 const utils = require('utils');
-const room_config = require('room_config');
 
 module.exports.loop = function () {
 
