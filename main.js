@@ -13,7 +13,7 @@ const roster = {
 
 
 function spawnProcedure() {
-    roster.forEach(role => {
+    Object.keys(roster).forEach(role => {
         const creeps = _.filter(Game.creeps, (creep) => creep.memory.role == role);
         console.log(`${role}s: ${creeps.length}`);
 
