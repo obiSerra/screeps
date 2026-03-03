@@ -16,6 +16,18 @@ for(var name in Memory.creeps) {
     var harvesters = _.filter(Game.creeps, (creep) => creep.memory.role == 'harvester');
     console.log('Harvesters: ' + harvesters.length);
 
+
+    const builders = _.filter(Game.creeps, (creep) => creep.memory.role == 'builder');
+    console.log('Builders: ' + builders.length);
+
+    if (builders.length < 2) {
+        var newName = 'Builder' + Game.time;
+        console.log('Spawning new builder: ' + newName);
+        Game.spawns[base_name].spawnCreep([WORK,CARRY,MOVE], newName,
+            {memory: {role: 'builder'}});
+    }
+
+
     if(harvesters.length < 2) {
         var newName = 'Harvester' + Game.time;
         console.log('Spawning new harvester: ' + newName);
