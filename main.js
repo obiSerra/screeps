@@ -59,7 +59,7 @@ function getControllerLevel(roomName) {
   return controller ? controller.level : 0;
 }
 
-const statusList = ["Initializing", "Stage 0", "Stage 1", "Beyond"];
+const statusList = ["Initializing", "Stage 0", "Stage 1", "Stage 2", "Beyond"];
 
 function getRoomStatus(roomName) {
   const room = Game.rooms[roomName];
@@ -67,7 +67,6 @@ function getRoomStatus(roomName) {
 
   let controllerLevel = 0;
   let roomLevel = statusList[0];
-
 
   // Check if already planned
   let extensionPlanned = 0;
@@ -87,6 +86,7 @@ function getRoomStatus(roomName) {
     Game.creeps,
     (creep) => creep.memory.role == "harvester",
   );
+  const totalExtensions = extensionPlanned + extensionBuilt;
 
   controllerLevel = getControllerLevel(roomName);
 
@@ -94,10 +94,11 @@ function getRoomStatus(roomName) {
     roomLevel = statusList[0];
   } else if (controllerLevel == 1) {
     roomLevel = statusList[1];
-  } else if (controllerLevel >= 1) {
+  } else if (controllerLevel >= 1 && totalExtensions <= 5) {
     roomLevel = statusList[2];
-  }
-  else {
+  } else if (controllerLevel >= 2 && totalExtensions <= 10) {
+    roomLevel = statusList[3];
+  } else {
     roomLevel = statusList.length - 1;
   }
 
@@ -150,7 +151,8 @@ function planExtensionPlacement(roomName, maxExtensions = 5) {
       // Check if position is valid (not wall, not occupied)
       if (terrain.get(x, y) !== TERRAIN_MASK_WALL) {
         const structures = room.lookForAt(LOOK_STRUCTURES, x, y);
-        if (structures.length === 0) {
+        const constructionSites = room.lookForAt(LOOK_CONSTRUCTION_SITES, x, y);
+        if (structures.length === 0 && constructionSites.length === 0) {
           extensionPositions.push({ x, y });
         }
       }
@@ -160,7 +162,10 @@ function planExtensionPlacement(roomName, maxExtensions = 5) {
   // Place flags for each planned extension position
   extensionPositions.forEach((pos, index) => {
     const flagName = `extension${index + 1}`;
-    room.createFlag(pos.x, pos.y, flagName, COLOR_YELLOW);
+    const constructionSites = room.lookForAt(LOOK_CONSTRUCTION_SITES, pos.x, pos.y);
+    if (constructionSites.length === 0) {
+      room.createFlag(pos.x, pos.y, flagName, COLOR_YELLOW);
+    }
   });
 
   return extensionPositions;
@@ -215,8 +220,15 @@ module.exports.loop = function () {
     roster.upgrader = 1;
     roster.harvester = 1;
     placeExtensionConstructionSites(roomName);
-  }
-  else if (roomStatus.roomLevel === "Beyond") {
+    if (roomStatus.details.totalExtensions < 10) {
+      planExtensionPlacement(roomName, 10 - roomStatus.details.totalExtensions);
+    }
+  } else if (roomStatus.roomLevel === "Stage 2") {
+    roster.builder = 2;
+    roster.upgrader = 3;
+    roster.harvester = 1;
+    placeExtensionConstructionSites(roomName);
+  } else if (roomStatus.roomLevel === "Beyond") {
     roster.builder = 1;
     roster.upgrader = 2;
     roster.harvester = 1;
