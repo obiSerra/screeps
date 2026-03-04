@@ -103,7 +103,7 @@ function generateExtensionGrid(centerX, centerY, count) {
   const extensions = [];
   const extensionStages = [
     { stage: 2, count: 5 },
-    { stage: 3, count: 5 },
+    { stage: 3, count: 10 },
     { stage: 4, count: 10 },
     { stage: 5, count: 10 },
     { stage: 6, count: 10 },
@@ -382,10 +382,13 @@ function clearPlannerFlags(room) {
  * Plan the complete base layout
  * @param {Room} room - The room to plan
  * @param {Object} options - Planning options
+ * @param {boolean} options.clearExisting - Clear existing flags before planning
+ * @param {boolean} options.visualize - Visualize the plan
+ * @param {number} options.currentControllerLevel - Only place flags for structures at or below this RCL
  * @returns {Object} Planning result
  */
 function planBaseLayout(room, options = {}) {
-  const { clearExisting = false, visualize = false } = options;
+  const { clearExisting = false, visualize = false, currentControllerLevel = 8 } = options;
   
   if (clearExisting) {
     clearPlannerFlags(room);
@@ -399,8 +402,11 @@ function planBaseLayout(room, options = {}) {
   const placedFlags = [];
   let flagIndex = 0;
   
-  // Place core structures
+  // Place core structures (filtered by RCL)
   for (const [dx, dy, structureType, stage] of CORE_STAMP) {
+    // Skip structures above current RCL when filtering is enabled
+    if (stage > currentControllerLevel) continue;
+    
     const x = center.x + dx;
     const y = center.y + dy;
     
@@ -412,9 +418,11 @@ function planBaseLayout(room, options = {}) {
     }
   }
   
-  // Place extensions
+  // Place extensions (filtered by RCL)
   const extensions = generateExtensionGrid(center.x, center.y, 60);
   for (const [dx, dy, structureType, stage] of extensions) {
+    if (stage > currentControllerLevel) continue;
+    
     const x = center.x + dx;
     const y = center.y + dy;
     
@@ -426,9 +434,11 @@ function planBaseLayout(room, options = {}) {
     }
   }
   
-  // Place roads
+  // Place roads (filtered by RCL)
   const roads = generateRoadGrid(center.x, center.y);
   for (const [dx, dy, structureType, stage] of roads) {
+    if (stage > currentControllerLevel) continue;
+    
     const x = center.x + dx;
     const y = center.y + dy;
     
@@ -440,31 +450,37 @@ function planBaseLayout(room, options = {}) {
     }
   }
   
-  // Plan roads to sources
-  const sourceRoads = planSourceRoads(room, center);
-  for (const pos of sourceRoads) {
-    if (!isValidBuildPosition(room, pos.x, pos.y)) continue;
-    
-    if (placeStructureFlag(room, pos.x, pos.y, STRUCTURE_ROAD, 3, flagIndex)) {
-      placedFlags.push({ x: pos.x, y: pos.y, structureType: STRUCTURE_ROAD, stage: 3 });
-      flagIndex++;
+  // Plan roads to sources (stage 3 - RCL 3)
+  if (currentControllerLevel >= 3) {
+    const sourceRoads = planSourceRoads(room, center);
+    for (const pos of sourceRoads) {
+      if (!isValidBuildPosition(room, pos.x, pos.y)) continue;
+      
+      if (placeStructureFlag(room, pos.x, pos.y, STRUCTURE_ROAD, 3, flagIndex)) {
+        placedFlags.push({ x: pos.x, y: pos.y, structureType: STRUCTURE_ROAD, stage: 3 });
+        flagIndex++;
+      }
     }
   }
   
-  // Plan containers at sources
-  const containers = planSourceContainers(room);
-  for (const pos of containers) {
-    if (!isValidBuildPosition(room, pos.x, pos.y)) continue;
-    
-    if (placeStructureFlag(room, pos.x, pos.y, STRUCTURE_CONTAINER, 1, flagIndex)) {
-      placedFlags.push({ x: pos.x, y: pos.y, structureType: STRUCTURE_CONTAINER, stage: 1 });
-      flagIndex++;
+  // Plan containers at sources (stage 1 - RCL 1)
+  if (currentControllerLevel >= 1) {
+    const containers = planSourceContainers(room);
+    for (const pos of containers) {
+      if (!isValidBuildPosition(room, pos.x, pos.y)) continue;
+      
+      if (placeStructureFlag(room, pos.x, pos.y, STRUCTURE_CONTAINER, 1, flagIndex)) {
+        placedFlags.push({ x: pos.x, y: pos.y, structureType: STRUCTURE_CONTAINER, stage: 1 });
+        flagIndex++;
+      }
     }
   }
   
-  // Plan controller container and link
+  // Plan controller container and link (filtered by RCL)
   const controllerStructures = planControllerStructures(room);
   for (const { pos, structureType, stage } of controllerStructures) {
+    if (stage > currentControllerLevel) continue;
+    
     if (!isValidBuildPosition(room, pos.x, pos.y)) continue;
     
     if (placeStructureFlag(room, pos.x, pos.y, structureType, stage, flagIndex)) {
@@ -482,6 +498,7 @@ function planBaseLayout(room, options = {}) {
     center: center,
     flagsPlaced: placedFlags.length,
     structures: placedFlags,
+    currentControllerLevel,
   };
 }
 
@@ -595,10 +612,11 @@ function planControllerStructures(room) {
 /**
  * Visualize the planned base layout
  * @param {Room} room - The room
- * @param {Array} structures - Array of planned structures
+ * @param {Array} structures - Array of planned structures (with pos, structureType, stage)
  * @param {RoomPosition} center - Base center
+ * @param {number} currentRCL - Optional current RCL to highlight available structures
  */
-function visualizePlan(room, structures, center) {
+function visualizePlan(room, structures, center, currentRCL = null) {
   const visual = new RoomVisual(room.name);
   
   // Draw center marker
@@ -610,26 +628,48 @@ function visualizePlan(room, structures, center) {
   
   // Draw planned structures
   const colors = {
-    [STRUCTURE_SPAWN]: 'green',
-    [STRUCTURE_EXTENSION]: 'yellow',
-    [STRUCTURE_TOWER]: 'red',
-    [STRUCTURE_STORAGE]: 'orange',
-    [STRUCTURE_LINK]: 'cyan',
-    [STRUCTURE_LAB]: 'purple',
-    [STRUCTURE_TERMINAL]: 'blue',
-    [STRUCTURE_ROAD]: 'gray',
-    [STRUCTURE_CONTAINER]: 'brown',
+    [STRUCTURE_SPAWN]: '#00ff00',
+    [STRUCTURE_EXTENSION]: '#ffff00',
+    [STRUCTURE_TOWER]: '#ff0000',
+    [STRUCTURE_STORAGE]: '#ff8800',
+    [STRUCTURE_LINK]: '#00ffff',
+    [STRUCTURE_LAB]: '#9900ff',
+    [STRUCTURE_TERMINAL]: '#0066ff',
+    [STRUCTURE_ROAD]: '#666666',
+    [STRUCTURE_CONTAINER]: '#884400',
+    [STRUCTURE_RAMPART]: '#00ff88',
+    [STRUCTURE_WALL]: '#888888',
+    [STRUCTURE_FACTORY]: '#ff6600',
+    [STRUCTURE_POWER_SPAWN]: '#ff00ff',
+    [STRUCTURE_NUKER]: '#ff3300',
+    [STRUCTURE_OBSERVER]: '#aaaaaa',
+    [STRUCTURE_EXTRACTOR]: '#66ff00',
   };
   
   for (const struct of structures) {
-    const color = colors[struct.structureType] || 'white';
-    visual.rect(struct.x - 0.4, struct.y - 0.4, 0.8, 0.8, {
+    // Get position - handle both {x, y} and {pos: RoomPosition} formats
+    const x = struct.x ?? struct.pos?.x;
+    const y = struct.y ?? struct.pos?.y;
+    if (x === undefined || y === undefined) continue;
+    
+    const color = colors[struct.structureType] || '#ffffff';
+    const stage = struct.stage;
+    
+    // Determine opacity based on whether structure is available at current RCL
+    const isAvailable = currentRCL === null || stage <= currentRCL;
+    const opacity = isAvailable ? 0.6 : 0.2;
+    
+    visual.rect(x - 0.4, y - 0.4, 0.8, 0.8, {
       fill: color,
-      opacity: 0.5,
+      opacity: opacity,
+      stroke: isAvailable ? '#ffffff' : '#444444',
+      strokeWidth: isAvailable ? 0.05 : 0,
     });
-    visual.text(struct.stage.toString(), struct.x, struct.y + 0.2, {
+    
+    // Show stage number
+    visual.text(stage.toString(), x, y + 0.2, {
       font: 0.4,
-      color: 'white',
+      color: isAvailable ? '#ffffff' : '#888888',
     });
   }
 }
