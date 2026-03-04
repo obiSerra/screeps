@@ -1,10 +1,10 @@
 const roleHarvester = require("role.harvester");
 const roleUpgrader = require("role.upgrader");
 const roleBuilder = require("role.builder");
-
+const roomOrchestrator = require("roomOrchestrator");
 const utils = require("utils");
 
-function spawnProcedure(roster, baseName, roomStatus) {
+function spawnProcedure(roster, baseName, roomStatus, roomName) {
   //   MOVE: 50 energy
   // CARRY: 50 energy
   // WORK: 100 energy
@@ -16,10 +16,11 @@ function spawnProcedure(roster, baseName, roomStatus) {
 
   let body = [WORK, CARRY, MOVE]; // 200 energy
 
-  if (roomStatus.energyAvailable >= 550) {
-    body = [WORK, WORK, CARRY, CARRY, MOVE, MOVE]; // 550 energy
-  } else if (roomStatus.energyAvailable >= 350) {
-    body = [WORK, CARRY, MOVE, MOVE]; // 350 energy
+  const room = Game.rooms[roomName];
+  if (roomStatus.energyAvailable >= 500) {
+    body = [WORK, WORK, WORK, CARRY, CARRY, MOVE, MOVE]; // 550 energy
+  } else if (roomStatus.energyAvailable >= 300) {
+    body = [WORK, WORK, CARRY, MOVE, MOVE];
   }
 
   Object.keys(roster).forEach((role) => {
@@ -29,11 +30,45 @@ function spawnProcedure(roster, baseName, roomStatus) {
     if (creeps.length < roster[role]) {
       const newName = `${role.charAt(0).toUpperCase() + role.slice(1)}${Game.time}`;
       console.log(`Spawning new ${role}: ${newName}`);
+      if (role === "builder") body = body.concat([MOVE]);
       Game.spawns[baseName].spawnCreep(body, newName, {
         memory: { role: role },
       });
     }
   });
+
+  const energyAvailable = room.energyAvailable;
+  const energyCapacity = room.energyCapacityAvailable;
+  if (energyAvailable === energyCapacity) {
+
+    const builderCount = _.filter(
+      Game.creeps,
+      (creep) => creep.memory.role == "builder",
+    );
+    const harvesterCount = _.filter(
+      Game.creeps,
+      (creep) => creep.memory.role == "harvester",
+    );
+    const upgraderCount = _.filter(
+      Game.creeps,
+      (creep) => creep.memory.role == "upgrader",
+    );
+
+    let role = "builder";
+
+    if (builderCount.length > harvesterCount.length * 3) role = "harvester";
+    else if (builderCount.length > upgraderCount.length * 3) role = "upgrader";
+
+    console.log(
+      `Energy full: ${energyAvailable}/${energyCapacity} spawing extra ${role} Creep`,
+    );
+
+    const newName = `${role.charAt(0).toUpperCase() + role.slice(1)}${Game.time}`;
+    body = body.concat([MOVE]);
+    Game.spawns[baseName].spawnCreep(body, newName, {
+      memory: { role: role },
+    });
+  }
 
   if (Game.spawns[baseName].spawning) {
     var spawningCreep = Game.creeps[Game.spawns[baseName].spawning.name];
@@ -374,7 +409,7 @@ module.exports.loop = function () {
 
   let roster = {
     harvester: 2,
-    builder: 2,
+    builder: 4,
     upgrader: 2,
   };
   const roomName = Game.spawns[baseName].room.name;
@@ -389,9 +424,11 @@ module.exports.loop = function () {
   // removeConstructionRoads(roomName);
   // removeExtensionFlags(roomName);
 
-//   planRoadsBasic(roomName);
-  spawnProcedure(roster, baseName, roomStatus);
+  //   planRoadsBasic(roomName);
+  spawnProcedure(roster, baseName, roomStatus, roomName);
 
+  roomOrchestrator.placeRampantsConstructionSites(roomName, true);
+//   roomOrchestrator.planControllerRamparts(roomName, false);
   //   utils.getPositionsByPathCost(roomName, [{ x: 25, y: 25 }], { visual: true });
 
   // const distance_transform = utils.getDistanceTransform(roomName, {
