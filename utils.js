@@ -233,12 +233,101 @@ const actions = {
   
 }
 
+// ============================================================================
+// Functional Programming Utilities
+// ============================================================================
+
+/**
+ * Left-to-right function composition
+ * @param {...Function} fns - Functions to compose
+ * @returns {Function} Composed function
+ * @example
+ * const addOne = x => x + 1;
+ * const double = x => x * 2;
+ * const addOneThenDouble = pipe(addOne, double);
+ * addOneThenDouble(5); // Returns 12
+ */
+const pipe = (...fns) => (x) => fns.reduce((acc, fn) => fn(acc), x);
+
+/**
+ * Right-to-left function composition
+ * @param {...Function} fns - Functions to compose
+ * @returns {Function} Composed function
+ * @example
+ * const addOne = x => x + 1;
+ * const double = x => x * 2;
+ * const doubleThenAddOne = compose(addOne, double);
+ * doubleThenAddOne(5); // Returns 11
+ */
+const compose = (...fns) => (x) => fns.reduceRight((acc, fn) => fn(acc), x);
+
+/**
+ * Create a memoized version of a function
+ * @param {Function} fn - Function to memoize
+ * @returns {Function} Memoized function
+ */
+const memoize = (fn) => {
+  const cache = new Map();
+  return (...args) => {
+    const key = JSON.stringify(args);
+    if (cache.has(key)) return cache.get(key);
+    const result = fn(...args);
+    cache.set(key, result);
+    return result;
+  };
+};
+
+/**
+ * Partial application - pre-fill some arguments
+ * @param {Function} fn - Function to partially apply
+ * @param {...*} presetArgs - Arguments to pre-fill
+ * @returns {Function} Partially applied function
+ */
+const partial = (fn, ...presetArgs) => (...laterArgs) => fn(...presetArgs, ...laterArgs);
+
+/**
+ * Identity function - returns its argument unchanged
+ * Useful in functional pipelines
+ * @param {*} x - Any value
+ * @returns {*} Same value
+ */
+const identity = (x) => x;
+
+/**
+ * Constant function - always returns the same value
+ * @param {*} x - Value to always return
+ * @returns {Function} Function that always returns x
+ */
+const constant = (x) => () => x;
+
+/**
+ * Tap - perform side effect and return original value
+ * Useful for logging in pipelines
+ * @param {Function} fn - Side-effect function
+ * @returns {Function} Function that runs fn then returns input
+ */
+const tap = (fn) => (x) => {
+  fn(x);
+  return x;
+};
+
 const utils = {
+  // Existing utilities
   getDistanceTransform,
   getPositionsByPathCost,
   periodicLogger,
   findNearestEnergySource,
-  findBestSourceForCreep
+  findBestSourceForCreep,
+  actions,
+
+  // Functional utilities
+  pipe,
+  compose,
+  memoize,
+  partial,
+  identity,
+  constant,
+  tap,
 };
 
 module.exports = utils;
