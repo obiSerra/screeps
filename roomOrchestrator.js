@@ -204,10 +204,10 @@ const handlePlanningMode = (room, roomStatus) => {
       currentControllerLevel: roomStatus.controllerLevel,
     });
   } else {
-    // Visualize existing plan with RCL highlighting
+    // Visualize existing plan
     const center = roomPlanner.findOptimalCenter(room);
     if (center) {
-      roomPlanner.visualizePlan(room, plannedStructures, center, roomStatus.controllerLevel);
+      roomPlanner.visualizePlan(room, plannedStructures, center);
     }
   }
 

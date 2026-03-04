@@ -132,6 +132,29 @@ const countCreepsTargeting = (targetId) =>
   ).length;
 
 /**
+ * Prioritize construction sites by type when multiple types exist
+ * Extensions are prioritized first when there are multiple types
+ * Pure function
+ * @param {Array} constructionSites
+ * @returns {Array} Sorted construction sites with extensions first if multiple types
+ */
+const prioritizeConstructionSites = (constructionSites) => {
+  const types = new Set(constructionSites.map((s) => s.structureType));
+  
+  // Only prioritize if there are multiple types
+  if (types.size <= 1) {
+    return constructionSites;
+  }
+  
+  // Sort with extensions first
+  return [...constructionSites].sort((a, b) => {
+    const aIsExtension = a.structureType === STRUCTURE_EXTENSION ? 0 : 1;
+    const bIsExtension = b.structureType === STRUCTURE_EXTENSION ? 0 : 1;
+    return aIsExtension - bIsExtension;
+  });
+};
+
+/**
  * Sort targets by least contention and distance
  * Pure function - distributes creeps across targets
  * @param {Creep} creep
@@ -246,7 +269,9 @@ const selectAction = (creep, priorityList) => {
   // Check priority list
   for (const action of priorityList) {
     if (action === "building" && availability.building) {
-      const target = sortByContention(creep, targets.constructionSites)[0];
+      // Prioritize extensions when multiple construction site types exist
+      const prioritizedSites = prioritizeConstructionSites(targets.constructionSites);
+      const target = sortByContention(creep, prioritizedSites)[0];
       return {
         action: "building",
         target: { id: target.id, pos: target.pos },

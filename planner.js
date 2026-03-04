@@ -103,7 +103,7 @@ function generateExtensionGrid(centerX, centerY, count) {
   const extensions = [];
   const extensionStages = [
     { stage: 2, count: 5 },
-    { stage: 3, count: 5 },
+    { stage: 3, count: 10 },
     { stage: 4, count: 10 },
     { stage: 5, count: 10 },
     { stage: 6, count: 10 },
