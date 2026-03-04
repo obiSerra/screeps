@@ -128,7 +128,7 @@ const filterCriticalRepairs = (targets) =>
  */
 const countCreepsTargeting = (targetId) =>
   Object.values(Game.creeps).filter(
-    (creep) => creep.memory.actionTarget?.id === targetId
+    (creep) => creep.memory.actionTarget && creep.memory.actionTarget.id === targetId
   ).length;
 
 /**

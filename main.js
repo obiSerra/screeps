@@ -30,7 +30,7 @@ const clearStaleRoomMemory = () => {
   for (const roomName in Memory.rooms) {
     const room = Game.rooms[roomName];
     // Remove memory for rooms we don't have vision of or don't own
-    if (!room || !room.controller?.my) {
+    if (!room || !room.controller || !room.controller.my) {
       // Keep planning data for rooms we might reclaim
       // Only delete if we haven't seen the room in a while
       if (!Game.rooms[roomName]) {
@@ -52,7 +52,7 @@ module.exports.loop = function () {
 
   // Process each owned room
   Object.values(Game.rooms)
-    .filter((room) => room.controller?.my)
+    .filter((room) => room.controller && room.controller.my)
     .forEach((room) => {
       try {
         roomOrchestrator.orchestrateRoom(room);

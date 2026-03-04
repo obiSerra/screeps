@@ -648,8 +648,8 @@ function visualizePlan(room, structures, center, currentRCL = null) {
   
   for (const struct of structures) {
     // Get position - handle both {x, y} and {pos: RoomPosition} formats
-    const x = struct.x ?? struct.pos?.x;
-    const y = struct.y ?? struct.pos?.y;
+    const x = struct.x !== undefined ? struct.x : (struct.pos ? struct.pos.x : undefined);
+    const y = struct.y !== undefined ? struct.y : (struct.pos ? struct.pos.y : undefined);
     if (x === undefined || y === undefined) continue;
     
     const color = colors[struct.structureType] || '#ffffff';

@@ -146,7 +146,7 @@ const displaySpawningVisual = (spawn) => {
 const spawnProcedure = (spawn, roster, roomStatus) => {
   if (!spawn || spawn.spawning) {
     displaySpawningVisual(spawn);
-    return { spawned: false, reason: spawn?.spawning ? 'busy' : 'no_spawn' };
+    return { spawned: false, reason: (spawn && spawn.spawning) ? 'busy' : 'no_spawn' };
   }
 
   const currentCreeps = countCreepsByRole(Game.creeps);

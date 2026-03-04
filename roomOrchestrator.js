@@ -34,7 +34,7 @@ const initializeRoomMode = (room) => {
  * @returns {string} Room mode ("planning" or "executing")
  */
 const getRoomMode = (roomName) =>
-  Memory.rooms?.[roomName]?.mode ?? "planning";
+  (Memory.rooms && Memory.rooms[roomName] && Memory.rooms[roomName].mode) || "planning";
 
 // ============================================================================
 // Room Status Calculation
@@ -242,7 +242,7 @@ const handleExecutingMode = (room, roomStatus) => {
   roomPlanner.executeBuildPlan(room);
 
   // Plan ramparts around critical structures
-  const spawnPosition = spawn?.pos;
+  const spawnPosition = spawn ? spawn.pos : undefined;
   if (spawnPosition) {
     planCriticalStructureRamparts(room.name, spawnPosition, 3, false);
     placeRampantsConstructionSites(room.name);
