@@ -6,6 +6,7 @@ var roleUpgrader = () => {
     /** @param {Creep} creep **/
     run: function (creep) {
       base.workerActions(creep, [
+        "repairCritical",
         "upgrading",
         "harvesting",
         "repairing",

@@ -40,7 +40,6 @@ function spawnProcedure(roster, baseName, roomStatus, roomName) {
   const energyAvailable = room.energyAvailable;
   const energyCapacity = room.energyCapacityAvailable;
   if (energyAvailable === energyCapacity) {
-
     const builderCount = _.filter(
       Game.creeps,
       (creep) => creep.memory.role == "builder",
@@ -99,7 +98,12 @@ function handleCreeps() {
 
   for (var name in Game.creeps) {
     var creep = Game.creeps[name];
-    rolesFunctions[creep.memory.role](creep);
+    if (rolesFunctions[creep.memory.role])
+      rolesFunctions[creep.memory.role](creep);
+    else
+      console.log(
+        `No role function found for creep ${creep.name} with role ${creep.memory.role}`,
+      );
   }
 }
 
@@ -427,8 +431,13 @@ module.exports.loop = function () {
   //   planRoadsBasic(roomName);
   spawnProcedure(roster, baseName, roomStatus, roomName);
 
+
+  const controllerPosition = Game.rooms[roomName].controller.pos;
+  const spawnPosition = Game.spawns[baseName].pos;
+
+  roomOrchestrator.planCriticalStructureRamparts(roomName, spawnPosition, 3, false);
   roomOrchestrator.placeRampantsConstructionSites(roomName, true);
-//   roomOrchestrator.planControllerRamparts(roomName, false);
+
   //   utils.getPositionsByPathCost(roomName, [{ x: 25, y: 25 }], { visual: true });
 
   // const distance_transform = utils.getDistanceTransform(roomName, {

@@ -5,7 +5,12 @@ var roleBuilder = () => {
   const base = baseCreep.baseCreep;
   return {
     run: function (creep) {
-      base.workerActions(creep, ["building", "repairing", "upgrading"]);
+      base.workerActions(creep, [
+        "repairCritical",
+        "building",
+        "repairing",
+        "upgrading",
+      ]);
       base.performAction(creep, creep.memory.action);
     },
   };
