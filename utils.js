@@ -223,6 +223,16 @@ function findNearestEnergySource(creep) {
   return nearestSource;
 }
 
+
+const actions = {
+  gathering: "🔄 gathering",
+  building: "🚧 building",
+  repairing: "🛠 repairing",
+  upgrading: "⚡ upgrading",
+  harvesting: "⛏ harvesting",
+  
+}
+
 const utils = {
   getDistanceTransform,
   getPositionsByPathCost,

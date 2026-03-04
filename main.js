@@ -5,7 +5,6 @@ const roleBuilder = require("role.builder");
 const utils = require("utils");
 
 function spawnProcedure(roster, baseName, roomStatus) {
-
   //   MOVE: 50 energy
   // CARRY: 50 energy
   // WORK: 100 energy
@@ -29,7 +28,7 @@ function spawnProcedure(roster, baseName, roomStatus) {
 
     if (creeps.length < roster[role]) {
       const newName = `${role.charAt(0).toUpperCase() + role.slice(1)}${Game.time}`;
-      // console.log(`Spawning new ${role}: ${newName}`);
+      console.log(`Spawning new ${role}: ${newName}`);
       Game.spawns[baseName].spawnCreep(body, newName, {
         memory: { role: role },
       });
@@ -57,17 +56,15 @@ function clearCreepsMemory() {
 }
 
 function handleCreeps() {
+  const rolesFunctions = {
+    harvester: roleHarvester.run,
+    upgrader: roleUpgrader.run,
+    builder: roleBuilder.run,
+  };
+
   for (var name in Game.creeps) {
     var creep = Game.creeps[name];
-    if (creep.memory.role == "harvester") {
-      roleHarvester.run(creep);
-    }
-    if (creep.memory.role == "upgrader") {
-      roleUpgrader.run(creep);
-    }
-    if (creep.memory.role == "builder") {
-      roleBuilder.run(creep);
-    }
+    rolesFunctions[creep.memory.role](creep);
   }
 }
 
@@ -78,7 +75,6 @@ function getControllerLevel(roomName) {
 }
 
 function getRoomStatus(roomName) {
-
   const room = Game.rooms[roomName];
   const structures = room.find(FIND_STRUCTURES);
 
@@ -104,7 +100,7 @@ function getRoomStatus(roomName) {
   );
   const extensionBuilt = extensions.length;
 
-  let creeps = {}
+  let creeps = {};
 
   Object.keys(Game.creeps).forEach((creepName) => {
     const creep = Game.creeps[creepName];
@@ -124,21 +120,25 @@ function getRoomStatus(roomName) {
     creeps,
     energyAvailable,
     energyCapacity,
-
   };
 }
 
-function planExtensionPlacement(roomName, existingExtensions, maxExtensions = 5) {
+function planExtensionPlacement(
+  roomName,
+  existingExtensions,
+  maxExtensions = 5,
+) {
   const spawn = Game.spawns[baseName];
   const room = Game.rooms[roomName];
   const terrain = room.getTerrain();
   const extensionPositions = [];
-  console.log(`Planning extension placement. Existing: ${existingExtensions}, Max: ${maxExtensions}`);
+  console.log(
+    `Planning extension placement. Existing: ${existingExtensions}, Max: ${maxExtensions}`,
+  );
   const plannedCount = Math.min(
     maxExtensions - existingExtensions,
     maxExtensions,
   );
-
 
   // Search in expanding rings around the spawn
   for (
@@ -172,12 +172,18 @@ function planExtensionPlacement(roomName, existingExtensions, maxExtensions = 5)
     }
   }
 
-  console.log(`Planned extension positions: ${extensionPositions.length}/${plannedCount}`);
+  console.log(
+    `Planned extension positions: ${extensionPositions.length}/${plannedCount}`,
+  );
 
   // Place flags for each planned extension position
   extensionPositions.forEach((pos, index) => {
     const flagName = `ext${index + 1}`;
-    const constructionSites = room.lookForAt(LOOK_CONSTRUCTION_SITES, pos.x, pos.y);
+    const constructionSites = room.lookForAt(
+      LOOK_CONSTRUCTION_SITES,
+      pos.x,
+      pos.y,
+    );
     if (constructionSites.length === 0) {
       room.createFlag(pos.x, pos.y, flagName, COLOR_YELLOW);
     }
@@ -199,7 +205,9 @@ function placeExtensionConstructionSites(roomName, maxSites = 5) {
       flag.pos.y,
       STRUCTURE_EXTENSION,
     );
-    console.log(`Placing construction site at (${flag.pos.x}, ${flag.pos.y}): ${result}`);
+    console.log(
+      `Placing construction site at (${flag.pos.x}, ${flag.pos.y}): ${result}`,
+    );
     flag.remove();
     placedSites++;
     if (placedSites >= maxSites) {
@@ -209,9 +217,11 @@ function placeExtensionConstructionSites(roomName, maxSites = 5) {
 }
 
 function removeExtensionFlags(roomName) {
-  Game.rooms[roomName].find(FIND_FLAGS, {
-    filter: (f) => f.name.startsWith("ext"),
-  }).forEach((flag) => flag.remove());
+  Game.rooms[roomName]
+    .find(FIND_FLAGS, {
+      filter: (f) => f.name.startsWith("ext"),
+    })
+    .forEach((flag) => flag.remove());
 }
 
 function initializeRoom(roomStatus, roster) {
@@ -232,7 +242,10 @@ function initializeRoom(roomStatus, roster) {
 function orchestrateRoom(roomName, roomStatus, roster) {
   const room = Game.rooms[roomName];
 
-  const totalExtensions = roomStatus.extensionBuilt + roomStatus.extensionPlanned + roomStatus.extensionSites;
+  const totalExtensions =
+    roomStatus.extensionBuilt +
+    roomStatus.extensionPlanned +
+    roomStatus.extensionSites;
 
   const startingExtensions = 10;
   // Planning phase
@@ -256,22 +269,23 @@ function orchestrateRoom(roomName, roomStatus, roster) {
   const energyCapacity = roomStatus.energyCapacity;
   const energyRatio = energyCapacity > 0 ? totalEnergy / energyCapacity : 0;
 
-
-
   // console.log(`Energy: ${totalEnergy}/${energyCapacity} (${(energyRatio * 100).toFixed(2)}%)`);
 
-  const extensionInitiated = roomStatus.extensionBuilt + roomStatus.extensionSites;
-  // 
+  const extensionInitiated =
+    roomStatus.extensionBuilt + roomStatus.extensionSites;
+  //
   if (roomStatus.controllerLevel == 2) {
     if (extensionInitiated < 5) {
-      console.log(`Controller level 2, initiating extensions: ${extensionInitiated}/5`);
+      console.log(
+        `Controller level 2, initiating extensions: ${extensionInitiated}/5`,
+      );
       placeExtensionConstructionSites(roomName, 5 - extensionInitiated);
     }
-
-    
   } else if (roomStatus.controllerLevel == 3) {
     if (extensionInitiated < 10) {
-      console.log(`Controller level 3, initiating extensions: ${extensionInitiated}/10`);
+      console.log(
+        `Controller level 3, initiating extensions: ${extensionInitiated}/10`,
+      );
       placeExtensionConstructionSites(roomName, 10 - extensionInitiated);
     }
   }
@@ -287,9 +301,7 @@ function orchestrateRoom(roomName, roomStatus, roster) {
     roster.builder = 1; // Keep at least 1 builder to handle roads and future construction
   }
 
-
   return roster;
-
 }
 
 function planRoadsBasic(roomName) {
@@ -306,7 +318,11 @@ function planRoadsBasic(roomName) {
       const path = source.pos.findPathTo(spawn.pos, { ignoreCreeps: true });
       path.forEach((step) => {
         const structures = room.lookForAt(LOOK_STRUCTURES, step.x, step.y);
-        const constructionSites = room.lookForAt(LOOK_CONSTRUCTION_SITES, step.x, step.y);
+        const constructionSites = room.lookForAt(
+          LOOK_CONSTRUCTION_SITES,
+          step.x,
+          step.y,
+        );
         if (structures.length === 0 && constructionSites.length === 0) {
           room.createConstructionSite(step.x, step.y, STRUCTURE_ROAD);
         }
@@ -315,10 +331,16 @@ function planRoadsBasic(roomName) {
 
     // Plan roads from source to controller
     if (controller) {
-      const path = source.pos.findPathTo(controller.pos, { ignoreCreeps: true });
+      const path = source.pos.findPathTo(controller.pos, {
+        ignoreCreeps: true,
+      });
       path.forEach((step) => {
         const structures = room.lookForAt(LOOK_STRUCTURES, step.x, step.y);
-        const constructionSites = room.lookForAt(LOOK_CONSTRUCTION_SITES, step.x, step.y);
+        const constructionSites = room.lookForAt(
+          LOOK_CONSTRUCTION_SITES,
+          step.x,
+          step.y,
+        );
         if (structures.length === 0 && constructionSites.length === 0) {
           room.createConstructionSite(step.x, step.y, STRUCTURE_ROAD);
         }
@@ -339,7 +361,9 @@ function removeConstructionRoads(roomName) {
     removedCount++;
   });
 
-  console.log(`Removed ${removedCount} road construction sites from ${roomName}`);
+  console.log(
+    `Removed ${removedCount} road construction sites from ${roomName}`,
+  );
   return removedCount;
 }
 
@@ -355,8 +379,6 @@ module.exports.loop = function () {
   };
   const roomName = Game.spawns[baseName].room.name;
 
-
-
   // TODO - UPDATE Orchestrator to handle construction sites alone
 
   const roomStatus = getRoomStatus(roomName);
@@ -367,7 +389,7 @@ module.exports.loop = function () {
   // removeConstructionRoads(roomName);
   // removeExtensionFlags(roomName);
 
-  planRoadsBasic(roomName);
+//   planRoadsBasic(roomName);
   spawnProcedure(roster, baseName, roomStatus);
 
   //   utils.getPositionsByPathCost(roomName, [{ x: 25, y: 25 }], { visual: true });

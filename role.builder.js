@@ -1,33 +1,14 @@
 const utils = require("utils");
+const baseCreep = require("baseCreep");
 
-var roleBuilder = {
-  /** @param {Creep} creep **/
-  run: function (creep) {
-    if (creep.memory.building && creep.store[RESOURCE_ENERGY] == 0) {
-      creep.memory.building = false;
-      creep.say("🔄 harvest");
-    }
-    if (!creep.memory.building && creep.store.getFreeCapacity() == 0) {
-      creep.memory.building = true;
-      creep.say("🚧 build");
-    }
-
-    if (creep.memory.building) {
-      var targets = creep.room.find(FIND_CONSTRUCTION_SITES);
-      if (targets.length) {
-        if (creep.build(targets[0]) == ERR_NOT_IN_RANGE) {
-          creep.moveTo(targets[0], {
-            visualizePathStyle: { stroke: "#ffffff" },
-          });
-        }
-      }
-    } else {
-      const source = utils.findNearestEnergySource(creep);
-      if (creep.harvest(source) == ERR_NOT_IN_RANGE) {
-        creep.moveTo(source, { visualizePathStyle: { stroke: "#ffaa00" } });
-      }
-    }
-  },
+var roleBuilder = () => {
+  const base = baseCreep.baseCreep;
+  return {
+    run: function (creep) {
+      base.workerActions(creep, ["building", "repairing", "upgrading"]);
+      base.performAction(creep, creep.memory.action);
+    },
+  };
 };
 
-module.exports = roleBuilder;
+module.exports = roleBuilder();
