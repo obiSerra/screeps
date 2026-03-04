@@ -18,7 +18,7 @@ function spawnProcedure(roster, baseName, roomStatus) {
   let body = [WORK, CARRY, MOVE]; // 200 energy
 
   if (roomStatus.energyAvailable >= 550) {
-    body = [WORK, WORK, CARRY, MOVE, MOVE, MOVE]; // 550 energy
+    body = [WORK, WORK, CARRY, CARRY, MOVE, MOVE]; // 550 energy
   } else if (roomStatus.energyAvailable >= 350) {
     body = [WORK, CARRY, MOVE, MOVE]; // 350 energy
   }

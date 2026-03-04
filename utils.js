@@ -175,13 +175,36 @@ function getPositionsByPathCost(roomName, startPositions, options) {
   return costMatrix;
 }
 
-
 function periodicLogger(message, interval = 100) {
   if (Game.time % interval === 0) {
     console.log(message);
   }
 }
 
+function countCreepsNextToPosition(pos, range = 1) {
+  const creeps = pos.findInRange(FIND_CREEPS, range);
+  return creeps.length;
+}
+
+
+function findBestSourceForCreep(creep) {
+  const sources = creep.room.find(FIND_SOURCES);
+  
+  for (const source of sources) {
+    const creepsAround = countCreepsNextToPosition(source.pos, 1);
+    const energyAvailable = source.energy;
+    const distance = creep.pos.getRangeTo(source);
+
+    const score = energyAvailable / (1 + creepsAround) / (1 + distance);
+
+    source.score = score;
+  }
+
+  sources.sort((a, b) => b.score - a.score);
+
+  return sources[0];
+}
+  
 function findNearestEnergySource(creep) {
   const sources = creep.room.find(FIND_SOURCES);
   let nearestSource = null;
@@ -189,6 +212,8 @@ function findNearestEnergySource(creep) {
 
   for (const source of sources) {
     const distance = creep.pos.getRangeTo(source);
+
+    
     if (distance < minDistance) {
       minDistance = distance;
       nearestSource = source;
@@ -202,7 +227,8 @@ const utils = {
   getDistanceTransform,
   getPositionsByPathCost,
   periodicLogger,
-  findNearestEnergySource
+  findNearestEnergySource,
+  findBestSourceForCreep
 };
 
 module.exports = utils;
