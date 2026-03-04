@@ -1,25 +1,29 @@
 const utils = require("./utils");
 
-const CRITICAL_HITS = 100; // Define critical hits threshold for critical repairs
+const CRITICAL_HITS = 1000; // Define critical hits threshold for critical repairs
+const WALL_MIN_HITS = 1000000; // Minimum hits for walls to be considered for repair
+const RAMPANTS_MIN_HEALTH_PERCENT = 0.5; // Minimum health percentage for ramparts to be considered for repair
+const STRUCTURE_MIN_HEALTH_PERCENT = 0.5; // Minimum health percentage for non-wall/rampart structures to be considered for repair
 
-const findRepainTargets = (creep) => {
+
+const findRepairTargets = (creep) => {
   const walls = creep.room.find(FIND_STRUCTURES, {
     filter: (structure) =>
       structure.structureType == STRUCTURE_WALL &&
-      structure.hits < 1000000, // Only repair walls below 1M health
+      structure.hits < WALL_MIN_HITS,
   });
 
   const ramparts = creep.room.find(FIND_STRUCTURES, {
     filter: (structure) =>
       structure.structureType == STRUCTURE_RAMPART &&
-      structure.hits < structure.hitsMax * 0.5, // Only repair ramparts below 50% health
+      structure.hits < structure.hitsMax * RAMPANTS_MIN_HEALTH_PERCENT,
   });
 
   const targets = creep.room
     .find(FIND_STRUCTURES, {
       filter: (structure) =>
         structure.structureType !== STRUCTURE_WALL &&
-        structure.hits < structure.hitsMax * 0.8, // Only repair structures below 80% health
+        structure.hits < structure.hitsMax * STRUCTURE_MIN_HEALTH_PERCENT, // Only repair structures below 80% health
     })
     .concat(walls)
     .concat(ramparts);
@@ -28,21 +32,20 @@ const findRepainTargets = (creep) => {
   targets.sort((a, b) => {
     const distanceA = creep.pos.getRangeTo(a);
     const distanceB = creep.pos.getRangeTo(b);
-    const healthPercentA = a.hits / a.hitsMax;
-    const healthPercentB = b.hits / b.hitsMax;
 
     // Prioritize structures with absolute health below 1000 first
-    const isLowHealthA = a.hits < 100 ? 1 : 0;
-    const isLowHealthB = b.hits < 100 ? 1 : 0;
+    const isLowHealthA = a.hits < 1000 ? 1 : 0;
+    const isLowHealthB = b.hits < 1000 ? 1 : 0;
 
     if (isLowHealthA !== isLowHealthB) {
       return isLowHealthB - isLowHealthA; // Low health structures come first
     }
 
-    // Weight: 70% health percentage, 30% distance (normalized to 0-1 range by dividing by 50)
-    const scoreA = healthPercentA * 0.7 + (distanceA / 50) * 0.3;
-    const scoreB = healthPercentB * 0.7 + (distanceB / 50) * 0.3;
-
+    // // Weight: 70% health percentage, 30% distance (normalized to 0-1 range by dividing by 50)
+    // const scoreA = healthPercentA * 0.7 + (distanceA / 50) * 0.3;
+    // const scoreB = healthPercentB * 0.7 + (distanceB / 50) * 0.3;
+    const scoreA = a.hits * (1 + distanceA / 50); // Combine hits and distance into a single score
+    const scoreB = b.hits * (1 + distanceB / 50); // Combine hits and distance into a single score
     return scoreA - scoreB;
   });
   return targets;
@@ -101,6 +104,58 @@ const sayAction = (creep, action) => {
   creep.say(`${icon} ${action}`);
 };
 
+function buildAction(creep) {
+
+  const currentTarget = creep.memory.actionTarget;
+  const target = Game.getObjectById(currentTarget.id);
+  const targetPos = currentTarget.pos;
+
+  if (target && target.progress < target.progressTotal) {
+    if (creep.build(target) == ERR_NOT_IN_RANGE) {
+      baseCreep.moveToTarget(creep, target, "#ffffff");
+    }
+    return;
+  }
+
+  if (!target) {
+    const structures = creep.room.lookForAt(
+      LOOK_STRUCTURES,
+      targetPos.x,
+      targetPos.y,
+    ).filter((s) => s.hits < s.hitsMax);
+
+    if (structures.length > 0) {
+      console.log(
+        `Target construction site ${currentTarget.id} is now a structure. Creep ${creep.name} will switch to repairing it.`,
+      );
+      creep.memory.action = "repairing";
+      creep.memory.actionTarget = {
+        id: structures[0].id,
+        pos: structures[0].pos,
+      };
+      return;
+    }
+
+  }
+
+  // If we reach here, it means the target is either fully built or no longer exists
+  creep.memory.action = undefined;
+  delete creep.memory.actionTarget;
+};
+
+function nextRepairTarget(creep) {
+  const repairTargets = findRepairTargets(creep);
+  const repairCritical = repairTargets.filter(
+    (target) => target.hits < CRITICAL_HITS,
+  );
+
+  if (repairCritical.length > 0) {
+    return repairCritical[0];
+  }
+
+  return repairTargets.length > 0 ? repairTargets[0] : null;
+}
+
 const baseCreep = {
   findSource: utils.findBestSourceForCreep,
   gatherResource: function (creep) {
@@ -122,7 +177,7 @@ const baseCreep = {
     }
 
     const constructionSites = creep.room.find(FIND_CONSTRUCTION_SITES);
-    const repairTargets = findRepainTargets(creep);
+    const repairTargets = findRepairTargets(creep);
     const repairCritical = repairTargets.filter(
       (target) => target.hits < CRITICAL_HITS,
     );
@@ -138,7 +193,7 @@ const baseCreep = {
       let chooseAction = "upgrading";
       let choosenTarget = null;
       for (const action of priorityList) {
-        if (action == "repairCritical" && repairCritical.length > 0) {
+        if (repairCritical.length > 0) {
           chooseAction = "repairing";
           choosenTarget = {
             id: repairCritical[0].id,
@@ -192,34 +247,7 @@ const baseCreep = {
     if (action == "gathering") {
       baseCreep.gatherResource(creep);
     } else if (action == "building") {
-      const memoryTarget = creep.memory.actionTarget;
-
-      const target = Game.getObjectById(memoryTarget.id);
-      const targetPos = memoryTarget.pos;
-
-      if (target && target.progress < target.progressTotal) {
-        if (creep.build(target) == ERR_NOT_IN_RANGE) {
-          baseCreep.moveToTarget(creep, target, "#ffffff");
-        }
-      } else if (!target) {
-        const structure = creep.room.lookForAt(
-          LOOK_STRUCTURES,
-          targetPos.x,
-          targetPos.y,
-        )[0];
-        if (structure && structure.hits < structure.hitsMax) {
-          console.log(
-            `Target construction site ${memoryTarget.id} is now a structure. Creep ${creep.name} will switch to repairing it.`,
-          );
-          creep.memory.action = "repairing";
-          creep.memory.actionTarget = { id: structure.id, pos: structure.pos };
-        } else {
-          creep.memory.action = undefined;
-          delete creep.memory.actionTarget;
-        }
-      } else {
-        creep.memory.action = undefined;
-      }
+      buildAction(creep);
     } else if (action == "repairing" && creep.memory.actionTarget) {
       const memoryTarget = creep.memory.actionTarget;
       var target = Game.getObjectById(memoryTarget.id);
@@ -230,7 +258,12 @@ const baseCreep = {
         }
       } else {
         console.log(`No repair targets found for creep ${creep.name}`);
-        creep.memory.action = "upgrading"; // Fallback to upgrading if no repair targets
+        creep.memory.actionTarget = nextRepairTarget(creep)
+          ? {
+            id: nextRepairTarget(creep).id,
+            pos: nextRepairTarget(creep).pos,
+          }
+          : undefined;
       }
     } else if (action == "upgrading") {
       if (creep.upgradeController(creep.room.controller) == ERR_NOT_IN_RANGE) {

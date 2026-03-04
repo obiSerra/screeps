@@ -3,6 +3,7 @@ const roleUpgrader = require("role.upgrader");
 const roleBuilder = require("role.builder");
 const roomOrchestrator = require("roomOrchestrator");
 const utils = require("utils");
+const planner = require("planner");
 
 function spawnProcedure(roster, baseName, roomStatus, roomName) {
   //   MOVE: 50 energy
@@ -17,20 +18,35 @@ function spawnProcedure(roster, baseName, roomStatus, roomName) {
   let body = [WORK, CARRY, MOVE]; // 200 energy
 
   const room = Game.rooms[roomName];
+
+  const currentCreeps = {}
+  for (const creep in Game.creeps) {
+    const creepObj = Game.creeps[creep];
+    if (creepObj.memory.role) {
+      currentCreeps[creepObj.memory.role] = (currentCreeps[creepObj.memory.role] || 0) + 1;
+    }
+  }
+
   if (roomStatus.energyAvailable >= 500) {
     body = [WORK, WORK, WORK, CARRY, CARRY, MOVE, MOVE]; // 550 energy
-  } else if (roomStatus.energyAvailable >= 400) {
+  } else if (roomStatus.energyAvailable >= 350) {
     body = [WORK, WORK, CARRY, MOVE, MOVE];
   }
 
   Object.keys(roster).forEach((role) => {
-    const creeps = _.filter(Game.creeps, (creep) => creep.memory.role == role);
-    // console.log(`${role}s: ${creeps.length}`);
+    const creeps = currentCreeps[role] || 0;
+    let skipSpawning = true;
+    if (role == "harvester" && currentCreeps["harvester"] < 1) {
+      skipSpawning = false; // If we have no harvesters, we need to spawn one immediately even if we don't have full energy
+    } else if (roomStatus.energyAvailable == roomStatus.energyCapacity) {
+      skipSpawning = false; // If energy is full, we can spawn even if it's not critical to do so
+    } else if (roomStatus.energyAvailable >= 350) {
+      skipSpawning = false; // If we have a decent amount of energy, we can spawn to utilize it
+    }
 
-    if (creeps.length < roster[role]) {
+    if (creeps < roster[role] && !skipSpawning) {
       const newName = `${role.charAt(0).toUpperCase() + role.slice(1)}${Game.time}`;
       console.log(`Spawning new ${role}: ${newName}`);
-      if (role === "builder") body = body.concat([MOVE]);
       Game.spawns[baseName].spawnCreep(body, newName, {
         memory: { role: role },
       });
@@ -63,7 +79,6 @@ function spawnProcedure(roster, baseName, roomStatus, roomName) {
     );
 
     const newName = `${role.charAt(0).toUpperCase() + role.slice(1)}${Game.time}`;
-    body = body.concat([MOVE]);
     Game.spawns[baseName].spawnCreep(body, newName, {
       memory: { role: role },
     });
@@ -413,6 +428,8 @@ function getRoomMode(roomName) {
     ? Memory.rooms[roomName].mode
     : "planning";
 }
+
+
 module.exports.loop = function () {
   clearCreepsMemory();
 
@@ -422,7 +439,6 @@ module.exports.loop = function () {
   utils.periodicLogger(`Room ${roomName} mode: ${roomMode}`, 60);
 
   if (roomMode === "planning") {
-    utils.getDistanceTransform(roomName, { visual: true });
     console.log(
       `Planning mode active for room ${roomName}. No creeps will be spawned.`,
     );
@@ -431,8 +447,8 @@ module.exports.loop = function () {
 
   let roster = {
     harvester: 2,
-    builder: 4,
-    upgrader: 2,
+    builder: 1,
+    upgrader: 1,
   };
 
   // TODO - UPDATE Orchestrator to handle construction sites alone
