@@ -10,3 +10,11 @@ Automaticamente planning della struttura della base con piazzamento Flags
 
 Fase 1:
 Upgrade del controller fino a livello 2
+
+
+
+
+
+```
+require('utils').getDistanceTransform('sim', {visual: true})
+```
