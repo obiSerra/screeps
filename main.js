@@ -19,7 +19,7 @@ function spawnProcedure(roster, baseName, roomStatus, roomName) {
   const room = Game.rooms[roomName];
   if (roomStatus.energyAvailable >= 500) {
     body = [WORK, WORK, WORK, CARRY, CARRY, MOVE, MOVE]; // 550 energy
-  } else if (roomStatus.energyAvailable >= 300) {
+  } else if (roomStatus.energyAvailable >= 400) {
     body = [WORK, WORK, CARRY, MOVE, MOVE];
   }
 
@@ -56,7 +56,7 @@ function spawnProcedure(roster, baseName, roomStatus, roomName) {
     let role = "builder";
 
     if (builderCount.length > harvesterCount.length * 3) role = "harvester";
-    else if (builderCount.length > upgraderCount.length * 3) role = "upgrader";
+    else if (builderCount.length > upgraderCount.length * 4) role = "upgrader";
 
     console.log(
       `Energy full: ${energyAvailable}/${energyCapacity} spawing extra ${role} Creep`,

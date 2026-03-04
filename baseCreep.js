@@ -6,7 +6,7 @@ const findRepainTargets = (creep) => {
   const walls = creep.room.find(FIND_STRUCTURES, {
     filter: (structure) =>
       structure.structureType == STRUCTURE_WALL &&
-      structure.hits < structure.hitsMax * 0.01, // Only repair walls below 10% health
+      structure.hits < 1000000, // Only repair walls below 1M health
   });
 
   const ramparts = creep.room.find(FIND_STRUCTURES, {
@@ -185,6 +185,7 @@ const baseCreep = {
     creep.moveTo(target, { visualizePathStyle: { stroke: color } });
   },
   performAction(creep, action) {
+    // TODO - refactor to make it more maintanable
     const energyAvailable = creep.room.energyAvailable;
     const energyCapacity = creep.room.energyCapacityAvailable;
     sayAction(creep, action);
