@@ -408,15 +408,32 @@ function removeConstructionRoads(roomName) {
 
 const baseName = "Spawn1"; // TODO - make it dynamic or default
 
+function getRoomMode(roomName) {
+  return Memory.rooms && Memory.rooms[roomName] && Memory.rooms[roomName].mode
+    ? Memory.rooms[roomName].mode
+    : "planning";
+}
 module.exports.loop = function () {
   clearCreepsMemory();
+
+  const roomName = Game.spawns[baseName].room.name;
+  const roomMode = getRoomMode(roomName);
+
+  utils.periodicLogger(`Room ${roomName} mode: ${roomMode}`, 60);
+
+  if (roomMode === "planning") {
+    utils.getDistanceTransform(roomName, { visual: true });
+    console.log(
+      `Planning mode active for room ${roomName}. No creeps will be spawned.`,
+    );
+    return;
+  }
 
   let roster = {
     harvester: 2,
     builder: 4,
     upgrader: 2,
   };
-  const roomName = Game.spawns[baseName].room.name;
 
   // TODO - UPDATE Orchestrator to handle construction sites alone
 
@@ -431,11 +448,15 @@ module.exports.loop = function () {
   //   planRoadsBasic(roomName);
   spawnProcedure(roster, baseName, roomStatus, roomName);
 
-
   const controllerPosition = Game.rooms[roomName].controller.pos;
   const spawnPosition = Game.spawns[baseName].pos;
 
-  roomOrchestrator.planCriticalStructureRamparts(roomName, spawnPosition, 3, false);
+  roomOrchestrator.planCriticalStructureRamparts(
+    roomName,
+    spawnPosition,
+    3,
+    false,
+  );
   roomOrchestrator.placeRampantsConstructionSites(roomName, true);
 
   //   utils.getPositionsByPathCost(roomName, [{ x: 25, y: 25 }], { visual: true });
