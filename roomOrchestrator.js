@@ -194,15 +194,19 @@ const handlePlanningMode = (room, roomStatus) => {
   // Get or create the plan
   const { roomPlanner } = planner;
   const plannedStructures = roomPlanner.getPlannedStructures(room);
+  const lastPlannedRCL = Memory.rooms[room.name].lastPlannedRCL || 0;
+  const currentRCL = roomStatus.controllerLevel;
 
-  if (plannedStructures.length === 0) {
-    // Create initial plan
-    console.log(`[PLANNING] Creating base layout plan for room ${room.name}...`);
+  if (plannedStructures.length === 0 || currentRCL > lastPlannedRCL) {
+    // Create or update plan for current RCL
+    const action = plannedStructures.length === 0 ? "Creating" : "Updating";
+    console.log(`[PLANNING] ${action} base layout plan for room ${room.name} at RCL ${currentRCL}...`);
     roomPlanner.planBaseLayout(room, {
       clearExisting: false,
       visualize: true,
-      currentControllerLevel: roomStatus.controllerLevel,
+      currentControllerLevel: currentRCL,
     });
+    Memory.rooms[room.name].lastPlannedRCL = currentRCL;
   } else {
     // Visualize existing plan
     const center = roomPlanner.findOptimalCenter(room);
@@ -237,8 +241,25 @@ const handleExecutingMode = (room, roomStatus) => {
     spawner.spawnProcedure(spawn, roster, roomStatus);
   }
 
-  // Execute build plan from planner flags
+  // Update plan when controller level increases
   const { roomPlanner } = planner;
+  const lastPlannedRCL = Memory.rooms[room.name].lastPlannedRCL || 0;
+  const currentRCL = roomStatus.controllerLevel;
+
+  if (currentRCL > lastPlannedRCL) {
+    console.log(
+      `[EXECUTING] RCL increased from ${lastPlannedRCL} to ${currentRCL}. ` +
+      `Updating build plan for room ${room.name}...`
+    );
+    roomPlanner.planBaseLayout(room, {
+      clearExisting: false,
+      visualize: false,
+      currentControllerLevel: currentRCL,
+    });
+    Memory.rooms[room.name].lastPlannedRCL = currentRCL;
+  }
+
+  // Execute build plan from planner flags
   roomPlanner.executeBuildPlan(room);
 
   // Plan ramparts around critical structures

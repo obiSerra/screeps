@@ -450,14 +450,48 @@ function planBaseLayout(room, options = {}) {
     }
   }
   
-  // Plan roads to sources (stage 3 - RCL 3)
-  if (currentControllerLevel >= 3) {
-    const sourceRoads = planSourceRoads(room, center);
-    for (const pos of sourceRoads) {
+  // Plan roads at RCL 2: spawn->sources, spawn->controller, controller->sources
+  if (currentControllerLevel >= 2) {
+    // Collect all road positions (using Set to avoid duplicates)
+    const roadPositionKeys = new Set();
+    const allRoadPositions = [];
+    
+    // Roads from spawn to sources
+    const spawnToSourceRoads = planSpawnToSourceRoads(room, center);
+    for (const pos of spawnToSourceRoads) {
+      const key = `${pos.x},${pos.y}`;
+      if (!roadPositionKeys.has(key)) {
+        roadPositionKeys.add(key);
+        allRoadPositions.push(pos);
+      }
+    }
+    
+    // Roads from spawn to controller
+    const spawnToControllerRoads = planSpawnToControllerRoads(room, center);
+    for (const pos of spawnToControllerRoads) {
+      const key = `${pos.x},${pos.y}`;
+      if (!roadPositionKeys.has(key)) {
+        roadPositionKeys.add(key);
+        allRoadPositions.push(pos);
+      }
+    }
+    
+    // Roads from controller to sources
+    const controllerToSourceRoads = planControllerToSourceRoads(room);
+    for (const pos of controllerToSourceRoads) {
+      const key = `${pos.x},${pos.y}`;
+      if (!roadPositionKeys.has(key)) {
+        roadPositionKeys.add(key);
+        allRoadPositions.push(pos);
+      }
+    }
+    
+    // Place flags for all road positions
+    for (const pos of allRoadPositions) {
       if (!isValidBuildPosition(room, pos.x, pos.y)) continue;
       
-      if (placeStructureFlag(room, pos.x, pos.y, STRUCTURE_ROAD, 3, flagIndex)) {
-        placedFlags.push({ x: pos.x, y: pos.y, structureType: STRUCTURE_ROAD, stage: 3 });
+      if (placeStructureFlag(room, pos.x, pos.y, STRUCTURE_ROAD, 2, flagIndex)) {
+        placedFlags.push({ x: pos.x, y: pos.y, structureType: STRUCTURE_ROAD, stage: 2 });
         flagIndex++;
       }
     }
@@ -503,17 +537,69 @@ function planBaseLayout(room, options = {}) {
 }
 
 /**
- * Plan roads from center to sources
+ * Plan roads from spawn to sources
  * @param {Room} room - The room
- * @param {RoomPosition} center - Base center position
+ * @param {RoomPosition} spawnPos - Spawn position
  * @returns {Array} Array of positions for roads
  */
-function planSourceRoads(room, center) {
+function planSpawnToSourceRoads(room, spawnPos) {
   const sources = room.find(FIND_SOURCES);
   const roads = [];
   
   for (const source of sources) {
-    const path = room.findPath(center, source.pos, {
+    const path = room.findPath(spawnPos, source.pos, {
+      ignoreCreeps: true,
+      swampCost: 2,
+      plainCost: 1,
+      range: 1,
+    });
+    
+    for (const step of path) {
+      roads.push(new RoomPosition(step.x, step.y, room.name));
+    }
+  }
+  
+  return roads;
+}
+
+/**
+ * Plan roads from spawn to controller
+ * @param {Room} room - The room
+ * @param {RoomPosition} spawnPos - Spawn position
+ * @returns {Array} Array of positions for roads
+ */
+function planSpawnToControllerRoads(room, spawnPos) {
+  const roads = [];
+  
+  if (!room.controller) return roads;
+  
+  const path = room.findPath(spawnPos, room.controller.pos, {
+    ignoreCreeps: true,
+    swampCost: 2,
+    plainCost: 1,
+    range: 1,
+  });
+  
+  for (const step of path) {
+    roads.push(new RoomPosition(step.x, step.y, room.name));
+  }
+  
+  return roads;
+}
+
+/**
+ * Plan roads from controller to sources
+ * @param {Room} room - The room
+ * @returns {Array} Array of positions for roads
+ */
+function planControllerToSourceRoads(room) {
+  const sources = room.find(FIND_SOURCES);
+  const roads = [];
+  
+  if (!room.controller) return roads;
+  
+  for (const source of sources) {
+    const path = room.findPath(room.controller.pos, source.pos, {
       ignoreCreeps: true,
       swampCost: 2,
       plainCost: 1,

@@ -83,6 +83,11 @@ const determineExtraSpawn = (currentCreeps, roomStatus) => {
     return null;
   }
 
+  // Prioritize builders if there are unbuilt structures
+  if (roomStatus.constructionSiteCount > 0) {
+    return 'builder';
+  }
+
   const builderCount = currentCreeps.builder || 0;
   const harvesterCount = currentCreeps.harvester || 0;
   const upgraderCount = currentCreeps.upgrader || 0;

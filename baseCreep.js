@@ -1,7 +1,7 @@
 /**
  * Base Creep Module
  * Functional approach to creep behavior management
- * 
+ *
  * Architecture:
  * - Pure functions for calculations and decisions
  * - Effectful functions clearly marked for game state modifications
@@ -99,7 +99,7 @@ const calculateRepairScore = (creep, target) => {
  */
 const findRepairTargets = (creep) => {
   const { room } = creep;
-  
+
   const allTargets = [
     ...findStructuresNeedingRepair(room),
     ...findWallsNeedingRepair(room),
@@ -107,7 +107,7 @@ const findRepairTargets = (creep) => {
   ];
 
   return allTargets.sort(
-    (a, b) => calculateRepairScore(creep, a) - calculateRepairScore(creep, b)
+    (a, b) => calculateRepairScore(creep, a) - calculateRepairScore(creep, b),
   );
 };
 
@@ -128,7 +128,8 @@ const filterCriticalRepairs = (targets) =>
  */
 const countCreepsTargeting = (targetId) =>
   Object.values(Game.creeps).filter(
-    (creep) => creep.memory.actionTarget && creep.memory.actionTarget.id === targetId
+    (creep) =>
+      creep.memory.actionTarget && creep.memory.actionTarget.id === targetId,
   ).length;
 
 /**
@@ -140,12 +141,12 @@ const countCreepsTargeting = (targetId) =>
  */
 const prioritizeConstructionSites = (constructionSites) => {
   const types = new Set(constructionSites.map((s) => s.structureType));
-  
+
   // Only prioritize if there are multiple types
   if (types.size <= 1) {
     return constructionSites;
   }
-  
+
   // Sort with extensions first
   return [...constructionSites].sort((a, b) => {
     const aIsExtension = a.structureType === STRUCTURE_EXTENSION ? 0 : 1;
@@ -159,21 +160,34 @@ const prioritizeConstructionSites = (constructionSites) => {
  * Pure function - distributes creeps across targets
  * @param {Creep} creep
  * @param {Array} targets
+ * @param {boolean} considerCurrentSorting - If true, considers original list order in scoring
  * @returns {Array} Sorted targets
  */
-const sortByContention = (creep, targets) => {
-  const scored = targets.map((target) => ({
+const sortByContention = (creep, targets, considerCurrentSorting = false) => {
+  const scored = targets.map((target, index) => ({
     target,
     creepsTargeting: countCreepsTargeting(target.id),
     distance: creep.pos.getRangeTo(target),
+    originalIndex: index,
   }));
+
+  // When considerCurrentSorting is true, original index is the primary factor
+  const originalIndexWeight = considerCurrentSorting ? 10000 : 0;
+  const creepsTargetingWeight = 100;
+  const distanceWeight = 1;
 
   return scored
     .sort((a, b) => {
-      if (a.creepsTargeting !== b.creepsTargeting) {
-        return a.creepsTargeting - b.creepsTargeting;
-      }
-      return b.distance - a.distance;
+      // Weighted index: original order (weight 10000 when enabled) + contention (weight 100) + distance (weight 1)
+      const scoreA =
+        a.originalIndex * originalIndexWeight +
+        a.creepsTargeting * creepsTargetingWeight +
+        a.distance * distanceWeight;
+      const scoreB =
+        b.originalIndex * originalIndexWeight +
+        b.creepsTargeting * creepsTargetingWeight +
+        b.distance * distanceWeight;
+      return scoreA - scoreB;
     })
     .map((s) => s.target);
 };
@@ -270,8 +284,10 @@ const selectAction = (creep, priorityList) => {
   for (const action of priorityList) {
     if (action === "building" && availability.building) {
       // Prioritize extensions when multiple construction site types exist
-      const prioritizedSites = prioritizeConstructionSites(targets.constructionSites);
-      const target = sortByContention(creep, prioritizedSites)[0];
+      const prioritizedSites = prioritizeConstructionSites(
+        targets.constructionSites,
+      );
+      const target = sortByContention(creep, prioritizedSites, true)[0];
       return {
         action: "building",
         target: { id: target.id, pos: target.pos },
@@ -396,7 +412,7 @@ const handleBuilding = (creep) => {
     if (structures.length > 0) {
       console.log(
         `Target construction site ${actionTarget.id} is now a structure. ` +
-          `Creep ${creep.name} will switch to repairing it.`
+          `Creep ${creep.name} will switch to repairing it.`,
       );
       setCreepAction(creep, "repairing", {
         id: structures[0].id,
@@ -471,7 +487,7 @@ const handleHarvesting = (creep) => {
   if (energyAvailable >= energyCapacityAvailable) {
     console.log(
       `Energy is full in room ${room.name}. ` +
-        `Creep ${creep.name} will switch to upgrading.`
+        `Creep ${creep.name} will switch to upgrading.`,
     );
     setCreepAction(creep, "upgrading", null);
     return;
