@@ -187,7 +187,19 @@ function countCreepsNextToPosition(pos, range = 1) {
 }
 
 
-function findBestSourceForCreep(creep, maxCreepsAroundNearest = 3) {
+/**
+ * Count creeps targeting a specific source
+ * @param {string} sourceId - The ID of the source
+ * @returns {number} Number of creeps targeting this source
+ */
+function countCreepsTargetingSource(sourceId) {
+  return Object.values(Game.creeps).filter(
+    (creep) =>
+      creep.memory.actionTarget && creep.memory.actionTarget.id === sourceId,
+  ).length;
+}
+
+function findBestSourceForCreep(creep, maxCreepsTargetingNearest = 3) {
   const sources = creep.room.find(FIND_SOURCES);
   
   // Find the nearest source
@@ -202,21 +214,21 @@ function findBestSourceForCreep(creep, maxCreepsAroundNearest = 3) {
     }
   }
   
-  // Check if nearest source has too many creeps
-  const creepsAroundNearest = countCreepsNextToPosition(nearestSource.pos, 1);
+  // Check if nearest source has too many creeps targeting it
+  const creepsTargetingNearest = countCreepsTargetingSource(nearestSource.id);
   
   // If nearest source is not too crowded, use it
-  if (creepsAroundNearest <= maxCreepsAroundNearest) {
+  if (creepsTargetingNearest <= maxCreepsTargetingNearest) {
     return nearestSource;
   }
   
   // Otherwise, find best source using scoring
   for (const source of sources) {
-    const creepsAround = countCreepsNextToPosition(source.pos, 1);
+    const creepsTargeting = countCreepsTargetingSource(source.id);
     const energyAvailable = source.energy;
     const distance = creep.pos.getRangeTo(source);
 
-    const score = energyAvailable / (1 + creepsAround) / (1 + distance);
+    const score = energyAvailable / (1 + creepsTargeting) / (1 + distance);
 
     source.score = score;
   }
@@ -339,6 +351,7 @@ const utils = {
   periodicLogger,
   findNearestEnergySource,
   findBestSourceForCreep,
+  countCreepsTargetingSource,
   actions,
 
   // Functional utilities

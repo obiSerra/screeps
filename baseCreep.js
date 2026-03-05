@@ -379,12 +379,38 @@ const clearCreepAction = (creep) => {
 // ============================================================================
 
 /**
+ * Select the best source target for gathering
+ * Pure function
+ * @param {Creep} creep
+ * @returns {Object} { id, pos } of selected source
+ */
+const selectGatheringTarget = (creep) => {
+  const source = utils.findBestSourceForCreep(creep);
+  return { id: source.id, pos: source.pos };
+};
+
+/**
  * Handle gathering action
  * Effectful function
  * @param {Creep} creep
  */
 const handleGathering = (creep) => {
-  const source = utils.findBestSourceForCreep(creep);
+  const { actionTarget } = creep.memory;
+  if (!actionTarget) {
+    // No target set, find one and set it
+    const target = selectGatheringTarget(creep);
+    setCreepAction(creep, "gathering", target);
+    return;
+  }
+
+  const source = Game.getObjectById(actionTarget.id);
+
+  // Source no longer exists (shouldn't happen with sources, but handle gracefully)
+  if (!source) {
+    clearCreepAction(creep);
+    return;
+  }
+
   if (creep.harvest(source) === ERR_NOT_IN_RANGE) {
     moveToTarget(creep, source, PATH_COLORS.gathering);
   }
@@ -554,7 +580,8 @@ const ACTION_HANDLERS = {
 const workerActions = (creep, priorityList) => {
   // Check if creep needs to gather
   if (needsToGather(creep)) {
-    setCreepAction(creep, "gathering", null);
+    const target = selectGatheringTarget(creep);
+    setCreepAction(creep, "gathering", target);
     sayAction(creep, "gathering");
     return;
   }
@@ -635,6 +662,7 @@ module.exports = {
   hasFinishedGathering,
   getActionAvailability,
   selectBuildTarget,
+  selectGatheringTarget,
   selectAction,
 
   // Effectful functions - state management
