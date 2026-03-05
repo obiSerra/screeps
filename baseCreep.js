@@ -579,7 +579,7 @@ const ACTION_HANDLERS = {
  */
 const workerActions = (creep, priorityList) => {
   // Check if creep needs to gather
-  if (needsToGather(creep)) {
+  if (needsToGather(creep) && creep.memory.action !== "gathering") {
     const target = selectGatheringTarget(creep);
     setCreepAction(creep, "gathering", target);
     sayAction(creep, "gathering");

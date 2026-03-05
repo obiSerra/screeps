@@ -186,7 +186,6 @@ function countCreepsNextToPosition(pos, range = 1) {
   return creeps.length;
 }
 
-
 /**
  * Count creeps targeting a specific source
  * @param {string} sourceId - The ID of the source
@@ -199,36 +198,25 @@ function countCreepsTargetingSource(sourceId) {
   ).length;
 }
 
-function findBestSourceForCreep(creep, maxCreepsTargetingNearest = 3) {
+function findBestSourceForCreep(creep) {
   const sources = creep.room.find(FIND_SOURCES);
-  
-  // Find the nearest source
-  let nearestSource = null;
-  let minDistance = Infinity;
-  
-  for (const source of sources) {
-    const distance = creep.pos.getRangeTo(source);
-    if (distance < minDistance) {
-      minDistance = distance;
-      nearestSource = source;
-    }
-  }
-  
-  // Check if nearest source has too many creeps targeting it
-  const creepsTargetingNearest = countCreepsTargetingSource(nearestSource.id);
-  
-  // If nearest source is not too crowded, use it
-  if (creepsTargetingNearest <= maxCreepsTargetingNearest) {
-    return nearestSource;
-  }
-  
-  // Otherwise, find best source using scoring
+
+  // Scoring weights - easy to tweak
+  // With DISTANCE_WEIGHT=2 and CREEP_WEIGHT=1:
+  // A source twice as far needs half the creeps to be equally attractive
+  const DISTANCE_WEIGHT = 2;
+  const CREEP_WEIGHT = 1;
+  const ENERGY_WEIGHT = 1;
+
   for (const source of sources) {
     const creepsTargeting = countCreepsTargetingSource(source.id);
     const energyAvailable = source.energy;
     const distance = creep.pos.getRangeTo(source);
 
-    const score = energyAvailable / (1 + creepsTargeting) / (1 + distance);
+    const score =
+      Math.pow(energyAvailable, ENERGY_WEIGHT) /
+      Math.pow(1 + creepsTargeting, CREEP_WEIGHT) /
+      Math.pow(1 + distance, DISTANCE_WEIGHT);
 
     source.score = score;
   }
@@ -237,7 +225,7 @@ function findBestSourceForCreep(creep, maxCreepsTargetingNearest = 3) {
 
   return sources[0];
 }
-  
+
 function findNearestEnergySource(creep) {
   const sources = creep.room.find(FIND_SOURCES);
   let nearestSource = null;
@@ -246,7 +234,6 @@ function findNearestEnergySource(creep) {
   for (const source of sources) {
     const distance = creep.pos.getRangeTo(source);
 
-    
     if (distance < minDistance) {
       minDistance = distance;
       nearestSource = source;
@@ -256,15 +243,13 @@ function findNearestEnergySource(creep) {
   return nearestSource;
 }
 
-
 const actions = {
   gathering: "🔄 gathering",
   building: "🚧 building",
   repairing: "🛠 repairing",
   upgrading: "⚡ upgrading",
   harvesting: "⛏ harvesting",
-  
-}
+};
 
 // ============================================================================
 // Functional Programming Utilities
@@ -280,7 +265,10 @@ const actions = {
  * const addOneThenDouble = pipe(addOne, double);
  * addOneThenDouble(5); // Returns 12
  */
-const pipe = (...fns) => (x) => fns.reduce((acc, fn) => fn(acc), x);
+const pipe =
+  (...fns) =>
+  (x) =>
+    fns.reduce((acc, fn) => fn(acc), x);
 
 /**
  * Right-to-left function composition
@@ -292,7 +280,10 @@ const pipe = (...fns) => (x) => fns.reduce((acc, fn) => fn(acc), x);
  * const doubleThenAddOne = compose(addOne, double);
  * doubleThenAddOne(5); // Returns 11
  */
-const compose = (...fns) => (x) => fns.reduceRight((acc, fn) => fn(acc), x);
+const compose =
+  (...fns) =>
+  (x) =>
+    fns.reduceRight((acc, fn) => fn(acc), x);
 
 /**
  * Create a memoized version of a function
@@ -316,7 +307,10 @@ const memoize = (fn) => {
  * @param {...*} presetArgs - Arguments to pre-fill
  * @returns {Function} Partially applied function
  */
-const partial = (fn, ...presetArgs) => (...laterArgs) => fn(...presetArgs, ...laterArgs);
+const partial =
+  (fn, ...presetArgs) =>
+  (...laterArgs) =>
+    fn(...presetArgs, ...laterArgs);
 
 /**
  * Identity function - returns its argument unchanged
