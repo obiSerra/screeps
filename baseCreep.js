@@ -270,7 +270,11 @@ const getActionAvailability = (creep) => {
  */
 const selectBuildTarget = (creep, constructionSites) => {
   const prioritizedSites = prioritizeConstructionSites(constructionSites);
-  const target = sortByContention(creep, prioritizedSites, true)[0];
+  const targets = sortByContention(creep, prioritizedSites, true);
+  if (targets.length === 0) {
+    return null;
+  }
+  const target = targets[0];
   return { id: target.id, pos: target.pos };
 };
 
@@ -298,6 +302,9 @@ const selectAction = (creep, priorityList) => {
   for (const action of priorityList) {
     if (action === "building" && availability.building) {
       const target = selectBuildTarget(creep, targets.constructionSites);
+      if (!target) {
+        continue; // No valid build targets, check next action
+      }
       return {
         action: "building",
         target,
