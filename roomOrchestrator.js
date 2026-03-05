@@ -106,7 +106,7 @@ const calculateInitialRoster = (roomStatus) => {
   const harvesterCount = roomStatus.creeps.harvester || 0;
 
   if (harvesterCount < 2) {
-    return { harvester: 2, upgrader: 0, builder: 0 };
+    return { harvester: 4, upgrader: 0, builder: 0 };
   }
   return { harvester: 1, upgrader: 2, builder: 1 };
 };
@@ -118,7 +118,7 @@ const calculateInitialRoster = (roomStatus) => {
  * @returns {Object} Roster object {role: count}
  */
 const calculateRoster = (roomStatus) => {
-  const defaultRoster = { harvester: 2, builder: 1, upgrader: 1 };
+  const defaultRoster = { harvester: 4, builder: 1, upgrader: 1 };
 
   // Critical: ensure at least 1 harvester
   if ((roomStatus.creeps.harvester || 0) < 1) {
@@ -290,7 +290,7 @@ const orchestrateRoom = (room) => {
   const roomStatus = getRoomStatus(room);
 
   // Log status periodically
-  utils.periodicLogger(`Room ${room.name} status: ${JSON.stringify(roomStatus)}`, 60);
+  utils.periodicLogger(`Room ${room.name} status: ${JSON.stringify(roomStatus)}`, 20);
 
   // Delegate based on mode
   if (mode === "planning") {

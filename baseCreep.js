@@ -261,6 +261,20 @@ const getActionAvailability = (creep) => {
 };
 
 /**
+ * Select the best build target from construction sites
+ * Prioritizes extensions when multiple types exist, then sorts by contention
+ * Pure function
+ * @param {Creep} creep
+ * @param {Array} constructionSites
+ * @returns {Object} { id, pos } of selected target
+ */
+const selectBuildTarget = (creep, constructionSites) => {
+  const prioritizedSites = prioritizeConstructionSites(constructionSites);
+  const target = sortByContention(creep, prioritizedSites, true)[0];
+  return { id: target.id, pos: target.pos };
+};
+
+/**
  * Select action and target based on priority list
  * Pure function - returns decision without side effects
  * @param {Creep} creep
@@ -283,14 +297,10 @@ const selectAction = (creep, priorityList) => {
   // Check priority list
   for (const action of priorityList) {
     if (action === "building" && availability.building) {
-      // Prioritize extensions when multiple construction site types exist
-      const prioritizedSites = prioritizeConstructionSites(
-        targets.constructionSites,
-      );
-      const target = sortByContention(creep, prioritizedSites, true)[0];
+      const target = selectBuildTarget(creep, targets.constructionSites);
       return {
         action: "building",
-        target: { id: target.id, pos: target.pos },
+        target,
       };
     }
     if (action === "repairing" && availability.repairing) {
@@ -419,7 +429,25 @@ const handleBuilding = (creep) => {
         pos: structures[0].pos,
       });
       return;
+    } else {
+      const availability = getActionAvailability(creep);
+      const { targets } = availability;
+
+      const newTarget = selectBuildTarget(creep, targets.constructionSites);
+      if (newTarget) {
+        console.log(
+          `Target construction site ${actionTarget.id} completed. ` +
+            `Creep ${creep.name} will switch to building new target ${newTarget.id}.`,
+        );
+        setCreepAction(creep, "building", {
+          id: newTarget.id,
+          pos: newTarget.pos,
+        });
+        return;
+      }
     }
+
+    setCreepAction(creep, "building");
   }
 
   // Target no longer exists - clear action
@@ -606,6 +634,7 @@ module.exports = {
   needsToGather,
   hasFinishedGathering,
   getActionAvailability,
+  selectBuildTarget,
   selectAction,
 
   // Effectful functions - state management

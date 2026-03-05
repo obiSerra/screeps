@@ -11,8 +11,8 @@
  */
 const getCreepBody = (energyAvailable) => {
   // MOVE: 50, CARRY: 50, WORK: 100
-  if (energyAvailable >= 500) {
-    return [WORK, WORK, WORK, CARRY, CARRY, MOVE, MOVE]; // 550 energy
+  if (energyAvailable >= 550) {
+    return [WORK, WORK, WORK, CARRY, CARRY, MOVE, MOVE, MOVE]; // 550 energy
   }
   if (energyAvailable >= 350) {
     return [WORK, WORK, CARRY, MOVE, MOVE]; // 350 energy
@@ -53,8 +53,7 @@ const determineSpawnRole = (roster, currentCreeps, roomStatus) => {
 
   // Check energy conditions for non-critical spawning
   const canSpawn =
-    roomStatus.energyAvailable === roomStatus.energyCapacity ||
-    roomStatus.energyAvailable >= 350;
+    roomStatus.energyAvailable >= 200;
 
   if (!canSpawn) {
     return null;

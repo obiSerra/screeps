@@ -187,9 +187,30 @@ function countCreepsNextToPosition(pos, range = 1) {
 }
 
 
-function findBestSourceForCreep(creep) {
+function findBestSourceForCreep(creep, maxCreepsAroundNearest = 3) {
   const sources = creep.room.find(FIND_SOURCES);
   
+  // Find the nearest source
+  let nearestSource = null;
+  let minDistance = Infinity;
+  
+  for (const source of sources) {
+    const distance = creep.pos.getRangeTo(source);
+    if (distance < minDistance) {
+      minDistance = distance;
+      nearestSource = source;
+    }
+  }
+  
+  // Check if nearest source has too many creeps
+  const creepsAroundNearest = countCreepsNextToPosition(nearestSource.pos, 1);
+  
+  // If nearest source is not too crowded, use it
+  if (creepsAroundNearest <= maxCreepsAroundNearest) {
+    return nearestSource;
+  }
+  
+  // Otherwise, find best source using scoring
   for (const source of sources) {
     const creepsAround = countCreepsNextToPosition(source.pos, 1);
     const energyAvailable = source.energy;
