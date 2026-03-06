@@ -63,7 +63,14 @@ const determineSpawnRole = (roster, currentCreeps, roomStatus) => {
   }
 
   // Check energy conditions for non-critical spawning
-  const canSpawn = roomStatus.energyAvailable >= 200;
+  let canSpawn = false;
+
+  if (roomStatus.energyCapacity <= 450) {
+    // Early game: spawn as soon as we have 200 energy to get going
+    canSpawn = roomStatus.energyAvailable >= 200;
+  } else {
+    roomStatus.energyAvailable >= roomStatus.energyCapacity * 0.5;
+  }
 
   if (!canSpawn) {
     return null;
@@ -187,6 +194,7 @@ const spawnProcedure = (spawn, roster, roomStatus) => {
 
   const currentCreeps = countCreepsByRole(Game.creeps);
 
+  // Claimer
   if (
     !currentCreeps["claimer"] &&
     Game.gcl.level >= 2 &&
