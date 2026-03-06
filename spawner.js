@@ -12,7 +12,7 @@ const calculateBodyCost = (body) =>
  * @param {number} energyAvailable - Current energy available
  * @returns {Array} Body parts array
  */
-const getCreepBody = (energyAvailable) => {
+const getWorkerCreepBody = (energyAvailable) => {
   const bodyList = [
     [WORK, WORK, WORK, CARRY, CARRY, MOVE, MOVE, MOVE],
     [WORK, WORK, CARRY, MOVE, MOVE],
@@ -100,9 +100,23 @@ const determineExtraSpawn = (currentCreeps, roomStatus) => {
   const harvesterCount = currentCreeps.harvester || 0;
   const upgraderCount = currentCreeps.upgrader || 0;
 
-  if (builderCount > harvesterCount * 3) return "harvester";
-  if (builderCount > upgraderCount * 4) return "upgrader";
-  return "builder";
+  // Balance: harvesters == builders*0.7 == upgraders*0.5
+  // Normalize counts by their ratio coefficients
+  const normalizedHarvester = harvesterCount;
+  const normalizedBuilder = builderCount * 0.7;
+  const normalizedUpgrader = upgraderCount * 0.5;
+
+  // Spawn whichever role is most deficient
+  if (
+    normalizedHarvester <= normalizedBuilder &&
+    normalizedHarvester <= normalizedUpgrader
+  ) {
+    return "harvester";
+  }
+  if (normalizedBuilder <= normalizedUpgrader) {
+    return "builder";
+  }
+  return "upgrader";
 };
 
 /**
@@ -149,6 +163,11 @@ const displaySpawningVisual = (spawn) => {
   }
 };
 
+const spawnClaimer = (spawn) => {
+  const body = [MOVE, MOVE, CLAIM];
+  executeSpawn(spawn, "claimer", body, Game.time);
+};
+
 /**
  * Main spawn procedure - orchestrates all spawning logic
  * @param {StructureSpawn} spawn - The spawn structure
@@ -166,7 +185,18 @@ const spawnProcedure = (spawn, roster, roomStatus) => {
   }
 
   const currentCreeps = countCreepsByRole(Game.creeps);
-  const body = getCreepBody(roomStatus.energyAvailable);
+
+  if (
+    currentCreeps["claimer"] === 0 &&
+    roomStatus.controllerLevel >= 3 &&
+    roomStatus.energyAvailable >= 700
+  ) {
+    const results = spawnClaimer();
+    displaySpawningVisual(spawn);
+    return { spawned: results === OK, role: "claimer", result: results };
+  }
+
+  const body = getWorkerCreepBody(roomStatus.energyAvailable);
 
   // Try primary spawn based on roster
   const primaryRole = determineSpawnRole(roster, currentCreeps, roomStatus);
@@ -193,7 +223,7 @@ const spawnProcedure = (spawn, roster, roomStatus) => {
 
 module.exports = {
   // Pure functions
-  getCreepBody,
+  getCreepBody: getWorkerCreepBody,
   countCreepsByRole,
   determineSpawnRole,
   determineExtraSpawn,
