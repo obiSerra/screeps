@@ -200,6 +200,13 @@ function countCreepsTargetingSource(sourceId) {
 
 function findBestSourceForCreep(creep) {
   const sources = creep.room.find(FIND_SOURCES);
+  const containers = creep.room.find(FIND_STRUCTURES, {
+    filter: (structure) =>
+      structure.structureType === STRUCTURE_CONTAINER &&
+      structure.store[RESOURCE_ENERGY] >= structure.store.getCapacity(RESOURCE_ENERGY) * 0.5
+  });
+
+  const targets = [...sources, ...containers];
 
   // Scoring weights - easy to tweak
   // With DISTANCE_WEIGHT=2 and CREEP_WEIGHT=1:
@@ -208,22 +215,22 @@ function findBestSourceForCreep(creep) {
   const CREEP_WEIGHT = 1;
   const ENERGY_WEIGHT = 1;
 
-  for (const source of sources) {
-    const creepsTargeting = countCreepsTargetingSource(source.id);
-    const energyAvailable = source.energy;
-    const distance = creep.pos.getRangeTo(source);
+  for (const target of targets) {
+    const creepsTargeting = countCreepsTargetingSource(target.id);
+    const energyAvailable = target.energy || target.store[RESOURCE_ENERGY] || 0;
+    const distance = creep.pos.getRangeTo(target);
 
     const score =
       Math.pow(energyAvailable, ENERGY_WEIGHT) /
       Math.pow(1 + creepsTargeting, CREEP_WEIGHT) /
       Math.pow(1 + distance, DISTANCE_WEIGHT);
 
-    source.score = score;
+    target.score = score;
   }
 
-  sources.sort((a, b) => b.score - a.score);
+  targets.sort((a, b) => b.score - a.score);
 
-  return sources[0];
+  return targets[0];
 }
 
 function findNearestEnergySource(creep) {
