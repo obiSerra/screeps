@@ -14,6 +14,7 @@ const calculateBodyCost = (body) =>
  */
 const getWorkerCreepBody = (energyAvailable) => {
   const bodyList = [
+    [WORK, WORK, WORK, CARRY, CARRY, CARRY, MOVE, MOVE, MOVE],
     [WORK, WORK, WORK, CARRY, CARRY, MOVE, MOVE, MOVE],
     [WORK, WORK, CARRY, MOVE, MOVE],
     [WORK, CARRY, MOVE],
