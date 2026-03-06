@@ -3,6 +3,9 @@
  * Handles all creep spawning logic with functional composition
  */
 
+const calculateBodyCost = (body) =>
+  body.reduce((total, part) => total + BODYPART_COST[part], 0);
+
 /**
  * Get body composition based on available energy
  * Pure function - no side effects
@@ -10,14 +13,21 @@
  * @returns {Array} Body parts array
  */
 const getCreepBody = (energyAvailable) => {
-  // MOVE: 50, CARRY: 50, WORK: 100
-  if (energyAvailable >= 550) {
-    return [WORK, WORK, WORK, CARRY, CARRY, MOVE, MOVE, MOVE]; // 550 energy
+  const bodyList = [
+    [WORK, WORK, WORK, CARRY, CARRY, MOVE, MOVE, MOVE],
+    [WORK, WORK, CARRY, MOVE, MOVE],
+    [WORK, CARRY, MOVE],
+  ];
+
+  const bodyCosts = bodyList
+    .map((body) => [calculateBodyCost(body), body])
+    .sort((a, b) => b[0] - a[0]); // Sort by cost descending
+
+  for (const [cost, body] of bodyCosts) {
+    if (energyAvailable >= cost) {
+      return body;
+    }
   }
-  if (energyAvailable >= 350) {
-    return [WORK, WORK, CARRY, MOVE, MOVE]; // 350 energy
-  }
-  return [WORK, CARRY, MOVE]; // 200 energy
 };
 
 /**
@@ -48,12 +58,11 @@ const determineSpawnRole = (roster, currentCreeps, roomStatus) => {
 
   // Critical: always spawn harvester if none exist
   if (harvesterCount < 1) {
-    return 'harvester';
+    return "harvester";
   }
 
   // Check energy conditions for non-critical spawning
-  const canSpawn =
-    roomStatus.energyAvailable >= 200;
+  const canSpawn = roomStatus.energyAvailable >= 200;
 
   if (!canSpawn) {
     return null;
@@ -84,16 +93,16 @@ const determineExtraSpawn = (currentCreeps, roomStatus) => {
 
   // Prioritize builders if there are unbuilt structures
   if (roomStatus.constructionSiteCount > 0) {
-    return 'builder';
+    return "builder";
   }
 
   const builderCount = currentCreeps.builder || 0;
   const harvesterCount = currentCreeps.harvester || 0;
   const upgraderCount = currentCreeps.upgrader || 0;
 
-  if (builderCount > harvesterCount * 3) return 'harvester';
-  if (builderCount > upgraderCount * 4) return 'upgrader';
-  return 'builder';
+  if (builderCount > harvesterCount * 3) return "harvester";
+  if (builderCount > upgraderCount * 4) return "upgrader";
+  return "builder";
 };
 
 /**
@@ -132,10 +141,10 @@ const displaySpawningVisual = (spawn) => {
   const spawningCreep = Game.creeps[spawn.spawning.name];
   if (spawningCreep) {
     spawn.room.visual.text(
-      '🛠️' + spawningCreep.memory.role,
+      "🛠️" + spawningCreep.memory.role,
       spawn.pos.x + 1,
       spawn.pos.y,
-      { align: 'left', opacity: 0.8 }
+      { align: "left", opacity: 0.8 },
     );
   }
 };
@@ -150,7 +159,10 @@ const displaySpawningVisual = (spawn) => {
 const spawnProcedure = (spawn, roster, roomStatus) => {
   if (!spawn || spawn.spawning) {
     displaySpawningVisual(spawn);
-    return { spawned: false, reason: (spawn && spawn.spawning) ? 'busy' : 'no_spawn' };
+    return {
+      spawned: false,
+      reason: spawn && spawn.spawning ? "busy" : "no_spawn",
+    };
   }
 
   const currentCreeps = countCreepsByRole(Game.creeps);
@@ -168,7 +180,7 @@ const spawnProcedure = (spawn, roster, roomStatus) => {
   const extraRole = determineExtraSpawn(currentCreeps, roomStatus);
   if (extraRole) {
     console.log(
-      `Energy full: ${roomStatus.energyAvailable}/${roomStatus.energyCapacity} spawning extra ${extraRole} Creep`
+      `Energy full: ${roomStatus.energyAvailable}/${roomStatus.energyCapacity} spawning extra ${extraRole} Creep`,
     );
     const result = executeSpawn(spawn, extraRole, body, Game.time);
     displaySpawningVisual(spawn);
@@ -176,7 +188,7 @@ const spawnProcedure = (spawn, roster, roomStatus) => {
   }
 
   displaySpawningVisual(spawn);
-  return { spawned: false, reason: 'roster_full' };
+  return { spawned: false, reason: "roster_full" };
 };
 
 module.exports = {
