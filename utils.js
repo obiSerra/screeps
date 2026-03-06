@@ -199,10 +199,10 @@ function findBestSourceForCreep(creep) {
     filter: (structure) =>
       structure.structureType === STRUCTURE_CONTAINER &&
       structure.store[RESOURCE_ENERGY] >=
-        structure.store.getCapacity(RESOURCE_ENERGY) * 0.5,
+        structure.store.getCapacity(RESOURCE_ENERGY) * 0.75,
   });
 
-  const targets = [...sources];
+  const targets = [...sources, ...containers];
 
   // Scoring weights - easy to tweak
   // With DISTANCE_WEIGHT=2 and CREEP_WEIGHT=1:

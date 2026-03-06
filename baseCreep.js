@@ -425,8 +425,20 @@ const handleGathering = (creep) => {
     return;
   }
 
-  if (creep.harvest(source) === ERR_NOT_IN_RANGE) {
-    moveToTarget(creep, source, PATH_COLORS.gathering);
+  // Check if the target is a container or storage
+  const isContainer = source.structureType === STRUCTURE_CONTAINER || 
+                     source.structureType === STRUCTURE_STORAGE;
+
+  if (isContainer) {
+    // Withdraw from container/storage
+    if (creep.withdraw(source, RESOURCE_ENERGY) === ERR_NOT_IN_RANGE) {
+      moveToTarget(creep, source, PATH_COLORS.gathering);
+    }
+  } else {
+    // Harvest from source
+    if (creep.harvest(source) === ERR_NOT_IN_RANGE) {
+      moveToTarget(creep, source, PATH_COLORS.gathering);
+    }
   }
 };
 
