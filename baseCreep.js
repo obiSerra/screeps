@@ -25,6 +25,7 @@ const ACTION_ICONS = {
   repairing: "🛠",
   upgrading: "⚡",
   harvesting: "⛏",
+  claiming: "📜",
 };
 
 const PATH_COLORS = {

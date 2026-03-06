@@ -5,6 +5,7 @@ const roleHarvester = require("./role.harvester");
 const roleUpgrader = require("./role.upgrader");
 const roleBuilder = require("./role.builder");
 const baseCreep = require("./baseCreep");
+const roleClaimer = require("./role.claimer");
 
 // ============================================================================
 // Room Mode Management
@@ -156,6 +157,7 @@ const roleHandlers = {
   harvester: roleHarvester.run,
   upgrader: roleUpgrader.run,
   builder: roleBuilder.run,
+  claimer: roleClaimer.run,
 };
 
 

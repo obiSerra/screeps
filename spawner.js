@@ -103,7 +103,7 @@ const determineExtraSpawn = (currentCreeps, roomStatus) => {
   // Balance: harvesters == builders*0.7 == upgraders*0.5
   // Normalize counts by their ratio coefficients
   const normalizedHarvester = harvesterCount;
-  const normalizedBuilder = builderCount * 0.7;
+  const normalizedBuilder = builderCount;
   const normalizedUpgrader = upgraderCount * 0.5;
 
   // Spawn whichever role is most deficient
@@ -187,11 +187,11 @@ const spawnProcedure = (spawn, roster, roomStatus) => {
   const currentCreeps = countCreepsByRole(Game.creeps);
 
   if (
-    currentCreeps["claimer"] === 0 &&
-    roomStatus.controllerLevel >= 3 &&
+    !currentCreeps["claimer"] &&
+    Game.gcl.level >= 2 &&
     roomStatus.energyAvailable >= 700
   ) {
-    const results = spawnClaimer();
+    const results = spawnClaimer(spawn);
     displaySpawningVisual(spawn);
     return { spawned: results === OK, role: "claimer", result: results };
   }
