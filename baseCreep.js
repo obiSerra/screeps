@@ -329,6 +329,12 @@ const selectAction = (creep, priorityList) => {
   return { action: "upgrading", target: null };
 };
 
+/**
+ * Placeholder for worker role check - can be expanded with actual logic
+ * @param {Creep} creep 
+ * @returns 
+ */
+const isWorker = (creep) => true
 // ============================================================================
 // Effectful Functions - Game State Modifications
 // ============================================================================
@@ -658,6 +664,7 @@ module.exports = {
   findRepairTargets,
   filterCriticalRepairs,
   findEnergyDepositTargets,
+  isWorker,
 
   // Pure functions - sorting
   calculateRepairScore,

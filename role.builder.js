@@ -9,6 +9,7 @@ var roleBuilder = () => {
         "repairCritical",
         "building",
         "repairing",
+        "harvesting",
         "upgrading",
       ]);
       base.performAction(creep, creep.memory.action);

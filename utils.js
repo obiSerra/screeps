@@ -181,11 +181,6 @@ function periodicLogger(message, interval = 100) {
   }
 }
 
-function countCreepsNextToPosition(pos, range = 1) {
-  const creeps = pos.findInRange(FIND_CREEPS, range);
-  return creeps.length;
-}
-
 /**
  * Count creeps targeting a specific source
  * @param {string} sourceId - The ID of the source
@@ -203,7 +198,8 @@ function findBestSourceForCreep(creep) {
   const containers = creep.room.find(FIND_STRUCTURES, {
     filter: (structure) =>
       structure.structureType === STRUCTURE_CONTAINER &&
-      structure.store[RESOURCE_ENERGY] >= structure.store.getCapacity(RESOURCE_ENERGY) * 0.5
+      structure.store[RESOURCE_ENERGY] >=
+        structure.store.getCapacity(RESOURCE_ENERGY) * 0.5,
   });
 
   const targets = [...sources, ...containers];

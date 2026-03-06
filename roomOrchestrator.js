@@ -4,6 +4,7 @@ const planner = require("./planner");
 const roleHarvester = require("./role.harvester");
 const roleUpgrader = require("./role.upgrader");
 const roleBuilder = require("./role.builder");
+const baseCreep = require("./baseCreep");
 
 // ============================================================================
 // Room Mode Management
@@ -157,12 +158,19 @@ const roleHandlers = {
   builder: roleBuilder.run,
 };
 
+
+
+
 /**
  * Handle all creeps in the room
  * Effectful function
  * @param {Room} room - The room (currently unused, handles all creeps)
  */
 const handleCreeps = (room) => {
+
+
+  // Logic for rebalancing workers tasks
+
   Object.values(Game.creeps).forEach((creep) => {
     const handler = roleHandlers[creep.memory.role];
     if (handler) {
