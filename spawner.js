@@ -350,7 +350,7 @@ const spawnProcedure = (spawn, roster, roomStatus) => {
       }
     }
 
-    const result = executeSpawn(spawn, extraRole, extraBody, Game.time);
+    const result = executeSpawn(spawn, extraRole, Game.time);
     displaySpawningVisual(spawn);
     return { spawned: result === OK, role: extraRole, result, extra: true };
   }
