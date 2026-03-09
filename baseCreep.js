@@ -675,7 +675,7 @@ const ACTION_HANDLERS = {
  */
 const workerActions = (creep, priorityList) => {
   // Check for combat: if there are invaders and creep is a fighter
-  if (areThereInvaders(creep.room) && isFighter(creep)) {
+  if (utils.areThereInvaders(creep.room) && isFighter(creep)) {
     const hostiles = creep.room.find(FIND_HOSTILE_CREEPS);
     if (hostiles.length > 0) {
       const target = hostiles[0];
