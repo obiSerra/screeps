@@ -6,6 +6,7 @@ const roleUpgrader = require("./role.upgrader");
 const roleBuilder = require("./role.builder");
 const baseCreep = require("./baseCreep");
 const roleClaimer = require("./role.claimer");
+const roleTransporter = require("./role.transporter");
 
 // ============================================================================
 // Room Mode Management
@@ -67,6 +68,8 @@ const getRoomStatus = (room) => {
     flagName.startsWith("EXT_")
   ).length;
 
+  // const { roomPlanner } = planner;
+  // roomPlanner.clearPlannerFlags(room);
   // Count extension construction sites
   const extensionSites = room.find(FIND_CONSTRUCTION_SITES, {
     filter: (s) => s.structureType === STRUCTURE_EXTENSION,
@@ -83,6 +86,17 @@ const getRoomStatus = (room) => {
   // Count construction sites
   const constructionSites = room.find(FIND_CONSTRUCTION_SITES);
 
+  // Check for storage
+  const storage = structures.find((s) => s.structureType === STRUCTURE_STORAGE);
+  const hasStorage = !!storage;
+
+  // Check for containers at 50%+ capacity
+  const containersHalfFull = structures.filter(
+    (s) =>
+      s.structureType === STRUCTURE_CONTAINER &&
+      s.store[RESOURCE_ENERGY] >= s.store.getCapacity(RESOURCE_ENERGY) * 0.5
+  );
+
   return {
     roomName: room.name,
     controllerLevel,
@@ -93,6 +107,8 @@ const getRoomStatus = (room) => {
     energyAvailable: room.energyAvailable,
     energyCapacity: room.energyCapacityAvailable,
     constructionSiteCount: constructionSites.length,
+    hasStorage,
+    containersHalfFullCount: containersHalfFull.length,
   };
 };
 
@@ -143,6 +159,11 @@ const calculateRoster = (roomStatus) => {
     roster.builder = 1;
   }
 
+  // Add transporter if there's storage and containers at 50%+ capacity
+  if (roomStatus.hasStorage && roomStatus.containersHalfFullCount > 0) {
+    roster.transporter = 1;
+  }
+
   return roster;
 };
 
@@ -159,6 +180,7 @@ const roleHandlers = {
   upgrader: roleUpgrader.run,
   builder: roleBuilder.run,
   claimer: roleClaimer.run,
+  transporter: roleTransporter.run,
 };
 
 

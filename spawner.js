@@ -78,6 +78,38 @@ const getWorkerCreepBody = (energyAvailable, room) => {
 };
 
 /**
+ * Get transporter creep body based on available energy
+ * Creates as many [WORK, CARRY, MOVE] sets as possible
+ * Pure function - no side effects
+ * @param {number} energyAvailable - Current energy available
+ * @returns {Array} Body parts array
+ */
+const getTransporterBody = (energyAvailable) => {
+  const setcost = BODYPART_COST[WORK] + BODYPART_COST[CARRY] + BODYPART_COST[MOVE]; // 100 + 50 + 50 = 200
+  const maxSets = Math.floor(energyAvailable / setcost);
+  
+  if (maxSets < 1) {
+    return undefined;
+  }
+  
+  // Cap at 16 sets to stay under 50 body parts limit (16 * 3 = 48)
+  const sets = Math.min(maxSets, 16);
+  
+  const body = [];
+  for (let i = 0; i < sets; i++) {
+    body.push(WORK);
+  }
+  for (let i = 0; i < sets; i++) {
+    body.push(CARRY);
+  }
+  for (let i = 0; i < sets; i++) {
+    body.push(MOVE);
+  }
+  
+  return body;
+};
+
+/**
  * Get fighter creep body based on available energy
  * Pure function - no side effects
  * @param {number} energyAvailable - Current energy available
@@ -91,7 +123,7 @@ const getFighterCreepBody = (energyAvailable) => {
   const carryCost = BODYPART_COST[CARRY];
 
   // Start with 2 MOVE parts, 1 WORK, and 1 CARRY
-  const moveCount = 2;
+  const moveCount = 1;
   let remainingEnergy =
     energyAvailable - moveCount * moveCost - workCost - carryCost;
 
@@ -99,35 +131,31 @@ const getFighterCreepBody = (energyAvailable) => {
     return undefined; // Not enough energy
   }
 
-  // Add as many [TOUGH, RANGED_ATTACK] pairs as possible
-  const pairCost = toughCost + rangedAttackCost;
-  const pairCount = Math.floor(remainingEnergy / pairCost);
-  remainingEnergy -= pairCount * pairCost;
+  // Add as many [TOUGH, RANGED_ATTACK, TOUGH] triplets as possible
+  const tripletCost = moveCost + toughCost + rangedAttackCost;
+  const tripletCount = Math.floor(remainingEnergy / tripletCost);
 
-  // Fill remaining energy with TOUGH parts
-  const extraToughCount = Math.floor(remainingEnergy / toughCost);
-
-  // Build the body array: TOUGH parts first, then WORK, RANGED_ATTACK, CARRY, then MOVE
+  // Build the body array: TOUGH parts first, then RANGED_ATTACK, then WORK/CARRY, then MOVE
   const body = [];
 
-  // Add all TOUGH parts (from pairs + extras)
-  for (let i = 0; i < pairCount + extraToughCount; i++) {
+  // Add all TOUGH parts (one per triplet)
+  for (let i = 0; i < tripletCount; i++) {
     body.push(TOUGH);
+  }
+
+  // Add all RANGED_ATTACK parts (one per triplet)
+  for (let i = 0; i < tripletCount; i++) {
+    body.push(RANGED_ATTACK);
   }
 
   // Add WORK part
   body.push(WORK);
 
-  // Add RANGED_ATTACK parts
-  for (let i = 0; i < pairCount; i++) {
-    body.push(RANGED_ATTACK);
-  }
-
   // Add CARRY part
   body.push(CARRY);
 
-  // Add MOVE parts at the end
-  for (let i = 0; i < moveCount; i++) {
+  // Add all MOVE parts (one per triplet + initial moveCount)
+  for (let i = 0; i < moveCount + tripletCount; i++) {
     body.push(MOVE);
   }
 
@@ -323,7 +351,17 @@ const spawnProcedure = (spawn, roster, roomStatus) => {
   // Try primary spawn based on roster
   const primaryRole = determineSpawnRole(roster, currentCreeps, roomStatus);
   if (primaryRole) {
-    const result = executeSpawn(spawn, primaryRole, body, Game.time);
+    // Use transporter body for transporter role
+    const spawnBody = primaryRole === "transporter" 
+      ? getTransporterBody(roomStatus.energyAvailable) 
+      : body;
+    
+    if (!spawnBody) {
+      displaySpawningVisual(spawn);
+      return { spawned: false, reason: "insufficient_energy" };
+    }
+    
+    const result = executeSpawn(spawn, primaryRole, spawnBody, Game.time);
     displaySpawningVisual(spawn);
     return { spawned: result === OK, role: primaryRole, result };
   }
@@ -350,7 +388,7 @@ const spawnProcedure = (spawn, roster, roomStatus) => {
       }
     }
 
-    const result = executeSpawn(spawn, extraRole, Game.time);
+    const result = executeSpawn(spawn, extraRole, body, Game.time);
     displaySpawningVisual(spawn);
     return { spawned: result === OK, role: extraRole, result, extra: true };
   }
@@ -363,6 +401,7 @@ module.exports = {
   // Pure functions
   getCreepBody: getWorkerCreepBody,
   getFighterCreepBody,
+  getTransporterBody,
   countCreepsByRole,
   determineSpawnRole,
   determineExtraSpawn,

@@ -27,6 +27,7 @@ const ACTION_ICONS = {
   harvesting: "⛏",
   claiming: "📜",
   attacking: "⚔️",
+  transporting: "📦",
 };
 
 const PATH_COLORS = {
@@ -36,6 +37,7 @@ const PATH_COLORS = {
   upgrading: "#ffaa00",
   harvesting: "#0004ff",
   attacking: "#ff0000",
+  transporting: "#ff8800",
 };
 
 // ============================================================================
@@ -264,17 +266,30 @@ const getActionAvailability = (creep) => {
   const energyAvailable = room.energyAvailable;
   const energyCapacity = room.energyCapacityAvailable;
 
+  // Check for storage and containers at 50% capacity for transporting
+  const storage = room.find(FIND_STRUCTURES, {
+    filter: (s) => s.structureType === STRUCTURE_STORAGE,
+  })[0];
+  const containersWithEnergy = room.find(FIND_STRUCTURES, {
+    filter: (s) =>
+      s.structureType === STRUCTURE_CONTAINER &&
+      s.store[RESOURCE_ENERGY] >= s.store.getCapacity(RESOURCE_ENERGY) * 0.5,
+  });
+
   return {
     repairCritical: criticalRepairs.length > 0,
     building: constructionSites.length > 0,
     repairing: repairTargets.length > 0,
     harvesting: energyAvailable < energyCapacity,
+    transporting: storage && containersWithEnergy.length > 0,
     upgrading: true, // Always available as fallback
     // Include targets for immediate use
     targets: {
       criticalRepairs,
       repairTargets,
       constructionSites,
+      storage,
+      containersWithEnergy,
     },
   };
 };
@@ -338,6 +353,12 @@ const selectAction = (creep, priorityList) => {
     }
     if (action === "harvesting" && availability.harvesting) {
       return { action: "harvesting", target: null };
+    }
+    if (action === "transporting" && availability.transporting) {
+      return {
+        action: "transporting",
+        target: { id: targets.storage.id, pos: targets.storage.pos },
+      };
     }
     if (action === "upgrading") {
       return { action: "upgrading", target: null };
@@ -444,6 +465,33 @@ const clearCreepAction = (creep) => {
 const selectGatheringTarget = (creep) => {
   const source = utils.findBestSourceForCreep(creep);
   return { id: source.id, pos: source.pos };
+};
+
+/**
+ * Select the best container for transporter gathering
+ * Pure function - finds containers at 50%+ capacity
+ * @param {Creep} creep
+ * @returns {Object|null} { id, pos } of selected container or null
+ */
+const selectTransporterGatheringTarget = (creep) => {
+  const containers = creep.room.find(FIND_STRUCTURES, {
+    filter: (s) =>
+      s.structureType === STRUCTURE_CONTAINER &&
+      s.store[RESOURCE_ENERGY] >= s.store.getCapacity(RESOURCE_ENERGY) * 0.5,
+  });
+
+  if (containers.length === 0) {
+    return null;
+  }
+
+  // Sort by energy amount (highest first) and distance
+  const sorted = containers.sort((a, b) => {
+    const energyDiff = b.store[RESOURCE_ENERGY] - a.store[RESOURCE_ENERGY];
+    if (energyDiff !== 0) return energyDiff;
+    return creep.pos.getRangeTo(a) - creep.pos.getRangeTo(b);
+  });
+
+  return { id: sorted[0].id, pos: sorted[0].pos };
 };
 
 /**
@@ -651,6 +699,37 @@ const handleAttacking = (creep) => {
 };
 
 /**
+ * Handle transporting action (move energy from containers to storage)
+ * Effectful function
+ * @param {Creep} creep
+ */
+const handleTransporting = (creep) => {
+  const { room } = creep;
+  const { actionTarget } = creep.memory;
+
+  // Get storage
+  const storage = actionTarget ? Game.getObjectById(actionTarget.id) : null;
+  if (!storage) {
+    clearCreepAction(creep);
+    return;
+  }
+
+  // Transfer energy to storage
+  if (creep.store[RESOURCE_ENERGY] > 0) {
+    const result = creep.transfer(storage, RESOURCE_ENERGY);
+    if (result === ERR_NOT_IN_RANGE) {
+      moveToTarget(creep, storage, PATH_COLORS.transporting);
+    } else if (result === OK) {
+      // Successfully transferred, clear action to pick up more
+      clearCreepAction(creep);
+    }
+  } else {
+    // No energy, clear action to gather more
+    clearCreepAction(creep);
+  }
+};
+
+/**
  * Action handler registry
  * Maps action names to handler functions
  */
@@ -661,6 +740,7 @@ const ACTION_HANDLERS = {
   upgrading: handleUpgrading,
   harvesting: handleHarvesting,
   attacking: handleAttacking,
+  transporting: handleTransporting,
 };
 
 // ============================================================================
@@ -674,6 +754,8 @@ const ACTION_HANDLERS = {
  * @param {Array} priorityList - Action priority order
  */
 const workerActions = (creep, priorityList) => {
+  const isTransporter = priorityList.includes("transporting");
+
   // Check for combat: if there are invaders and creep is a fighter
   if (utils.areThereInvaders(creep.room) && isFighter(creep)) {
     const hostiles = creep.room.find(FIND_HOSTILE_CREEPS);
@@ -686,13 +768,23 @@ const workerActions = (creep, priorityList) => {
   }
 
   // If was attacking but no more invaders, reset action
-  if (creep.memory.action === "attacking" && !areThereInvaders(creep.room)) {
+  if (creep.memory.action === "attacking" && !utils.areThereInvaders(creep.room)) {
     clearCreepAction(creep);
   }
 
   // Check if creep needs to gather
   if (needsToGather(creep) && creep.memory.action !== "gathering") {
-    const target = selectGatheringTarget(creep);
+    let target;
+    if (isTransporter) {
+      // Transporters gather from containers at 50%+ capacity
+      target = selectTransporterGatheringTarget(creep);
+      if (!target) {
+        // No containers available, idle
+        return;
+      }
+    } else {
+      target = selectGatheringTarget(creep);
+    }
     setCreepAction(creep, "gathering", target);
     sayAction(creep, "gathering");
     return;
@@ -776,6 +868,7 @@ module.exports = {
   getActionAvailability,
   selectBuildTarget,
   selectGatheringTarget,
+  selectTransporterGatheringTarget,
   selectAction,
 
   // Effectful functions - state management
@@ -791,6 +884,7 @@ module.exports = {
   handleUpgrading,
   handleHarvesting,
   handleAttacking,
+  handleTransporting,
   ACTION_HANDLERS,
 
   // Main orchestration
