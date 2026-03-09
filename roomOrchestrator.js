@@ -42,6 +42,7 @@ const getRoomMode = (roomName) =>
 // Room Status Calculation
 // ============================================================================
 
+
 /**
  * Calculate controller level for a room
  * Pure function

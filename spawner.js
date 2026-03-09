@@ -3,6 +3,8 @@
  * Handles all creep spawning logic with functional composition
  */
 
+const utils = require("./utils");
+
 const calculateBodyCost = (body) =>
   body.reduce((total, part) => total + BODYPART_COST[part], 0);
 
@@ -12,7 +14,7 @@ const calculateBodyCost = (body) =>
  * @param {number} energyAvailable - Current energy available
  * @returns {Array} Body parts array
  */
-const getWorkerCreepBody = (energyAvailable) => {
+const getWorkerCreepBody = (energyAvailable, room) => {
   const bodyList = [
     [WORK, WORK, WORK, CARRY, CARRY, CARRY, MOVE, MOVE, MOVE],
     [WORK, WORK, WORK, CARRY, CARRY, MOVE, MOVE, MOVE],
@@ -20,15 +22,56 @@ const getWorkerCreepBody = (energyAvailable) => {
     [WORK, CARRY, MOVE],
   ];
 
+  const areInvaders = room ? utils.areThereInvaders(room) : false;
+  const combatParts = [TOUGH, TOUGH, ATTACK];
+  const combatCost = calculateBodyCost(combatParts);
+
   const bodyCosts = bodyList
     .map((body) => [calculateBodyCost(body), body])
     .sort((a, b) => b[0] - a[0]); // Sort by cost descending
 
+  // Find base body that fits
+  let selectedBody = null;
   for (const [cost, body] of bodyCosts) {
     if (energyAvailable >= cost) {
-      return body;
+      selectedBody = [...body];
+      break;
     }
   }
+
+  if (!selectedBody) {
+    return undefined;
+  }
+
+  if (areInvaders) {
+    // Remove parts to make room for combat parts, keeping at least one MOVE
+    while (calculateBodyCost(selectedBody) + combatCost > energyAvailable && selectedBody.length > 0) {
+      const lastIndex = selectedBody.length - 1;
+      const lastPart = selectedBody[lastIndex];
+      
+      // Check if this is the last MOVE
+      if (lastPart === MOVE) {
+        const moveCount = selectedBody.filter(p => p === MOVE).length;
+        if (moveCount === 1) {
+          // This is the last MOVE, can't remove it
+          break;
+        }
+      }
+      
+      // Remove the last part
+      selectedBody.pop();
+    }
+    
+    // Add combat parts at the beginning (TOUGH should be first)
+    selectedBody = [...combatParts, ...selectedBody];
+  } else {
+    // Add combat parts only if they fit
+    if (calculateBodyCost(selectedBody) + combatCost <= energyAvailable) {
+      selectedBody = [...combatParts, ...selectedBody];
+    }
+  }
+
+  return selectedBody;
 };
 
 /**
@@ -211,8 +254,8 @@ const spawnProcedure = (spawn, roster, roomStatus) => {
     displaySpawningVisual(spawn);
     return { spawned: results === OK, role: "claimer", result: results };
   }
-
-  const body = getWorkerCreepBody(roomStatus.energyAvailable);
+  const room = Game.rooms[roomStatus.roomName];
+  const body = getWorkerCreepBody(roomStatus.energyAvailable, room);
 
   // Try primary spawn based on roster
   const primaryRole = determineSpawnRole(roster, currentCreeps, roomStatus);

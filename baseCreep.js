@@ -52,20 +52,6 @@ const isFighter = (creep) =>
   creep.body.some(
     (part) => part.type === ATTACK || part.type === RANGED_ATTACK,
   );
-
-/**
- * Check if there are enemy creeps in the room
- * Pure function
- * @param {Creep} creep
- * @returns {boolean} True if there are hostile creeps in the same room
- */
-const areThereInvaders = (creep) =>{
-  const areInvaders = creep.room.find(FIND_HOSTILE_CREEPS).length > 0;
-  if (areInvaders) {
-    console.log(`Invaders detected in room ${creep.room.name}!`);
-  }
-  return areInvaders;
-}
   
 
 // ============================================================================
@@ -394,7 +380,7 @@ const moveToTarget = (creep, target, color = "#ffffff") => {
   const options = { visualizePathStyle: { stroke: color } };
   
   // Non-fighters avoid enemy creeps
-  if (!isFighter(creep) && areThereInvaders(creep)) {
+  if (!isFighter(creep) && utils.areThereInvaders(creep.room)) {
     options.costCallback = (roomName, costMatrix) => {
       const room = Game.rooms[roomName];
       if (room) {
@@ -689,7 +675,7 @@ const ACTION_HANDLERS = {
  */
 const workerActions = (creep, priorityList) => {
   // Check for combat: if there are invaders and creep is a fighter
-  if (areThereInvaders(creep) && isFighter(creep)) {
+  if (areThereInvaders(creep.room) && isFighter(creep)) {
     const hostiles = creep.room.find(FIND_HOSTILE_CREEPS);
     if (hostiles.length > 0) {
       const target = hostiles[0];
@@ -700,7 +686,7 @@ const workerActions = (creep, priorityList) => {
   }
 
   // If was attacking but no more invaders, reset action
-  if (creep.memory.action === "attacking" && !areThereInvaders(creep)) {
+  if (creep.memory.action === "attacking" && !areThereInvaders(creep.room)) {
     clearCreepAction(creep);
   }
 
@@ -779,8 +765,6 @@ module.exports = {
   findEnergyDepositTargets,
   isWorker,
   isFighter,
-  areThereInvaders,
-
   // Pure functions - sorting
   calculateRepairScore,
   countCreepsTargeting,

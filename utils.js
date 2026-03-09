@@ -193,6 +193,20 @@ function countCreepsTargetingSource(sourceId) {
   ).length;
 }
 
+/**
+ * Check if there are enemy creeps in the room
+ * Pure function
+ * @param {Room} room
+ * @returns {boolean} True if there are hostile creeps in the same room
+ */
+const areThereInvaders = (room) => {
+  const areInvaders = room.find(FIND_HOSTILE_CREEPS).length > 0;
+  if (areInvaders) {
+    console.log(`Invaders detected in room ${room.name}!`);
+  }
+  return areInvaders;
+};
+
 function findBestSourceForCreep(creep) {
   const sources = creep.room.find(FIND_SOURCES);
   const containers = creep.room.find(FIND_STRUCTURES, {
@@ -350,6 +364,7 @@ const utils = {
   findBestSourceForCreep,
   countCreepsTargetingSource,
   actions,
+  areThereInvaders,
 
   // Functional utilities
   pipe,
