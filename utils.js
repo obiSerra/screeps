@@ -202,7 +202,7 @@ function countCreepsTargetingSource(sourceId) {
 const areThereInvaders = (room) => {
   const areInvaders = room.find(FIND_HOSTILE_CREEPS).length > 0;
   if (areInvaders) {
-    console.log(`Invaders detected in room ${room.name}!`);
+    periodicLogger(`Invaders detected in room ${room.name}!`, 10);
   }
   return areInvaders;
 };
