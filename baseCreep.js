@@ -26,6 +26,7 @@ const ACTION_ICONS = {
   upgrading: "⚡",
   harvesting: "⛏",
   claiming: "📜",
+  attacking: "⚔️",
 };
 
 const PATH_COLORS = {
@@ -34,7 +35,38 @@ const PATH_COLORS = {
   repairing: "#00ff22",
   upgrading: "#ffaa00",
   harvesting: "#0004ff",
+  attacking: "#ff0000",
 };
+
+// ============================================================================
+// Pure Functions - Creep Analysis
+// ============================================================================
+
+/**
+ * Check if creep is a fighter (has attack parts)
+ * Pure function
+ * @param {Creep} creep
+ * @returns {boolean} True if creep has ATTACK or RANGED_ATTACK parts
+ */
+const isFighter = (creep) =>
+  creep.body.some(
+    (part) => part.type === ATTACK || part.type === RANGED_ATTACK,
+  );
+
+/**
+ * Check if there are enemy creeps in the room
+ * Pure function
+ * @param {Creep} creep
+ * @returns {boolean} True if there are hostile creeps in the same room
+ */
+const areThereInvaders = (creep) =>{
+  const areInvaders = creep.room.find(FIND_HOSTILE_CREEPS).length > 0;
+  if (areInvaders) {
+    console.log(`Invaders detected in room ${creep.room.name}!`);
+  }
+  return areInvaders;
+}
+  
 
 // ============================================================================
 // Pure Functions - Target Finding & Sorting
@@ -359,7 +391,32 @@ const sayAction = (creep, action) => {
  * @param {string} color - Path stroke color
  */
 const moveToTarget = (creep, target, color = "#ffffff") => {
-  creep.moveTo(target, { visualizePathStyle: { stroke: color } });
+  const options = { visualizePathStyle: { stroke: color } };
+  
+  // Non-fighters avoid enemy creeps
+  if (!isFighter(creep) && areThereInvaders(creep)) {
+    options.costCallback = (roomName, costMatrix) => {
+      const room = Game.rooms[roomName];
+      if (room) {
+        const hostiles = room.find(FIND_HOSTILE_CREEPS);
+        hostiles.forEach((hostile) => {
+          // Increase cost around hostile creeps (3x3 area)
+          for (let x = -1; x <= 1; x++) {
+            for (let y = -1; y <= 1; y++) {
+              const posX = hostile.pos.x + x;
+              const posY = hostile.pos.y + y;
+              if (posX >= 0 && posX < 50 && posY >= 0 && posY < 50) {
+                costMatrix.set(posX, posY, 0xff);
+              }
+            }
+          }
+        });
+      }
+      return costMatrix;
+    };
+  }
+  
+  creep.moveTo(target, options);
 };
 
 /**
@@ -582,6 +639,32 @@ const handleHarvesting = (creep) => {
 };
 
 /**
+ * Handle attacking action
+ * Effectful function
+ * @param {Creep} creep
+ */
+const handleAttacking = (creep) => {
+  const { actionTarget } = creep.memory;
+  if (!actionTarget) {
+    clearCreepAction(creep);
+    return;
+  }
+
+  const target = Game.getObjectById(actionTarget.id);
+
+  // Target no longer exists - clear action
+  if (!target) {
+    clearCreepAction(creep);
+    return;
+  }
+
+  // Attack the target
+  if (creep.attack(target) === ERR_NOT_IN_RANGE) {
+    moveToTarget(creep, target, PATH_COLORS.attacking);
+  }
+};
+
+/**
  * Action handler registry
  * Maps action names to handler functions
  */
@@ -591,6 +674,7 @@ const ACTION_HANDLERS = {
   repairing: handleRepairing,
   upgrading: handleUpgrading,
   harvesting: handleHarvesting,
+  attacking: handleAttacking,
 };
 
 // ============================================================================
@@ -604,6 +688,22 @@ const ACTION_HANDLERS = {
  * @param {Array} priorityList - Action priority order
  */
 const workerActions = (creep, priorityList) => {
+  // Check for combat: if there are invaders and creep is a fighter
+  if (areThereInvaders(creep) && isFighter(creep)) {
+    const hostiles = creep.room.find(FIND_HOSTILE_CREEPS);
+    if (hostiles.length > 0) {
+      const target = hostiles[0];
+      setCreepAction(creep, "attacking", { id: target.id, pos: target.pos });
+      sayAction(creep, "attacking");
+      return;
+    }
+  }
+
+  // If was attacking but no more invaders, reset action
+  if (creep.memory.action === "attacking" && !areThereInvaders(creep)) {
+    clearCreepAction(creep);
+  }
+
   // Check if creep needs to gather
   if (needsToGather(creep) && creep.memory.action !== "gathering") {
     const target = selectGatheringTarget(creep);
@@ -678,6 +778,8 @@ module.exports = {
   filterCriticalRepairs,
   findEnergyDepositTargets,
   isWorker,
+  isFighter,
+  areThereInvaders,
 
   // Pure functions - sorting
   calculateRepairScore,
@@ -704,6 +806,7 @@ module.exports = {
   handleRepairing,
   handleUpgrading,
   handleHarvesting,
+  handleAttacking,
   ACTION_HANDLERS,
 
   // Main orchestration

@@ -63,14 +63,16 @@ const determineSpawnRole = (roster, currentCreeps, roomStatus) => {
   }
 
   // Check energy conditions for non-critical spawning
-  let canSpawn = false;
+  let canSpawn = roomStatus.energyAvailable >= 200;
 
-  if (roomStatus.energyCapacity <= 450) {
-    // Early game: spawn as soon as we have 200 energy to get going
-    canSpawn = roomStatus.energyAvailable >= 200;
-  } else {
-    roomStatus.energyAvailable >= roomStatus.energyCapacity * 0.5;
-  }
+  // canSpawn = roomStatus.energyAvailable >= roomStatus.energyCapacity * 0.5;
+
+  // if (roomStatus.energyCapacity <= 450) {
+  //   // Early game: spawn as soon as we have 200 energy to get going
+  //   canSpawn = roomStatus.energyAvailable >= 200;
+  // } else {
+  //   roomStatus.energyAvailable >= roomStatus.energyCapacity * 0.5;
+  // }
 
   if (!canSpawn) {
     return null;
@@ -108,11 +110,16 @@ const determineExtraSpawn = (currentCreeps, roomStatus) => {
   const harvesterCount = currentCreeps.harvester || 0;
   const upgraderCount = currentCreeps.upgrader || 0;
 
-  // Balance: harvesters == builders*0.7 == upgraders*0.5
+  // Ensure at least 1 of each role
+  if (harvesterCount < 1) return "harvester";
+  if (builderCount < 1) return "builder";
+  if (upgraderCount < 1) return "upgrader";
+
+  // Balance: for each harvester, 0.7 builders and 0.5 upgraders
   // Normalize counts by their ratio coefficients
-  const normalizedHarvester = harvesterCount;
-  const normalizedBuilder = builderCount;
-  const normalizedUpgrader = upgraderCount * 0.5;
+  const normalizedHarvester = harvesterCount / 1;
+  const normalizedBuilder = builderCount / 0.7;
+  const normalizedUpgrader = upgraderCount / 0.5;
 
   // Spawn whichever role is most deficient
   if (
@@ -221,7 +228,8 @@ const spawnProcedure = (spawn, roster, roomStatus) => {
     console.log(
       `Energy full: ${roomStatus.energyAvailable}/${roomStatus.energyCapacity} spawning extra ${extraRole} Creep`,
     );
-    const result = executeSpawn(spawn, extraRole, body, Game.time);
+    const extraBody = roomStatus.energyAvailable >= 800 ? [...body, ATTACK] : body;
+    const result = executeSpawn(spawn, extraRole, extraBody, Game.time);
     displaySpawningVisual(spawn);
     return { spawned: result === OK, role: extraRole, result, extra: true };
   }
