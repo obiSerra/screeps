@@ -75,6 +75,63 @@ const getWorkerCreepBody = (energyAvailable, room) => {
 };
 
 /**
+ * Get fighter creep body based on available energy
+ * Pure function - no side effects
+ * @param {number} energyAvailable - Current energy available
+ * @returns {Array} Body parts array
+ */
+const getFighterCreepBody = (energyAvailable) => {
+  const moveCost = BODYPART_COST[MOVE];
+  const toughCost = BODYPART_COST[TOUGH];
+  const rangedAttackCost = BODYPART_COST[RANGED_ATTACK];
+  const workCost = BODYPART_COST[WORK];
+  const carryCost = BODYPART_COST[CARRY];
+  
+  // Start with 2 MOVE parts, 1 WORK, and 1 CARRY
+  const moveCount = 2;
+  let remainingEnergy = energyAvailable - (moveCount * moveCost) - workCost - carryCost;
+  
+  if (remainingEnergy < 0) {
+    return undefined; // Not enough energy
+  }
+  
+  // Add as many [TOUGH, RANGED_ATTACK] pairs as possible
+  const pairCost = toughCost + rangedAttackCost;
+  const pairCount = Math.floor(remainingEnergy / pairCost);
+  remainingEnergy -= pairCount * pairCost;
+  
+  // Fill remaining energy with TOUGH parts
+  const extraToughCount = Math.floor(remainingEnergy / toughCost);
+  
+  // Build the body array: TOUGH parts first, then WORK, RANGED_ATTACK, CARRY, then MOVE
+  const body = [];
+  
+  // Add all TOUGH parts (from pairs + extras)
+  for (let i = 0; i < pairCount + extraToughCount; i++) {
+    body.push(TOUGH);
+  }
+  
+  // Add WORK part
+  body.push(WORK);
+  
+  // Add RANGED_ATTACK parts
+  for (let i = 0; i < pairCount; i++) {
+    body.push(RANGED_ATTACK);
+  }
+  
+  // Add CARRY part
+  body.push(CARRY);
+  
+  // Add MOVE parts at the end
+  for (let i = 0; i < moveCount; i++) {
+    body.push(MOVE);
+  }
+  
+  return body;
+};
+
+
+/**
  * Count current creeps by role
  * Pure function - no side effects
  * @param {Object} creeps - Game.creeps object
@@ -254,6 +311,17 @@ const spawnProcedure = (spawn, roster, roomStatus) => {
     displaySpawningVisual(spawn);
     return { spawned: results === OK, role: "claimer", result: results };
   }
+
+  // Fighter upgrader when we have excess energy
+  if (roomStatus.energyAvailable > 1000) {
+    const fighterBody = getFighterCreepBody(roomStatus.energyAvailable);
+    if (fighterBody) {
+      const result = executeSpawn(spawn, "upgrader", fighterBody, Game.time);
+      displaySpawningVisual(spawn);
+      return { spawned: result === OK, role: "upgrader", result, fighter: true };
+    }
+  }
+
   const room = Game.rooms[roomStatus.roomName];
   const body = getWorkerCreepBody(roomStatus.energyAvailable, room);
 
@@ -271,6 +339,8 @@ const spawnProcedure = (spawn, roster, roomStatus) => {
     console.log(
       `Energy full: ${roomStatus.energyAvailable}/${roomStatus.energyCapacity} spawning extra ${extraRole} Creep`,
     );
+   
+    
     const extraBody = roomStatus.energyAvailable >= 800 ? [...body, ATTACK] : body;
     const result = executeSpawn(spawn, extraRole, extraBody, Game.time);
     displaySpawningVisual(spawn);
@@ -284,6 +354,7 @@ const spawnProcedure = (spawn, roster, roomStatus) => {
 module.exports = {
   // Pure functions
   getCreepBody: getWorkerCreepBody,
+  getFighterCreepBody,
   countCreepsByRole,
   determineSpawnRole,
   determineExtraSpawn,
