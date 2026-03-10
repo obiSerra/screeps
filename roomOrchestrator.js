@@ -132,13 +132,11 @@ const calculateInitialRoster = (roomStatus) => {
 
 /**
  * Calculate roster based on room status
- * Pure function
+ * Pure function - scales with energy capacity
  * @param {Object} roomStatus - Current room status
  * @returns {Object} Roster object {role: count}
  */
 const calculateRoster = (roomStatus) => {
-  const defaultRoster = { harvester: 4, builder: 1, upgrader: 1 };
-
   // Critical: ensure at least 1 harvester
   if ((roomStatus.creeps.harvester || 0) < 1) {
     return { harvester: 1, upgrader: 0, builder: 0 };
@@ -149,15 +147,28 @@ const calculateRoster = (roomStatus) => {
     return calculateInitialRoster(roomStatus);
   }
 
+  // Scale base roster with energy capacity (1 worker per 300 energy capacity)
+  // This ensures we have enough workers before increasing their size
+  const baseWorkersPerCapacity = Math.max(1, Math.floor(roomStatus.energyCapacity / 300));
+  
+  // Distribution: ~50% harvesters, ~25% builders, ~25% upgraders
+  const harvesterCount = Math.max(2, Math.ceil(baseWorkersPerCapacity * 0.5));
+  const baseBuilderCount = Math.max(1, Math.floor(baseWorkersPerCapacity * 0.25));
+  const upgraderCount = Math.max(1, Math.floor(baseWorkersPerCapacity * 0.25));
+
   // Adjust builder count based on construction sites
-  const roster = { ...defaultRoster };
+  let builderCount = baseBuilderCount;
   if (roomStatus.constructionSiteCount > 10) {
-    roster.builder = 4;
+    builderCount = Math.max(builderCount, 4);
   } else if (roomStatus.constructionSiteCount > 0) {
-    roster.builder = 2;
-  } else {
-    roster.builder = 1;
+    builderCount = Math.max(builderCount, 2);
   }
+
+  const roster = {
+    harvester: harvesterCount,
+    builder: builderCount,
+    upgrader: upgraderCount
+  };
 
   // Add transporter if there's storage and containers at 50%+ capacity
   if (roomStatus.hasStorage && roomStatus.containersHalfFullCount > 0) {
@@ -187,6 +198,8 @@ const handleTowers = (room) => {
     
     if (hostileCreeps.length > 0) {
       // Attack the closest hostile creep
+  
+      console.log(`Tower in room ${room.name} attacking hostile creep ${hostileCreeps[0].name}`);
       const target = tower.pos.findClosestByRange(hostileCreeps);
       if (target) {
         tower.attack(target);

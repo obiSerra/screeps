@@ -12,20 +12,30 @@ const calculateBodyCost = (body) =>
  * Get body composition based on available energy
  * Pure function - no side effects
  * @param {number} energyAvailable - Current energy available
+ * @param {Room} room - The room object
+ * @param {Object} currentCreeps - Current creep counts by role
+ * @param {Object} targetRoster - Target roster counts
  * @returns {Array} Body parts array
  */
-const getWorkerCreepBody = (energyAvailable, room) => {
+const getWorkerCreepBody = (energyAvailable, room, currentCreeps = {}, targetRoster = {}) => {
   const bodyList = [
-    [WORK, WORK, WORK, CARRY, CARRY, CARRY, MOVE, MOVE, MOVE],
-    [WORK, WORK, WORK, CARRY, CARRY, MOVE, MOVE, MOVE],
-    [WORK, WORK, CARRY, MOVE, MOVE],
-    [WORK, CARRY, MOVE],
+    [WORK, WORK, WORK, CARRY, CARRY, CARRY, MOVE, MOVE, MOVE], // 800
+    [WORK, WORK, WORK, CARRY, CARRY, MOVE, MOVE, MOVE],        // 650
+    [WORK, WORK, CARRY, MOVE, MOVE],                           // 400
+    [WORK, CARRY, MOVE],                                        // 200
   ];
 
   const areInvaders = room ? utils.areThereInvaders(room) : false;
   const combatParts = [TOUGH, TOUGH, ATTACK];
   const combatCost = calculateBodyCost(combatParts);
 
+  // Calculate total current workers and target
+  const totalCurrent = Object.values(currentCreeps).reduce((sum, count) => sum + count, 0);
+  const totalTarget = Object.values(targetRoster).reduce((sum, count) => sum + count, 0);
+  
+  // Only use larger bodies when we have at least 75% of target worker count
+  const hasEnoughWorkers = totalCurrent >= totalTarget * 0.75;
+  
   const bodyCosts = bodyList
     .map((body) => [calculateBodyCost(body), body])
     .sort((a, b) => b[0] - a[0]); // Sort by cost descending
@@ -34,6 +44,10 @@ const getWorkerCreepBody = (energyAvailable, room) => {
   let selectedBody = null;
   for (const [cost, body] of bodyCosts) {
     if (energyAvailable >= cost) {
+      // If we don't have enough workers, prefer smaller bodies to spawn more creeps faster
+      if (!hasEnoughWorkers && cost > 400) {
+        continue; // Skip larger bodies when workforce is insufficient
+      }
       selectedBody = [...body];
       break;
     }
@@ -346,7 +360,7 @@ const spawnProcedure = (spawn, roster, roomStatus) => {
   // }
 
   const room = Game.rooms[roomStatus.roomName];
-  const body = getWorkerCreepBody(roomStatus.energyAvailable, room);
+  const body = getWorkerCreepBody(roomStatus.energyAvailable, room, currentCreeps, roster);
 
   // Try primary spawn based on roster
   const primaryRole = determineSpawnRole(roster, currentCreeps, roomStatus);
