@@ -168,6 +168,34 @@ const calculateRoster = (roomStatus) => {
 };
 
 // ============================================================================
+// Tower Handling
+// ============================================================================
+
+/**
+ * Handle all towers in the room
+ * Effectful function - makes towers attack enemies
+ * @param {Room} room - The room containing towers
+ */
+const handleTowers = (room) => {
+  const towers = room.find(FIND_MY_STRUCTURES, {
+    filter: (s) => s.structureType === STRUCTURE_TOWER,
+  });
+
+  towers.forEach((tower) => {
+    // Find hostile creeps in the room
+    const hostileCreeps = room.find(FIND_HOSTILE_CREEPS);
+    
+    if (hostileCreeps.length > 0) {
+      // Attack the closest hostile creep
+      const target = tower.pos.findClosestByRange(hostileCreeps);
+      if (target) {
+        tower.attack(target);
+      }
+    }
+  });
+};
+
+// ============================================================================
 // Creep Handling
 // ============================================================================
 
@@ -301,6 +329,9 @@ const handleExecutingMode = (room, roomStatus) => {
     planCriticalStructureRamparts(room.name, spawnPosition, 3, false);
     placeRampantsConstructionSites(room.name);
   }
+
+  // Handle towers
+  handleTowers(room);
 
   // Handle creeps
   handleCreeps(room);
@@ -438,6 +469,9 @@ module.exports = {
 
   // Roster
   calculateRoster,
+
+  // Towers
+  handleTowers,
 
   // Creeps
   handleCreeps,
