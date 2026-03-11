@@ -7,6 +7,8 @@ const roleBuilder = require("./role.builder");
 const baseCreep = require("./baseCreep");
 const roleClaimer = require("./role.claimer");
 const roleTransporter = require("./role.transporter");
+const roleMiner = require("./role.miner");
+const roleHauler = require("./role.hauler");
 
 // ============================================================================
 // Room Mode Management
@@ -132,50 +134,121 @@ const calculateInitialRoster = (roomStatus) => {
 
 /**
  * Calculate roster based on room status
- * Pure function - scales with energy capacity
+ * Pure function - scales with energy capacity and RCL
  * @param {Object} roomStatus - Current room status
  * @returns {Object} Roster object {role: count}
  */
 const calculateRoster = (roomStatus) => {
+  const rcl = roomStatus.controllerLevel;
+  
   // Critical: ensure at least 1 harvester
-  if ((roomStatus.creeps.harvester || 0) < 1) {
+  if ((roomStatus.creeps.harvester || 0) < 1 && rcl < 4) {
     return { harvester: 1, upgrader: 0, builder: 0 };
   }
-
-  // Level 1: focus on upgrading to unlock extensions
-  if (roomStatus.controllerLevel < 2) {
-    return calculateInitialRoster(roomStatus);
-  }
-
-  // Scale base roster with energy capacity (1 worker per 300 energy capacity)
-  // This ensures we have enough workers before increasing their size
-  const baseWorkersPerCapacity = Math.max(1, Math.floor(roomStatus.energyCapacity / 300));
   
-  // Distribution: ~50% harvesters, ~25% builders, ~25% upgraders
-  const harvesterCount = Math.max(2, Math.ceil(baseWorkersPerCapacity * 0.5));
-  const baseBuilderCount = Math.max(1, Math.floor(baseWorkersPerCapacity * 0.25));
-  const upgraderCount = Math.max(1, Math.floor(baseWorkersPerCapacity * 0.25));
+  // Emergency: for RCL 4+, ensure at least 1 miner if no harvesters
+  if ((roomStatus.creeps.miner || 0) < 1 && (roomStatus.creeps.harvester || 0) < 1 && rcl >= 4) {
+    return { miner: 1, hauler: 0, upgrader: 0, builder: 0 };
+  }
 
-  // Adjust builder count based on construction sites
-  let builderCount = baseBuilderCount;
-  if (roomStatus.constructionSiteCount > 10) {
-    builderCount = Math.max(builderCount, 4);
+  // ========================================================================
+  // RCL 1-3: Swarm strategy with small generalist creeps
+  // ========================================================================
+  if (rcl <= 3) {
+    // Level 1: focus on upgrading to unlock extensions
+    if (rcl < 2) {
+      return calculateInitialRoster(roomStatus);
+    }
+
+    // Scale base roster with energy capacity (1 worker per 300 energy capacity)
+    const baseWorkersPerCapacity = Math.max(1, Math.floor(roomStatus.energyCapacity / 300));
+    
+    // Distribution: ~50% harvesters, ~25% builders, ~25% upgraders
+    const harvesterCount = Math.max(2, Math.ceil(baseWorkersPerCapacity * 0.5));
+    const baseBuilderCount = Math.max(1, Math.floor(baseWorkersPerCapacity * 0.25));
+    const upgraderCount = Math.max(1, Math.floor(baseWorkersPerCapacity * 0.25));
+
+    // Adjust builder count based on construction sites
+    let builderCount = baseBuilderCount;
+    if (roomStatus.constructionSiteCount > 10) {
+      builderCount = Math.max(builderCount, 4);
+    } else if (roomStatus.constructionSiteCount > 0) {
+      builderCount = Math.max(builderCount, 2);
+    }
+
+    return {
+      harvester: harvesterCount,
+      builder: builderCount,
+      upgrader: upgraderCount
+    };
+  }
+
+  // ========================================================================
+  // RCL 4-7: Specialized medium creeps (miner/hauler split)
+  // ========================================================================
+  if (rcl <= 7) {
+    // Get source count for miner assignment
+    const room = Game.rooms[roomStatus.roomName];
+    const sources = room ? room.find(FIND_SOURCES) : [];
+    const sourceCount = sources.length || 2; // Default to 2 if room not visible
+    
+    // 1 miner per source (stationary at source)
+    const minerCount = sourceCount;
+    
+    // Haulers: 2 per source as baseline (adjust based on room layout later)
+    const haulerCount = sourceCount * 2;
+    
+    // Upgraders: scale with energy surplus
+    const baseUpgraderCount = Math.max(2, Math.floor(roomStatus.energyCapacity / 800));
+    const upgraderCount = Math.min(baseUpgraderCount, 4); // Cap at 4 for mid-tier
+    
+    // Builders: scale with construction sites
+    let builderCount = 1; // Always at least 1
+    if (roomStatus.constructionSiteCount > 10) {
+      builderCount = 3;
+    } else if (roomStatus.constructionSiteCount > 3) {
+      builderCount = 2;
+    }
+
+    return {
+      miner: minerCount,
+      hauler: haulerCount,
+      upgrader: upgraderCount,
+      builder: builderCount
+    };
+  }
+
+  // ========================================================================
+  // RCL 8+: Giant creeps with tight specialization
+  // ========================================================================
+  // Reduce creep count, increase body sizes (handled in spawner body generation)
+  const room = Game.rooms[roomStatus.roomName];
+  const sources = room ? room.find(FIND_SOURCES) : [];
+  const sourceCount = sources.length || 2;
+  
+  // 1 giant miner per source ([WORK×5, MOVE×1])
+  const minerCount = sourceCount;
+  
+  // Haulers: fewer but larger - 1 per source for short distances
+  const haulerCount = sourceCount;
+  
+  // Upgraders: 2-3 giants near controller
+  const upgraderCount = 2;
+  
+  // Builders: scale with construction, but prefer large creeps
+  let builderCount = 0; // No builders by default at RCL 8 unless needed
+  if (roomStatus.constructionSiteCount > 5) {
+    builderCount = 2;
   } else if (roomStatus.constructionSiteCount > 0) {
-    builderCount = Math.max(builderCount, 2);
+    builderCount = 1;
   }
 
-  const roster = {
-    harvester: harvesterCount,
-    builder: builderCount,
-    upgrader: upgraderCount
+  return {
+    miner: minerCount,
+    hauler: haulerCount,
+    upgrader: upgraderCount,
+    builder: builderCount
   };
-
-  // Add transporter if there's storage and containers at 50%+ capacity
-  if (roomStatus.hasStorage && roomStatus.containersHalfFullCount > 0) {
-    roster.transporter = 1;
-  }
-
-  return roster;
 };
 
 // ============================================================================
@@ -222,6 +295,8 @@ const roleHandlers = {
   builder: roleBuilder.run,
   claimer: roleClaimer.run,
   transporter: roleTransporter.run,
+  miner: roleMiner.run,
+  hauler: roleHauler.run,
 };
 
 

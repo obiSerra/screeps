@@ -28,6 +28,9 @@ const ACTION_ICONS = {
   claiming: "📜",
   attacking: "⚔️",
   transporting: "📦",
+  mining: "⛏️",
+  hauling: "🚚",
+  delivering: "📬",
 };
 
 const PATH_COLORS = {
@@ -38,6 +41,9 @@ const PATH_COLORS = {
   harvesting: "#0004ff",
   attacking: "#ff0000",
   transporting: "#ff8800",
+  mining: "#ffaa00",
+  hauling: "#00aaff",
+  delivering: "#0004ff",
 };
 
 // ============================================================================
@@ -276,12 +282,41 @@ const getActionAvailability = (creep) => {
       s.store[RESOURCE_ENERGY] >= s.store.getCapacity(RESOURCE_ENERGY) * 0.5,
   });
 
+  // Check for mining opportunities (sources exist and creep has assigned source)
+  const sources = room.find(FIND_SOURCES_ACTIVE);
+  const hasMiningTarget = creep.memory.assignedSource || sources.length > 0;
+  
+  // Check for hauling opportunities (containers with energy or dropped resources)
+  const containersForHauling = room.find(FIND_STRUCTURES, {
+    filter: (s) =>
+      s.structureType === STRUCTURE_CONTAINER &&
+      s.store[RESOURCE_ENERGY] > 0
+  });
+  const droppedEnergy = room.find(FIND_DROPPED_RESOURCES, {
+    filter: (r) => r.resourceType === RESOURCE_ENERGY && r.amount > 50
+  });
+  const hasHaulingTarget = containersForHauling.length > 0 || droppedEnergy.length > 0;
+  
+  // Check for delivery targets (spawns/extensions/towers/storage needing energy)
+  const deliveryTargets = room.find(FIND_STRUCTURES, {
+    filter: (s) =>
+      ((s.structureType === STRUCTURE_SPAWN ||
+        s.structureType === STRUCTURE_EXTENSION ||
+        s.structureType === STRUCTURE_TOWER ||
+        s.structureType === STRUCTURE_STORAGE) &&
+       s.store.getFreeCapacity(RESOURCE_ENERGY) > 0)
+  });
+  const hasDeliveryTarget = deliveryTargets.length > 0;
+
   return {
     repairCritical: criticalRepairs.length > 0,
     building: constructionSites.length > 0,
     repairing: repairTargets.length > 0,
     harvesting: energyAvailable < energyCapacity,
     transporting: storage && containersWithEnergy.length > 0,
+    mining: hasMiningTarget,
+    hauling: hasHaulingTarget && creep.store.getFreeCapacity(RESOURCE_ENERGY) > 0,
+    delivering: hasDeliveryTarget && creep.store[RESOURCE_ENERGY] > 0,
     upgrading: true, // Always available as fallback
     // Include targets for immediate use
     targets: {
@@ -290,6 +325,10 @@ const getActionAvailability = (creep) => {
       constructionSites,
       storage,
       containersWithEnergy,
+      sources,
+      containersForHauling,
+      droppedEnergy,
+      deliveryTargets,
     },
   };
 };
@@ -730,6 +769,182 @@ const handleTransporting = (creep) => {
 };
 
 /**
+ * Handle mining action (stationary harvesting at assigned source)
+ * Effectful function
+ * @param {Creep} creep
+ */
+const handleMining = (creep) => {
+  const { assignedSource } = creep.memory;
+  
+  // Get assigned source from memory or find nearest
+  let source = null;
+  if (assignedSource) {
+    source = Game.getObjectById(assignedSource);
+  }
+  
+  // If no assigned source or source no longer exists, find nearest
+  if (!source) {
+    const sources = creep.room.find(FIND_SOURCES);
+    if (sources.length > 0) {
+      source = creep.pos.findClosestByPath(sources);
+      if (source) {
+        creep.memory.assignedSource = source.id;
+      }
+    }
+  }
+  
+  if (!source) {
+    // No sources available, this shouldn't happen
+    return;
+  }
+  
+  // Harvest from source
+  const result = creep.harvest(source);
+  if (result === ERR_NOT_IN_RANGE) {
+    moveToTarget(creep, source, PATH_COLORS.mining);
+  } else if (result === OK) {
+    // Mining successfully - check if we need to drop energy to container
+    // Look for container at source position
+    const containers = source.pos.findInRange(FIND_STRUCTURES, 1, {
+      filter: (s) => s.structureType === STRUCTURE_CONTAINER
+    });
+    
+    // If creep is full and there's a container nearby, transfer to it
+    if (creep.store.getFreeCapacity(RESOURCE_ENERGY) === 0 && containers.length > 0) {
+      const container = containers[0];
+      if (container.store.getFreeCapacity(RESOURCE_ENERGY) > 0) {
+        creep.transfer(container, RESOURCE_ENERGY);
+      }
+    }
+  }
+};
+
+/**
+ * Handle hauling action (pickup energy from containers/dropped resources)
+ * Effectful function
+ * @param {Creep} creep
+ */
+const handleHauling = (creep) => {
+  // If creep is full, switch to delivering
+  if (creep.store.getFreeCapacity(RESOURCE_ENERGY) === 0) {
+    clearCreepAction(creep);
+    return;
+  }
+  
+  const { actionTarget } = creep.memory;
+  
+  // Find target if not set
+  if (!actionTarget) {
+    // Look for containers near sources with energy
+    const containers = creep.room.find(FIND_STRUCTURES, {
+      filter: (s) =>
+        s.structureType === STRUCTURE_CONTAINER &&
+        s.store[RESOURCE_ENERGY] > 0
+    });
+    
+    // Also look for dropped energy
+    const droppedEnergy = creep.room.find(FIND_DROPPED_RESOURCES, {
+      filter: (r) => r.resourceType === RESOURCE_ENERGY && r.amount > 50
+    });
+    
+    // Combine and sort by distance
+    const targets = [...containers, ...droppedEnergy];
+    if (targets.length === 0) {
+      clearCreepAction(creep);
+      return;
+    }
+    
+    const closest = creep.pos.findClosestByPath(targets);
+    if (closest) {
+      setCreepAction(creep, "hauling", { id: closest.id, pos: closest.pos });
+    }
+    return;
+  }
+  
+  const target = Game.getObjectById(actionTarget.id);
+  if (!target) {
+    clearCreepAction(creep);
+    return;
+  }
+  
+  // Pickup or withdraw
+  let result;
+  if (target instanceof Resource) {
+    result = creep.pickup(target);
+  } else {
+    result = creep.withdraw(target, RESOURCE_ENERGY);
+  }
+  
+  if (result === ERR_NOT_IN_RANGE) {
+    moveToTarget(creep, target, PATH_COLORS.hauling);
+  } else if (result === OK || result === ERR_FULL) {
+    clearCreepAction(creep);
+  } else if (result === ERR_NOT_ENOUGH_RESOURCES) {
+    clearCreepAction(creep);
+  }
+};
+
+/**
+ * Handle delivering action (deliver energy to spawns/extensions/towers/storage)
+ * Effectful function
+ * @param {Creep} creep
+ */
+const handleDelivering = (creep) => {
+  // If creep is empty, switch back to hauling
+  if (creep.store[RESOURCE_ENERGY] === 0) {
+    clearCreepAction(creep);
+    return;
+  }
+  
+  const { actionTarget } = creep.memory;
+  
+  // Find target if not set
+  if (!actionTarget) {
+    // Priority: Spawn > Extensions > Towers > Storage
+    let targets = creep.room.find(FIND_STRUCTURES, {
+      filter: (s) =>
+        (s.structureType === STRUCTURE_SPAWN ||
+         s.structureType === STRUCTURE_EXTENSION ||
+         s.structureType === STRUCTURE_TOWER) &&
+        s.store.getFreeCapacity(RESOURCE_ENERGY) > 0
+    });
+    
+    // If no priority targets, deliver to storage
+    if (targets.length === 0) {
+      targets = creep.room.find(FIND_STRUCTURES, {
+        filter: (s) =>
+          s.structureType === STRUCTURE_STORAGE &&
+          s.store.getFreeCapacity(RESOURCE_ENERGY) > 0
+      });
+    }
+    
+    if (targets.length === 0) {
+      clearCreepAction(creep);
+      return;
+    }
+    
+    const closest = creep.pos.findClosestByPath(targets);
+    if (closest) {
+      setCreepAction(creep, "delivering", { id: closest.id, pos: closest.pos });
+    }
+    return;
+  }
+  
+  const target = Game.getObjectById(actionTarget.id);
+  if (!target) {
+    clearCreepAction(creep);
+    return;
+  }
+  
+  const result = creep.transfer(target, RESOURCE_ENERGY);
+  if (result === ERR_NOT_IN_RANGE) {
+    moveToTarget(creep, target, PATH_COLORS.delivering);
+  } else if (result === OK || result === ERR_FULL) {
+    clearCreepAction(creep);
+  }
+};
+
+/**
  * Action handler registry
  * Maps action names to handler functions
  */
@@ -741,6 +956,9 @@ const ACTION_HANDLERS = {
   harvesting: handleHarvesting,
   attacking: handleAttacking,
   transporting: handleTransporting,
+  mining: handleMining,
+  hauling: handleHauling,
+  delivering: handleDelivering,
 };
 
 // ============================================================================

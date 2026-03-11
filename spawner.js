@@ -177,6 +177,286 @@ const getFighterCreepBody = (energyAvailable) => {
 };
 
 /**
+ * Get RCL tier for scaling strategy
+ * Pure function - no side effects
+ * @param {number} rcl - Room Control Level (1-8)
+ * @returns {string} Tier: "early" (1-3), "mid" (4-7), or "late" (8+)
+ */
+const getRCLTier = (rcl) => {
+  if (rcl <= 3) return "early";
+  if (rcl <= 7) return "mid";
+  return "late";
+};
+
+/**
+ * Get generalist body for RCL 1-3 (swarm strategy)
+ * Pure function - no side effects
+ * @param {number} rcl - Room Control Level
+ * @param {number} energyAvailable - Current energy available
+ * @returns {Array} Body parts array
+ */
+const getGeneralistBody = (rcl, energyAvailable) => {
+  // Small, flexible generalists with WORK, CARRY, MOVE
+  const bodyList = [
+    [WORK, WORK, WORK, CARRY, CARRY, CARRY, MOVE, MOVE, MOVE], // 800
+    [WORK, WORK, WORK, CARRY, CARRY, MOVE, MOVE, MOVE],        // 650
+    [WORK, WORK, CARRY, MOVE, MOVE],                           // 400
+    [WORK, CARRY, MOVE],                                        // 200
+  ];
+
+  for (const body of bodyList) {
+    const cost = calculateBodyCost(body);
+    if (energyAvailable >= cost) {
+      return [...body];
+    }
+  }
+  
+  return undefined;
+};
+
+/**
+ * Get miner body (stationary harvester at source)
+ * Pure function - no side effects
+ * @param {number} rcl - Room Control Level
+ * @param {number} energyAvailable - Current energy available
+ * @returns {Array} Body parts array
+ */
+const getMinerBody = (rcl, energyAvailable) => {
+  const tier = getRCLTier(rcl);
+  
+  if (tier === "early") {
+    // RCL 1-3: Should not use miners yet, return generalist
+    return getGeneralistBody(rcl, energyAvailable);
+  }
+  
+  if (tier === "late") {
+    // RCL 8+: Giant miner - [WORK×5, MOVE×1] or scaled down
+    // Max source output is 10 energy/tick with 5 WORK parts (5 * 2 = 10)
+    const giantBody = [WORK, WORK, WORK, WORK, WORK, MOVE]; // 550 energy
+    if (energyAvailable >= calculateBodyCost(giantBody)) {
+      return giantBody;
+    }
+    // Fallback to smaller miner
+  }
+  
+  // RCL 4-7: Medium miner
+  const bodyList = [
+    [WORK, WORK, WORK, WORK, WORK, MOVE],       // 550 - optimal for source
+    [WORK, WORK, WORK, MOVE],                    // 350
+    [WORK, WORK, MOVE],                          // 250
+  ];
+  
+  for (const body of bodyList) {
+    const cost = calculateBodyCost(body);
+    if (energyAvailable >= cost) {
+      return [...body];
+    }
+  }
+  
+  return undefined;
+};
+
+/**
+ * Get hauler body (pure transport, no WORK parts)
+ * Pure function - no side effects
+ * @param {number} rcl - Room Control Level
+ * @param {number} energyAvailable - Current energy available
+ * @returns {Array} Body parts array
+ */
+const getHaulerBody = (rcl, energyAvailable) => {
+  const tier = getRCLTier(rcl);
+  
+  if (tier === "early") {
+    // RCL 1-3: Should not use haulers yet, return generalist
+    return getGeneralistBody(rcl, energyAvailable);
+  }
+  
+  // Haulers need 1 MOVE per 2 CARRY on roads
+  // Build as many [CARRY×2, MOVE] sets as possible
+  const setCost = BODYPART_COST[CARRY] * 2 + BODYPART_COST[MOVE]; // 150 per set
+  const maxSets = Math.floor(energyAvailable / setCost);
+  
+  if (maxSets < 1) {
+    return undefined;
+  }
+  
+  // Cap based on tier
+  let capSets = 16; // 48 parts max (just under 50 limit)
+  if (tier === "mid") {
+    capSets = 8; // Medium haulers for RCL 4-7
+  }
+  
+  const sets = Math.min(maxSets, capSets);
+  
+  const body = [];
+  // Add all CARRY parts first
+  for (let i = 0; i < sets * 2; i++) {
+    body.push(CARRY);
+  }
+  // Add all MOVE parts
+  for (let i = 0; i < sets; i++) {
+    body.push(MOVE);
+  }
+  
+  return body;
+};
+
+/**
+ * Get upgrader body (optimized for controller work)
+ * Pure function - no side effects
+ * @param {number} rcl - Room Control Level
+ * @param {number} energyAvailable - Current energy available
+ * @returns {Array} Body parts array
+ */
+const getUpgraderBody = (rcl, energyAvailable) => {
+  const tier = getRCLTier(rcl);
+  
+  if (tier === "early") {
+    // RCL 1-3: Use generalist body
+    return getGeneralistBody(rcl, energyAvailable);
+  }
+  
+  if (tier === "late") {
+    // RCL 8+: Giant upgrader - stationary near controller
+    // [WORK×15, CARRY×3, MOVE×6] or scaled down
+    const giantBody = [
+      WORK, WORK, WORK, WORK, WORK, WORK, WORK, WORK, WORK, WORK,
+      WORK, WORK, WORK, WORK, WORK, // 15 WORK
+      CARRY, CARRY, CARRY,           // 3 CARRY
+      MOVE, MOVE, MOVE, MOVE, MOVE, MOVE // 6 MOVE
+    ]; // 1500 + 150 + 300 = 1950 energy
+    
+    if (energyAvailable >= calculateBodyCost(giantBody)) {
+      return giantBody;
+    }
+    
+    // Scaled giant: [WORK×10, CARRY×2, MOVE×4]
+    const mediumGiantBody = [
+      WORK, WORK, WORK, WORK, WORK, WORK, WORK, WORK, WORK, WORK,
+      CARRY, CARRY,
+      MOVE, MOVE, MOVE, MOVE
+    ]; // 1000 + 100 + 200 = 1300
+    
+    if (energyAvailable >= calculateBodyCost(mediumGiantBody)) {
+      return mediumGiantBody;
+    }
+  }
+  
+  // RCL 4-7: Medium upgrader - more WORK than generalist
+  const bodyList = [
+    [WORK, WORK, WORK, WORK, CARRY, CARRY, MOVE, MOVE, MOVE], // 800
+    [WORK, WORK, WORK, CARRY, CARRY, MOVE, MOVE, MOVE],       // 650
+    [WORK, WORK, CARRY, MOVE, MOVE],                          // 400
+  ];
+  
+  for (const body of bodyList) {
+    const cost = calculateBodyCost(body);
+    if (energyAvailable >= cost) {
+      return [...body];
+    }
+  }
+  
+  return undefined;
+};
+
+/**
+ * Get builder body (balanced WORK/CARRY for construction)
+ * Pure function - no side effects
+ * @param {number} rcl - Room Control Level
+ * @param {number} energyAvailable - Current energy available
+ * @returns {Array} Body parts array
+ */
+const getBuilderBody = (rcl, energyAvailable) => {
+  const tier = getRCLTier(rcl);
+  
+  if (tier === "early") {
+    // RCL 1-3: Use generalist body
+    return getGeneralistBody(rcl, energyAvailable);
+  }
+  
+  // RCL 4+: Balanced builder with equal WORK/CARRY and enough MOVE
+  const bodyList = [
+    [WORK, WORK, WORK, CARRY, CARRY, CARRY, MOVE, MOVE, MOVE], // 800
+    [WORK, WORK, CARRY, CARRY, MOVE, MOVE],                    // 500
+    [WORK, CARRY, MOVE],                                        // 200
+  ];
+  
+  for (const body of bodyList) {
+    const cost = calculateBodyCost(body);
+    if (energyAvailable >= cost) {
+      return [...body];
+    }
+  }
+  
+  return undefined;
+};
+
+/**
+ * Get defender body (combat creep scaled by RCL)
+ * Pure function - no side effects
+ * @param {number} rcl - Room Control Level
+ * @param {number} energyAvailable - Current energy available
+ * @returns {Array} Body parts array
+ */
+const getDefenderBody = (rcl, energyAvailable) => {
+  const tier = getRCLTier(rcl);
+  
+  if (tier === "early") {
+    // RCL 1-3: Small, cheap defenders
+    // [TOUGH, ATTACK, MOVE] × N sets
+    const setcost = BODYPART_COST[TOUGH] + BODYPART_COST[ATTACK] + BODYPART_COST[MOVE]; // 140
+    const maxSets = Math.floor(energyAvailable / setcost);
+    
+    if (maxSets < 1) {
+      return undefined;
+    }
+    
+    const sets = Math.min(maxSets, 3); // Cap at 3 sets for early game
+    const body = [];
+    
+    for (let i = 0; i < sets; i++) body.push(TOUGH);
+    for (let i = 0; i < sets; i++) body.push(ATTACK);
+    for (let i = 0; i < sets; i++) body.push(MOVE);
+    
+    return body;
+  }
+  
+  if (tier === "late") {
+    // RCL 8+: Giant tank
+    const giantBody = [
+      TOUGH, TOUGH, TOUGH, TOUGH, TOUGH, TOUGH, TOUGH, TOUGH, TOUGH, TOUGH, // 10 TOUGH
+      ATTACK, ATTACK, ATTACK, ATTACK, ATTACK, ATTACK, ATTACK, ATTACK, ATTACK, ATTACK, // 10 ATTACK
+      RANGED_ATTACK, RANGED_ATTACK, RANGED_ATTACK, RANGED_ATTACK, RANGED_ATTACK, // 5 RANGED_ATTACK
+      MOVE, MOVE, MOVE, MOVE, MOVE, MOVE, MOVE, MOVE, MOVE, MOVE,
+      MOVE, MOVE, MOVE, MOVE, MOVE, MOVE, MOVE, MOVE, MOVE, MOVE,
+      MOVE, MOVE, MOVE, MOVE, MOVE // 25 MOVE
+    ]; // 100 + 800 + 750 + 1250 = 2900
+    
+    if (energyAvailable >= calculateBodyCost(giantBody)) {
+      return giantBody;
+    }
+    
+    // Fallback to medium
+  }
+  
+  // RCL 4-7: Medium defender
+  const bodyList = [
+    [TOUGH, TOUGH, ATTACK, ATTACK, RANGED_ATTACK, MOVE, MOVE, MOVE, MOVE, MOVE], // 730
+    [TOUGH, ATTACK, ATTACK, MOVE, MOVE, MOVE],                                     // 340
+    [TOUGH, ATTACK, MOVE],                                                         // 140
+  ];
+  
+  for (const body of bodyList) {
+    const cost = calculateBodyCost(body);
+    if (energyAvailable >= cost) {
+      return [...body];
+    }
+  }
+  
+  return undefined;
+};
+
+/**
  * Count current creeps by role
  * Pure function - no side effects
  * @param {Object} creeps - Game.creeps object
@@ -296,12 +576,14 @@ const generateCreepName = (role, gameTime) =>
  * @param {string} role - Role to spawn
  * @param {Array} body - Body parts
  * @param {number} gameTime - Current game time
+ * @param {Object} extraMemory - Additional memory properties (optional)
  * @returns {number} Spawn result code
  */
-const executeSpawn = (spawn, role, body, gameTime) => {
+const executeSpawn = (spawn, role, body, gameTime, extraMemory = {}) => {
   const name = generateCreepName(role, gameTime);
   console.log(`Spawning new ${role}: ${name}`);
-  return spawn.spawnCreep(body, name, { memory: { role } });
+  const memory = { role, ...extraMemory };
+  return spawn.spawnCreep(body, name, { memory });
 };
 
 /**
@@ -329,6 +611,73 @@ const spawnClaimer = (spawn) => {
 };
 
 /**
+ * Get appropriate body for a role based on RCL
+ * Pure function - no side effects
+ * @param {string} role - Creep role
+ * @param {number} rcl - Room Control Level
+ * @param {number} energyAvailable - Current energy available
+ * @param {Room} room - The room object
+ * @param {Object} currentCreeps - Current creep counts by role
+ * @param {Object} roster - Target roster counts
+ * @returns {Array} Body parts array
+ */
+const getBodyForRole = (role, rcl, energyAvailable, room, currentCreeps, roster) => {
+  const tier = getRCLTier(rcl);
+  
+  // Check for invaders (for combat parts in early tiers)
+  const areInvaders = room ? utils.areThereInvaders(room) : false;
+  
+  switch (role) {
+    case "harvester":
+      // RCL 1-3 only
+      return getGeneralistBody(rcl, energyAvailable);
+    
+    case "upgrader":
+      return getUpgraderBody(rcl, energyAvailable);
+    
+    case "builder":
+      return getBuilderBody(rcl, energyAvailable);
+    
+    case "miner":
+      // RCL 4+ only
+      return getMinerBody(rcl, energyAvailable);
+    
+    case "hauler":
+      // RCL 4+ only
+      return getHaulerBody(rcl, energyAvailable);
+    
+    case "transporter":
+      // Legacy role (deprecated at RCL 4+)
+      return getTransporterBody(energyAvailable);
+    
+    case "defender":
+      return getDefenderBody(rcl, energyAvailable);
+    
+    default:
+      // Fallback to generalist for unknown roles
+      return getGeneralistBody(rcl, energyAvailable);
+  }
+};
+
+/**
+ * Find unassigned source for a new miner
+ * Pure function - no side effects
+ * @param {Room} room - The room
+ * @param {Array} existingMiners - Array of existing miner creeps
+ * @returns {string|null} Source ID or null
+ */
+const findUnassignedSource = (room, existingMiners) => {
+  const sources = room.find(FIND_SOURCES);
+  const assignedSources = existingMiners
+    .map(m => m.memory.assignedSource)
+    .filter(Boolean);
+  
+  // Find a source without a miner
+  const unassignedSource = sources.find(s => !assignedSources.includes(s.id));
+  return unassignedSource ? unassignedSource.id : (sources[0] ? sources[0].id : null);
+};
+
+/**
  * Main spawn procedure - orchestrates all spawning logic
  * @param {StructureSpawn} spawn - The spawn structure
  * @param {Object} roster - Target roster {role: count}
@@ -345,37 +694,39 @@ const spawnProcedure = (spawn, roster, roomStatus) => {
   }
 
   const currentCreeps = countCreepsByRole(Game.creeps);
-
-  // Claimer
-
-  // NEXT!!!!!!!!!!!!!!!!!
-  // if (
-  //   !currentCreeps["claimer"] &&
-  //   Game.gcl.level >= 2 &&
-  //   roomStatus.energyAvailable >= 700
-  // ) {
-  //   const results = spawnClaimer(spawn);
-  //   displaySpawningVisual(spawn);
-  //   return { spawned: results === OK, role: "claimer", result: results };
-  // }
-
   const room = Game.rooms[roomStatus.roomName];
-  const body = getWorkerCreepBody(roomStatus.energyAvailable, room, currentCreeps, roster);
+  const rcl = roomStatus.controllerLevel;
 
   // Try primary spawn based on roster
   const primaryRole = determineSpawnRole(roster, currentCreeps, roomStatus);
   if (primaryRole) {
-    // Use transporter body for transporter role
-    const spawnBody = primaryRole === "transporter" 
-      ? getTransporterBody(roomStatus.energyAvailable) 
-      : body;
+    // Get appropriate body for role and RCL
+    const spawnBody = getBodyForRole(
+      primaryRole,
+      rcl,
+      roomStatus.energyAvailable,
+      room,
+      currentCreeps,
+      roster
+    );
     
     if (!spawnBody) {
       displaySpawningVisual(spawn);
       return { spawned: false, reason: "insufficient_energy" };
     }
     
-    const result = executeSpawn(spawn, primaryRole, spawnBody, Game.time);
+    // Prepare extra memory for specific roles
+    let extraMemory = {};
+    if (primaryRole === "miner") {
+      // Assign source to miner
+      const existingMiners = Object.values(Game.creeps).filter(c => c.memory.role === "miner");
+      const assignedSource = findUnassignedSource(room, existingMiners);
+      if (assignedSource) {
+        extraMemory.assignedSource = assignedSource;
+      }
+    }
+    
+    const result = executeSpawn(spawn, primaryRole, spawnBody, Game.time, extraMemory);
     displaySpawningVisual(spawn);
     return { spawned: result === OK, role: primaryRole, result };
   }
@@ -387,22 +738,22 @@ const spawnProcedure = (spawn, roster, roomStatus) => {
       `Energy full: ${roomStatus.energyAvailable}/${roomStatus.energyCapacity} spawning extra ${extraRole} Creep`,
     );
 
-    // Fighter upgrader when we have excess energy
-    if (extraRole == "upgrader" && roomStatus.energyAvailable > 1000) {
-      const fighterBody = getFighterCreepBody(roomStatus.energyAvailable);
-      if (fighterBody) {
-        const result = executeSpawn(spawn, "upgrader", fighterBody, Game.time);
-        displaySpawningVisual(spawn);
-        return {
-          spawned: result === OK,
-          role: "upgrader",
-          result,
-          fighter: true,
-        };
-      }
+    // Get appropriate body for role and RCL
+    const extraBody = getBodyForRole(
+      extraRole,
+      rcl,
+      roomStatus.energyAvailable,
+      room,
+      currentCreeps,
+      roster
+    );
+    
+    if (!extraBody) {
+      displaySpawningVisual(spawn);
+      return { spawned: false, reason: "insufficient_energy" };
     }
 
-    const result = executeSpawn(spawn, extraRole, body, Game.time);
+    const result = executeSpawn(spawn, extraRole, extraBody, Game.time);
     displaySpawningVisual(spawn);
     return { spawned: result === OK, role: extraRole, result, extra: true };
   }
@@ -416,6 +767,19 @@ module.exports = {
   getCreepBody: getWorkerCreepBody,
   getFighterCreepBody,
   getTransporterBody,
+  
+  // RCL-based body generators
+  getRCLTier,
+  getGeneralistBody,
+  getMinerBody,
+  getHaulerBody,
+  getUpgraderBody,
+  getBuilderBody,
+  getDefenderBody,
+  getBodyForRole,
+  
+  // Helper functions
+  findUnassignedSource,
   countCreepsByRole,
   determineSpawnRole,
   determineExtraSpawn,

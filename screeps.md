@@ -33,17 +33,22 @@ The bot operates in two distinct strategic modes:
 
 ### Room Development Strategy
 
-The bot employs a phased development strategy that adapts to each Room Control Level (RCL):
+The bot employs a three-tiered development strategy that fundamentally changes creep composition and workforce strategy at each major phase:
+
+#### Tier 1: RCL 1-3 - Swarm Strategy
+**Philosophy**: Many small, versatile generalist creeps
 
 **RCL 1 - Bootstrap Phase**
 - Primary focus: Upgrade controller to unlock extensions
-- Workforce: Minimal harvesters, maximum upgraders
+- Workforce: Small generalist workers (harvesters, upgraders, builders)
+- Body composition: [WORK, CARRY, MOVE] scaling to [WORK×3, CARRY×3, MOVE×3]
 - Infrastructure: Source containers for efficient harvesting
 - Emergency protocol: If no harvesters exist, spawn one immediately
 
 **RCL 2 - Early Expansion**
 - Primary focus: Build first extensions, establish road network
 - Workforce: Balance between harvesting, upgrading, and building
+- Body composition: Still generalist, scaling with energy capacity
 - Infrastructure: 
   - First 5 extensions for increased energy capacity
   - Road network connecting spawn, sources, and controller
@@ -52,7 +57,8 @@ The bot employs a phased development strategy that adapts to each Room Control L
 
 **RCL 3 - Fortification Phase**
 - Primary focus: Establish defense and increase energy throughput
-- Workforce: Add builders when construction sites exceed threshold
+- Workforce: Continue generalist approach, add builders when needed
+- Body composition: Maximum generalist size [WORK×3, CARRY×3, MOVE×3]
 - Infrastructure:
   - First towers for automated defense
   - Additional extensions (up to 10 total)
@@ -60,38 +66,61 @@ The bot employs a phased development strategy that adapts to each Room Control L
   - Controller container for upgrader efficiency
 - Defense: Towers handle invaders; workers gain combat capabilities
 
-**RCL 4 - Storage Economy**
-- Primary focus: Transition to storage-based economy
-- Workforce: Maintain balanced workforce with adaptive builder count
+#### Tier 2: RCL 4-7 - Specialized Medium Creeps
+**Philosophy**: Role-specific bodies optimized for each task
+
+**RCL 4 - Strategic Transition**
+- **Major Change**: Shift from harvesters to miner/hauler system
+- **New Roles**:
+  - **Miners**: Stationary at sources with WORK-heavy bodies [WORK×2-5, MOVE×1]
+  - **Haulers**: Pure transport with no WORK parts [CARRY×N, MOVE×N/2]
+- Workforce: 1 miner per source, 2 haulers per source, scaled upgraders/builders
 - Infrastructure:
   - Central storage for bulk energy management
+  - Containers at each source (required for miner/hauler pattern)
   - Complete extension network (up to 20)
   - Additional towers for improved defense
-- Economic shift: Begin using stored energy for sustained operations
+- Economic shift: Specialized roles dramatically increase efficiency
 
-**RCL 5 - Link Network**
-- Primary focus: Establish energy distribution network
+**RCL 5-7 - Specialized Optimization**
+- Primary focus: Maximize efficiency through role specialization
+- Workforce: Continue miner/hauler split, larger body sizes
+- Body compositions:
+  - Miners: [WORK×5, MOVE×1] (optimal source harvesting)
+  - Haulers: Up to [CARRY×16, MOVE×8] for bulk transport
+  - Upgraders: [WORK×4, CARRY×2, MOVE×3] balanced for controller work
+  - Builders: [WORK×3, CARRY×3, MOVE×3] balanced for construction
 - Infrastructure:
-  - Links at storage, controller, and sources
-  - More towers for complete room defense
-  - Additional extensions (up to 30)
-- Efficiency gain: Reduce creep travel time through link usage
-
-**RCL 6-8 - Advanced Infrastructure**
-- Primary focus: Unlock and build advanced structures
-- Infrastructure by level:
+  - RCL 5: Links at storage, controller, and sources
   - RCL 6: Terminal, labs, extractor
   - RCL 7: Factory, additional spawn, more towers
-  - RCL 8: Observer, power spawn, nuker, full extension count (60)
-- Strategy: Maximize room efficiency and combat capability
+- Efficiency gain: Reduce creep travel time, increase energy throughput
+
+#### Tier 3: RCL 8+ - Giants with Tight Specialization
+**Philosophy**: Minimum creep count, maximum individual capability
+
+**RCL 8 - Maximum Optimization**
+- **Major Change**: Reduce total creep count, dramatically increase body sizes
+- **Giant Compositions**:
+  - Miners: [WORK×5, MOVE×1] (unchanged, already optimal)
+  - Haulers: [CARRY×32, MOVE×16] (giant cargo capacity)
+  - Upgraders: [WORK×15, CARRY×3, MOVE×6] (massive upgrade throughput)
+  - Builders: On-demand only, medium to large bodies
+  - Defenders: [TOUGH×10, ATTACK×10, RANGED_ATTACK×5, MOVE×25] (tank)
+- Workforce: 1 miner per source, 1 hauler per source, 2 giant upgraders
+- Infrastructure: Full extension count (60), observer, power spawn, nuker
+- Strategy: **CPU efficiency prioritized** - fewer creeps to process per tick
+- Benefits: Lower CPU usage, less traffic congestion, higher energy throughput per creep
 
 ## Workforce Management Strategy
 
 ### Creep Roles and Responsibilities
 
-The bot employs specialized creep roles, each with distinct strategic priorities:
+The bot employs different role strategies based on RCL tier:
 
-#### Harvesters
+#### RCL 1-3: Generalist Roles
+
+**Harvesters**
 **Strategic Role**: Primary energy collection and distribution
 **Action Priority**:
 1. Harvest energy from sources
@@ -99,9 +128,9 @@ The bot employs specialized creep roles, each with distinct strategic priorities
 3. Repair damaged structures
 4. Assist with construction if needed
 
-**Adaptation**: When storage exists and containers are full, harvesters focus more on distribution
+**Body Composition**: Scales from [WORK, CARRY, MOVE] to [WORK×3, CARRY×3, MOVE×3]
 
-#### Upgraders
+**Upgraders**
 **Strategic Role**: Controller progression and emergency response
 **Action Priority**:
 1. Repair critical damage (structures below 1000 hits)
@@ -111,8 +140,9 @@ The bot employs specialized creep roles, each with distinct strategic priorities
 5. Assist with construction
 
 **Strategic Importance**: Maintains continuous controller upgrade to prevent downgrade
+**Body Composition**: Same as harvesters (generalist design)
 
-#### Builders
+**Builders**
 **Strategic Role**: Infrastructure development and maintenance
 **Action Priority**:
 1. Repair critical damage (structures below 1000 hits)
@@ -126,44 +156,184 @@ The bot employs specialized creep roles, each with distinct strategic priorities
 - 2 builders when construction sites are between 1-10
 - 1 builder when no construction sites exist (maintenance mode)
 
-#### Transporters
-**Strategic Role**: Bulk energy movement in advanced economies
-**Activation**: Only spawned when storage exists AND containers are at 50%+ capacity
-**Behavior**: Move energy from full source containers to central storage
-**Strategy**: Reduces harvester travel time, increases overall efficiency
+**Body Composition**: Same as harvesters (generalist design)
 
-#### Claimers
+#### RCL 4-7: Specialized Roles
+
+**Miners** (NEW)
+**Strategic Role**: Stationary energy harvesting at assigned source
+**Behavior**: 
+- Assigned to specific source on spawn
+- Moves to source once, then harvests continuously
+- Drops energy to container or ground for haulers
+- Never leaves source position
+
+**Action Priority**: Mining only (single-purpose role)
+**Body Composition**: 
+- RCL 4-7: [WORK×2-5, MOVE×1] (scales with energy capacity)
+- RCL 8+: [WORK×5, MOVE×1] (optimal - 10 energy/tick harvest rate)
+
+**Strategic Benefits**: 
+- Maximum harvesting efficiency (no travel time)
+- Minimal MOVE parts (energy efficient)
+- Works perfectly with container system
+
+**Haulers** (NEW)
+**Strategic Role**: Pure energy transport (replaces harvesters at RCL 4+)
+**Behavior**:
+- Picks up energy from containers near sources
+- Collects dropped resources
+- Delivers to spawns, extensions, towers, storage
+- No harvesting capability (no WORK parts)
+
+**Action Priority**:
+1. Hauling (pickup from containers/dropped energy)
+2. Delivering (transfer to spawns/extensions/towers/storage)
+
+**Body Composition**:
+- RCL 4-7: [CARRY×2-16, MOVE×1-8] (1 MOVE per 2 CARRY for roads)
+- RCL 8+: [CARRY×32, MOVE×16] (giant hauler)
+
+**Strategic Benefits**:
+- Haulers dedicated to transport = faster energy delivery
+- No wasted WORK parts on transport creeps
+- Scales efficiently with source distance
+- Works in miner/hauler coordination pattern
+
+**Upgraders** (UPDATED)
+**Strategic Role**: Controller progression (now specialized at RCL 4+)
+**Action Priority**: Same as before, but optimized body composition
+
+**Body Composition**:
+- RCL 1-3: Generalist [WORK×1-3, CARRY×1-3, MOVE×1-3]
+- RCL 4-7: WORK-heavy [WORK×4, CARRY×2, MOVE×3]
+- RCL 8+: Giant [WORK×15, CARRY×3, MOVE×6]
+
+**Strategic Benefits**: More WORK parts = faster upgrading
+
+**Builders** (UPDATED)
+**Strategic Role**: Infrastructure development (specialized at RCL 4+)
+**Action Priority**: Same as before
+
+**Body Composition**:
+- RCL 1-3: Generalist [WORK×1-3, CARRY×1-3, MOVE×1-3]
+- RCL 4+: Balanced [WORK×3, CARRY×3, MOVE×3]
+
+**Strategic Benefits**: Equal WORK/CARRY for efficient building
+
+#### Legacy Roles (Deprecated at RCL 4+)
+
+**Transporters**
+**Strategic Role**: Bulk energy movement (replaced by haulers at RCL 4+)
+**Status**: Only used in RCL 1-3 if storage exists early
+**Replaced By**: Hauler role (more efficient, no WORK parts)
+
+**Claimers**
 **Strategic Role**: Room expansion (currently configured for E3S53)
 **Behavior**: Navigate to target room and claim controller
 **Strategic Note**: Enables multi-room empire expansion
+**Body Composition**: Minimal [MOVE×2, CLAIM]
 
 ### Dynamic Roster Scaling
 
-The bot uses an intelligent roster system that scales with room capacity:
+The bot uses a **RCL-tiered roster system** that fundamentally changes workforce composition at strategic breakpoints:
 
-#### Energy-Proportional Workforce
-- **Formula**: Base workers = energyCapacity ÷ 300 (minimum 1)
-- **Rationale**: More energy capacity = can support more workers
-- **Distribution**:
-  - Harvesters: ~50% of base workforce (min 2)
-  - Builders: ~25% of base workforce (min 1)  
-  - Upgraders: ~25% of base workforce (min 1)
+#### Tier 1: RCL 1-3 - Energy-Proportional Generalists
 
-#### Example Scaling by RCL
+**Formula**: Base workers = energyCapacity ÷ 300 (minimum 1)
+**Distribution**:
+- Harvesters: ~50% of base workforce (min 2)
+- Builders: ~25% of base workforce (min 1)  
+- Upgraders: ~25% of base workforce (min 1)
+
+**Example Scaling**:
 - **RCL 1** (300 capacity): 1 harvester, 1 builder, 1 upgrader
 - **RCL 2** (550 capacity): 2 harvesters, 1 builder, 1 upgrader  
 - **RCL 3** (800 capacity): 2 harvesters, 1 builder, 1 upgrader
-- **RCL 4** (1300 capacity): 3 harvesters, 2 builders, 2 upgraders
-- **RCL 5** (1800 capacity): 3 harvesters, 2 builders, 2 upgraders
-- **RCL 6** (2300 capacity): 4 harvesters, 2 builders, 2 upgraders
-- **RCL 7** (5600 capacity): 10 harvesters, 5 builders, 5 upgraders
-- **RCL 8** (12900 capacity): 22 harvesters, 11 builders, 11 upgraders
+
+**Strategic Rationale**: Swarm of small generalists for flexibility and redundancy
+
+#### Tier 2: RCL 4-7 - Source-Based Specialists
+
+**Major Shift**: Transition from generalists to miner/hauler system
+
+**Formula**: Based on sources and distance, not just energy capacity
+- Miners: 1 per source (static)
+- Haulers: 2 per source (baseline, scales with distance)
+- Upgraders: energyCapacity ÷ 800, capped at 4
+- Builders: 1-3 based on construction sites
+
+**Example Scaling** (2 sources):
+- **RCL 4** (1300 capacity): 2 miners, 4 haulers, 2 upgraders, 1-2 builders
+- **RCL 5** (1800 capacity): 2 miners, 4 haulers, 2 upgraders, 1-2 builders  
+- **RCL 6** (2300 capacity): 2 miners, 4 haulers, 3 upgraders, 1-2 builders
+- **RCL 7** (5600 capacity): 2 miners, 4 haulers, 4 upgraders, 1-3 builders
+
+**Strategic Rationale**: 
+- Miner/hauler split dramatically increases efficiency
+- Hauler count adjustable based on source distance
+- Upgraders scale with energy surplus
+- Builders spawn only when needed
+
+#### Tier 3: RCL 8+ - Minimal Giant Workforce
+
+**Philosophy**: Reduce creep count to minimize CPU, maximize individual power
+
+**Formula**: Minimum viable creeps with maximum body sizes
+- Miners: 1 per source (giant bodies)
+- Haulers: 1 per source (giant capacity)
+- Upgraders: 2 giants (sufficient for sustained upgrading)
+- Builders: 0-2 (on-demand only)
+
+**Example Scaling** (2 sources):
+- **RCL 8** (12900 capacity): 2 miners, 2 haulers, 2 upgraders, 0-2 builders
 
 **Strategic Benefits**:
-- Prevents over-spawning in small rooms
-- Automatically scales workforce as room grows
-- Maintains balanced role distribution
-- Adapts to room infrastructure development
+- **CPU Efficiency**: ~10 creeps instead of 40+ (4x CPU reduction)
+- **Traffic Reduction**: Less congestion, faster pathfinding
+- **Energy Throughput**: Each creep processes more energy per tick
+- **Spawn Freedom**: Spawn idle most of the time for emergency respawns
+
+**Comparison**:
+- RCL 7 (old system): 10 harvesters, 5 builders, 5 upgraders = 20 creeps
+- RCL 8 (new system): 2 miners, 2 haulers, 2 upgraders = 6 creeps
+- Result: 70% reduction in creep count, same or better performance
+
+#### Transition Mechanics
+
+**When RCL increases** (e.g., 3 → 4 or 7 → 8):
+1. Roster calculation detects new RCL tier
+2. Spawn procedure stops creating old role types (e.g., no more harvesters at RCL 4)
+3. New role types begin spawning (e.g., miners and haulers)
+4. Old creeps live out their 1500-tick lifespan naturally
+5. After ~25 minutes, room fully transitioned to new strategy
+
+**Benefits**:
+- No energy wasted despawning creeps
+- Smooth transition prevents productivity gaps
+- Room remains operational throughout upgrade
+- Automatic without manual intervention
+
+#### Builder Scaling Logic (All Tiers)
+
+**Dynamic adjustment based on construction demand**:
+- **10+ sites**: 3-4 builders (construction blitz)
+- **3-10 sites**: 2 builders (steady construction)
+- **1-2 sites**: 1 builder (maintenance)
+- **0 sites**: 0-1 builder (RCL 8 spawns 0, earlier RCLs keep 1)
+
+**Strategic Rationale**: Prevents over-staffing when construction is light
+
+#### Emergency Protocols (All Tiers)
+
+**Harvester/Miner Emergency**:
+- If harvesters + miners = 0, immediately spawn one with any available energy
+- Prevents colony death from energy starvation
+- Overrides all other roster calculations
+
+**Example**:
+- All miners die unexpectedly → Next spawn creates emergency miner at minimum energy cost
+- Ensures colony survival even after catastrophic losses
 
 ### Spawning Strategy
 
@@ -193,41 +363,111 @@ When energy is at maximum capacity, spawn additional creeps based on current nee
 
 ### Creep Body Composition Strategy
 
-#### Worker Design Philosophy
-Workers use a balanced design that scales with available energy **and workforce needs**:
+The bot uses a **RCL-tiered body composition system** that fundamentally changes creep design at each strategic phase:
+
+#### Tier 1: RCL 1-3 - Generalist Bodies
+**Philosophy**: Versatile workers that can perform any task
+
+**Generalist Design** (used by harvesters, upgraders, builders):
 - **Base Components**: WORK (action speed), CARRY (capacity), MOVE (mobility)
 - **Scaling Tiers**: 
   - Minimum: [WORK, CARRY, MOVE] @ 200 energy
-  - Small: [WORK, WORK, CARRY, MOVE, MOVE] @ 400 energy
-  - Medium: [WORK, WORK, WORK, CARRY, CARRY, MOVE, MOVE, MOVE] @ 650 energy
-  - Large: [WORK, WORK, WORK, CARRY, CARRY, CARRY, MOVE, MOVE, MOVE] @ 800 energy
+  - Small: [WORK×2, CARRY, MOVE×2] @ 400 energy
+  - Medium: [WORK×3, CARRY×2, MOVE×3] @ 650 energy
+  - Large: [WORK×3, CARRY×3, MOVE×3] @ 800 energy
 
-#### Intelligent Size Scaling
-**Key Innovation**: Creep size increases **only when workforce is sufficient**
-- **When workforce < 75% of target**: Spawn small bodies (≤400 energy) to build numbers quickly
-- **When workforce ≥ 75% of target**: Spawn largest affordable bodies for efficiency
-- **Strategic Benefit**: Ensures task coverage before optimizing individual creep power
+**Strategic Benefits**:
+- Low spawn energy threshold (works at RCL 1)
+- Flexible task assignment
+- Fast to spawn and replace
+- Redundancy through numbers
 
-**Example**:
-- Target: 4 harvesters, 2 builders, 2 upgraders (8 total)
-- Current: 4 workers → 50% of target → spawn small (200-400 energy) creeps
-- Current: 6 workers → 75% of target → spawn large (650-800 energy) creeps
+#### Tier 2: RCL 4-7 - Specialized Medium Bodies
+**Philosophy**: Role-specific optimization for maximum efficiency
 
-This prevents:
-- Having 2 large creeps that can't cover all tasks
-- Energy waste on expensive creeps when more workers needed
-- Gaps in base coverage during growth phases
+**Miner Bodies** (stationary harvesters):
+- [WORK×2, MOVE] @ 250 energy (minimum)
+- [WORK×3, MOVE] @ 350 energy (medium)
+- [WORK×5, MOVE] @ 550 energy (optimal)
+- **Design Rationale**: Minimal MOVE (doesn't travel), maximum WORK (harvest rate)
+- **Harvest Rate**: 5 WORK parts = 10 energy/tick (source maximum)
 
-#### Combat Enhancements
-When invaders are detected or energy is abundant, workers receive combat upgrades:
-- **Added Parts**: [TOUGH, TOUGH, ATTACK] (placed at body front for damage absorption)
-- **Strategy**: All workers can defend, preventing creep loss during attacks
-- **Cost Consideration**: Combat parts only added if energy budget allows
+**Hauler Bodies** (pure transport):
+- [CARRY×2, MOVE] sets repeated (150 energy per set)
+- RCL 4-7 cap: 8 sets = [CARRY×16, MOVE×8] @ 1200 energy
+- **Design Rationale**: No WORK parts (haulers don't harvest), 1 MOVE per 2 CARRY (optimal for roads)
+- **Capacity**: 800 energy capacity at max medium size
 
-#### Specialized Bodies
-- **Transporter**: Maximizes [WORK, CARRY, MOVE] sets up to 16 (48 parts total)
-- **Fighter-Upgrader**: High-energy composition with [TOUGH, RANGED_ATTACK] for combat while upgrading
-- **Claimer**: Minimal design [MOVE, MOVE, CLAIM] for room expansion
+**Upgrader Bodies** (controller specialists):
+- [WORK×4, CARRY×2, MOVE×3] @ 800 energy (standard)
+- [WORK×3, CARRY×2, MOVE×3] @ 650 energy (fallback)
+- **Design Rationale**: More WORK than generalist (faster upgrading), enough CARRY for energy storage
+
+**Builder Bodies** (construction specialists):
+- [WORK×3, CARRY×3, MOVE×3] @ 800 energy (balanced)
+- [WORK×2, CARRY×2, MOVE×2] @ 500 energy (fallback)
+- **Design Rationale**: Equal WORK/CARRY for build+repair efficiency
+
+#### Tier 3: RCL 8+ - Giant Bodies
+**Philosophy**: Minimum creep count, maximum throughput, optimize CPU
+
+**Giant Miner** (unchanged from RCL 4+):
+- [WORK×5, MOVE] @ 550 energy
+- **Rationale**: Already optimal (can't exceed source output of 10 energy/tick)
+
+**Giant Hauler**:
+- [CARRY×32, MOVE×16] @ 2400 energy (48 parts, near 50 limit)
+- **Capacity**: 1600 energy per trip
+- **Design Rationale**: Massive cargo reducing number of trips needed
+
+**Giant Upgrader**:
+- [WORK×15, CARRY×3, MOVE×6] @ 1950 energy (Primary)
+- [WORK×10, CARRY×2, MOVE×4] @ 1300 energy (Fallback)
+- **Upgrade Rate**: 15 WORK = 15 energy/tick controller progress
+- **Design Rationale**: Maximize controller upgrade throughput
+
+**Giant Builder** (on-demand):
+- [WORK×3, CARRY×3, MOVE×3] @ 800 energy (medium is sufficient)
+- **Rationale**: Construction is less frequent at RCL 8, medium bodies adequate
+
+**Giant Defender**:
+- [TOUGH×10, ATTACK×10, RANGED_ATTACK×5, MOVE×25] @ 2900 energy
+- **Design Rationale**: Tank with massive damage output and survivability
+
+#### Dynamic Body Selection Algorithm
+
+The bot automatically selects the appropriate body for each role:
+
+```javascript
+function getBodyForRole(role, rcl, energyAvailable) {
+  const tier = getRCLTier(rcl); // "early", "mid", or "late"
+  
+  switch (role) {
+    case "harvester":
+      return getGeneralistBody(rcl, energyAvailable); // RCL 1-3 only
+    case "miner":
+      return getMinerBody(rcl, energyAvailable); // RCL 4+ only
+    case "hauler":
+      return getHaulerBody(rcl, energyAvailable); // RCL 4+ only
+    // ... other roles
+  }
+}
+```
+
+**Benefits of RCL-Based Bodies**:
+- Automatically adapts to room progression
+- No manual intervention required
+- Optimal efficiency at each development stage
+- Smooth transitions between tiers (old creeps live out lifespan)
+
+#### Combat Body Scaling
+
+**Defender bodies scale with RCL**:
+- **RCL 1-3**: [TOUGH, ATTACK, MOVE] × 2-3 sets (cheap, fast)
+- **RCL 4-7**: [TOUGH×2, ATTACK×2, RANGED_ATTACK, MOVE×5] (medium)
+- **RCL 8+**: Giant tank composition (see above)
+
+**Strategic Benefits**: Defense capability grows with room, CPU-efficient giants at endgame
 
 ## Combat and Defense Strategy
 
@@ -541,45 +781,104 @@ Each tick the bot:
 
 ## Strategic Objectives by Phase
 
-### Early Game (RCL 1-2)
-**Primary Goal**: Establish sustainable energy economy
-- Bootstrap workforce with minimal creeps
+### Tier 1: Early Game (RCL 1-3) - Swarm Phase
+**Primary Goal**: Establish sustainable energy economy with generalist workers
+
+**RCL 1-2: Bootstrap**
+- Spawn many small generalist creeps [WORK, CARRY, MOVE]
 - Build first extensions ASAP for better spawns
 - Connect infrastructure with roads
+- Focus on quantity over quality
 - Reach RCL 3 to unlock towers
 
+**RCL 3: Preparation**
+- Maximum generalist bodies [WORK×3, CARRY×3, MOVE×3]
+- Build containers at sources in preparation for RCL 4 transition
+- Establish tower defense
+- Complete road network
+- Prepare for miner/hauler transition
+
 **Success Metrics**: 
-- Energy capacity > 800
+- Energy capacity ≥ 800
 - Continuous controller upgrading
 - Roads connecting key structures
+- Containers at sources ready
+- Ready for RCL 4 strategic shift
 
-### Mid Game (RCL 3-5)
-**Primary Goal**: Build defensive capability and storage economy
-- Establish tower defense network
-- Build storage for energy buffering
-- Complete extension network for max capacity
-- Deploy link network for efficiency
+**CPU Profile**: Medium-high (many small creeps)
+
+### Tier 2: Mid Game (RCL 4-7) - Specialization Phase
+**Primary Goal**: Transition to specialized roles and optimize efficiency
+
+**RCL 4: Strategic Transition**
+- **Major Change**: Shift from harvesters to miners + haulers
+- Stop spawning harvesters, start spawning miners and haulers
+- Miners assigned to specific sources (1 per source)
+- Haulers transport energy (2+ per source)
+- Build storage for bulk energy management
+- Gradual transition over ~25 minutes as old creeps expire
+
+**RCL 5-6: Optimization**
+- Increase body sizes for all roles
+- Miners reach optimal [WORK×5, MOVE] composition
+- Haulers scale to [CARRY×16, MOVE×8]
+- Deploy link network for energy distribution
+- Build terminal and labs
+- Complete extension network
+
+**RCL 7: Advanced Specialization**
+- Near-maximum specialized body sizes
+- Factory and additional spawn
+- Prepare for RCL 8 giant transition
+- Test CPU profile with fewer, larger creeps
 
 **Success Metrics**:
+- Miner/hauler system operational
 - Can defend against NPC invaders
-- Storage accumulating energy
+- Storage accumulating surplus energy
 - All extensions built
-- Sustainable construction progress
+- Links operational
+- CPU usage stable or decreasing
 
-### Late Game (RCL 6-8)
-**Primary Goal**: Unlock and utilize advanced capabilities
-- Build labs for reaction production
-- Establish terminal for market access
-- Deploy factory for commodities
-- Install observer for scouting
-- Build power spawn and nuker
+**CPU Profile**: Medium (fewer creeps than RCL 3, but larger)
+
+### Tier 3: Late Game (RCL 8+) - Giant Phase
+**Primary Goal**: Minimize CPU usage, maximize individual creep efficiency
+
+**RCL 8: Maximum Optimization**
+- **Major Change**: Reduce total creep count by ~70%
+- Giant haulers [CARRY×32, MOVE×16] @ 1600 capacity
+- Giant upgraders [WORK×15, CARRY×3, MOVE×6] @ 15 energy/tick
+- Minimal workforce: typically 6-10 creeps total
+- Build power spawn, nuker, observer
+- All structures at maximum
+
+**Advanced Operations**:
+- Lab reactions (when implemented)
+- Terminal trading (when implemented)
+- Power processing
+- Remote mining expansion (future)
+- Multi-room coordination (future)
 
 **Success Metrics**:
-- All structures built for current RCL
-- Energy surplus for power processing
-- Lab reactions running
-- Terminal active for trading
-- Preparing for GCL increase
+- **CPU Usage**: < 50% of RCL 7 usage (fewer creeps to process)
+- Total creep count: < 15
+- Storage surplus: > 500k energy
+- All structures built and operational
+- Controller continuously upgrading
+- Ready for GCL increase
+
+**CPU Profile**: Low (minimal creep count, maximum efficiency)
+
+### Strategy Summary by Tier
+
+| Tier | RCL | Strategy | Creep Count | Body Size | CPU Cost |
+|------|-----|----------|-------------|-----------|----------|
+| 1 | 1-3 | Swarm generalists | 15-20 | Small | High |
+| 2 | 4-7 | Specialized medium | 10-15 | Medium | Medium |
+| 3 | 8+ | Giant specialists | 6-10 | Giant | Low |
+
+**Key Insight**: The strategy document's philosophy is fully implemented - "fewer, smarter creeps almost always beat more, dumber ones" once past bootstrapping.
 
 ## Expansion Strategy
 
