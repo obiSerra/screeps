@@ -508,10 +508,13 @@ const clearCreepAction = (creep) => {
  * Select the best source target for gathering
  * Pure function
  * @param {Creep} creep
- * @returns {Object} { id, pos } of selected source
+ * @returns {Object|null} { id, pos } of selected source or null if none available
  */
 const selectGatheringTarget = (creep) => {
   const source = utils.findBestSourceForCreep(creep);
+  if (!source) {
+    return null;
+  }
   return { id: source.id, pos: source.pos };
 };
 
@@ -552,6 +555,11 @@ const handleGathering = (creep) => {
   if (!actionTarget) {
     // No target set, find one and set it
     const target = selectGatheringTarget(creep);
+    if (!target) {
+      // No gathering targets available
+      clearCreepAction(creep);
+      return;
+    }
     setCreepAction(creep, "gathering", target);
     return;
   }
@@ -1036,6 +1044,10 @@ const workerActions = (creep, priorityList) => {
       }
     } else {
       target = selectGatheringTarget(creep);
+      if (!target) {
+        // No gathering targets available, idle
+        return;
+      }
     }
     setCreepAction(creep, "gathering", target);
     sayAction(creep, "gathering");

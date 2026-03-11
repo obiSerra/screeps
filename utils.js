@@ -227,7 +227,7 @@ function findBestSourceForCreep(creep) {
 
   for (const target of targets) {
     const creepsTargeting = countCreepsTargetingSource(target.id);
-    const energyAvailable = target.energy || target.store[RESOURCE_ENERGY] || 0;
+    const energyAvailable = target.energy || (target.store && target.store[RESOURCE_ENERGY]) || 0;
     const distance = creep.pos.getRangeTo(target);
 
     const score =
@@ -240,7 +240,7 @@ function findBestSourceForCreep(creep) {
 
   targets.sort((a, b) => b.score - a.score);
 
-  return targets[0];
+  return targets.length > 0 ? targets[0] : null;
 }
 
 function findNearestEnergySource(creep) {
