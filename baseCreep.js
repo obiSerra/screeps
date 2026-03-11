@@ -399,6 +399,15 @@ const selectAction = (creep, priorityList) => {
         target: { id: targets.storage.id, pos: targets.storage.pos },
       };
     }
+    if (action === "mining" && availability.mining) {
+      return { action: "mining", target: null };
+    }
+    if (action === "hauling" && availability.hauling) {
+      return { action: "hauling", target: null };
+    }
+    if (action === "delivering" && availability.delivering) {
+      return { action: "delivering", target: null };
+    }
     if (action === "upgrading") {
       return { action: "upgrading", target: null };
     }
@@ -973,6 +982,8 @@ const ACTION_HANDLERS = {
  */
 const workerActions = (creep, priorityList) => {
   const isTransporter = priorityList.includes("transporting");
+  const isMiner = priorityList.includes("mining");
+  const isHauler = priorityList.includes("hauling");
 
   // Check for combat: if there are invaders and creep is a fighter
   if (utils.areThereInvaders(creep.room) && isFighter(creep)) {
@@ -990,6 +1001,29 @@ const workerActions = (creep, priorityList) => {
     clearCreepAction(creep);
   }
 
+  // Specialized roles (miners, haulers) use their own action selection
+  // They don't use the legacy "gathering" action
+  if (isMiner || isHauler) {
+    // For specialized roles, always use priority-based action selection
+    // Clear action if undefined or if it's a legacy action type
+    if (!creep.memory.action || 
+        creep.memory.action === "gathering" || 
+        creep.memory.action === "harvesting") {
+      clearCreepAction(creep);
+    }
+    
+    // Select action from priority list
+    const { action, target } = selectAction(creep, priorityList);
+    
+    // Only update if action changed or no target set
+    if (creep.memory.action !== action || !creep.memory.actionTarget) {
+      setCreepAction(creep, action, target);
+      sayAction(creep, action);
+    }
+    return;
+  }
+
+  // Legacy behavior for generalist workers (harvesters, upgraders, builders)
   // Check if creep needs to gather
   if (needsToGather(creep) && creep.memory.action !== "gathering") {
     let target;
