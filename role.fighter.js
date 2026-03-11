@@ -12,12 +12,11 @@ var roleFighter = () => {
   return {
     /** @param {Creep} creep **/
     run: function (creep) {
-      // baseCreep automatically handles combat when invaders present
-      // The isFighter() check in baseCreep will detect ATTACK/RANGED_ATTACK parts
-      // and automatically set action to "attacking" when hostiles detected
+      // baseCreep workerActions() automatically detects fighters and assigns "attacking" action
+      // when invaders present. Priority list gives fighters something to do when idle.
+      base.workerActions(creep, ["attacking", "repairing", "upgrading"]);
       
-      // Fighter priority: attack > heal self > patrol
-      // Combat is handled automatically by baseCreep performAction
+      // Perform the assigned action
       base.performAction(creep, creep.memory.action);
       
       // If no action assigned and no invaders, patrol near controller/spawn
