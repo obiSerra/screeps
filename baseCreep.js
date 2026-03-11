@@ -1036,6 +1036,19 @@ const workerActions = (creep, priorityList) => {
   const isMiner = priorityList.includes("mining");
   const isHauler = priorityList.includes("hauling");
 
+  // Check for "upgrade" flag - harvesters prioritize upgrading when this flag exists
+  const upgradeFlag = creep.room.find(FIND_FLAGS, {
+    filter: (flag) => flag.name === "upgrade"
+  })[0];
+  
+  // If upgrade flag exists and this is a harvester, modify priority list
+  if (upgradeFlag && creep.memory.role === 'harvester') {
+    // Move "upgrading" to the front of the priority list
+    const modifiedPriorityList = priorityList.filter(action => action !== "upgrading");
+    modifiedPriorityList.unshift("upgrading");
+    priorityList = modifiedPriorityList;
+  }
+
   // Check for combat: if there are invaders and creep is a fighter
   if (utils.areThereInvaders(creep.room) && isFighter(creep)) {
     const hostiles = creep.room.find(FIND_HOSTILE_CREEPS);
