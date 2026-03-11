@@ -16,6 +16,11 @@ var roleFighter = () => {
       // when invaders present. Priority list gives fighters something to do when idle.
       base.workerActions(creep, ["attacking", "repairing", "upgrading"]);
       
+      // Safety check: if no action assigned, default to upgrading
+      if (!creep.memory.action) {
+        creep.memory.action = "upgrading";
+      }
+      
       // Perform the assigned action
       base.performAction(creep, creep.memory.action);
       

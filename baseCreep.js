@@ -373,6 +373,11 @@ const selectAction = (creep, priorityList) => {
 
   // Check priority list
   for (const action of priorityList) {
+    if (action === "attacking") {
+      // Attacking is handled separately in workerActions combat check
+      // Skip it here in selectAction
+      continue;
+    }
     if (action === "building" && availability.building) {
       const target = selectBuildTarget(creep, targets.constructionSites);
       if (!target) {
