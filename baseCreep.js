@@ -516,6 +516,19 @@ const clearCreepAction = (creep) => {
  * @returns {Object|null} { id, pos } of selected source or null if none available
  */
 const selectGatheringTarget = (creep) => {
+  // Upgraders preferentially pick energy from storage
+  if (creep.memory.role === 'upgrader') {
+    const storage = creep.room.find(FIND_STRUCTURES, {
+      filter: (s) =>
+        s.structureType === STRUCTURE_STORAGE &&
+        s.store[RESOURCE_ENERGY] > 0
+    })[0];
+    
+    if (storage) {
+      return { id: storage.id, pos: storage.pos };
+    }
+  }
+  
   const source = utils.findBestSourceForCreep(creep);
   if (!source) {
     return null;
@@ -942,12 +955,6 @@ const handleDelivering = (creep) => {
     return;
   }
   
-  // If room capacity is full, switch back to hauling
-  if (energyAvailable >= energyCapacityAvailable) {
-    clearCreepAction(creep);
-    return;
-  }
-  
   const { actionTarget } = creep.memory;
   
   // Find target if not set
@@ -993,12 +1000,12 @@ const handleDelivering = (creep) => {
     moveToTarget(creep, target, PATH_COLORS.delivering);
   } else if (result === OK || result === ERR_FULL) {
     // Successfully transferred or target is full
-    // If creep still has energy and room isn't full, find a new delivery target
-    if (creep.store[RESOURCE_ENERGY] > 0 && energyAvailable < energyCapacityAvailable) {
+    // If creep still has energy, try to find a new delivery target
+    if (creep.store[RESOURCE_ENERGY] > 0) {
       // Clear target to find a new one on next tick
       delete creep.memory.actionTarget;
     } else {
-      // Creep is empty or room is full, switch back to hauling
+      // Creep is empty, switch back to hauling
       clearCreepAction(creep);
     }
   }
