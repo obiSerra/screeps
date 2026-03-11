@@ -889,16 +889,17 @@ const handleHauling = (creep) => {
       filter: (r) => r.resourceType === RESOURCE_ENERGY && r.amount > 50
     });
     
-    // Combine and sort by distance
+    // Combine and sort by contention (number of haulers) and distance
     const targets = [...containers, ...droppedEnergy];
     if (targets.length === 0) {
       clearCreepAction(creep);
       return;
     }
     
-    const closest = creep.pos.findClosestByPath(targets);
-    if (closest) {
-      setCreepAction(creep, "hauling", { id: closest.id, pos: closest.pos });
+    // Use contention-based sorting to distribute haulers across targets
+    const sorted = sortByContention(creep, targets, false);
+    if (sorted.length > 0) {
+      setCreepAction(creep, "hauling", { id: sorted[0].id, pos: sorted[0].pos });
     }
     return;
   }
@@ -932,8 +933,17 @@ const handleHauling = (creep) => {
  * @param {Creep} creep
  */
 const handleDelivering = (creep) => {
+  const { room } = creep;
+  const { energyAvailable, energyCapacityAvailable } = room;
+  
   // If creep is empty, switch back to hauling
   if (creep.store[RESOURCE_ENERGY] === 0) {
+    clearCreepAction(creep);
+    return;
+  }
+  
+  // If room capacity is full, switch back to hauling
+  if (energyAvailable >= energyCapacityAvailable) {
     clearCreepAction(creep);
     return;
   }
@@ -982,7 +992,15 @@ const handleDelivering = (creep) => {
   if (result === ERR_NOT_IN_RANGE) {
     moveToTarget(creep, target, PATH_COLORS.delivering);
   } else if (result === OK || result === ERR_FULL) {
-    clearCreepAction(creep);
+    // Successfully transferred or target is full
+    // If creep still has energy and room isn't full, find a new delivery target
+    if (creep.store[RESOURCE_ENERGY] > 0 && energyAvailable < energyCapacityAvailable) {
+      // Clear target to find a new one on next tick
+      delete creep.memory.actionTarget;
+    } else {
+      // Creep is empty or room is full, switch back to hauling
+      clearCreepAction(creep);
+    }
   }
 };
 
