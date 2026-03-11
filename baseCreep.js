@@ -60,7 +60,6 @@ const isFighter = (creep) =>
   creep.body.some(
     (part) => part.type === ATTACK || part.type === RANGED_ATTACK,
   );
-  
 
 // ============================================================================
 // Pure Functions - Target Finding & Sorting
@@ -285,26 +284,26 @@ const getActionAvailability = (creep) => {
   // Check for mining opportunities (sources exist and creep has assigned source)
   const sources = room.find(FIND_SOURCES_ACTIVE);
   const hasMiningTarget = creep.memory.assignedSource || sources.length > 0;
-  
+
   // Check for hauling opportunities (containers with energy or dropped resources)
   const containersForHauling = room.find(FIND_STRUCTURES, {
     filter: (s) =>
-      s.structureType === STRUCTURE_CONTAINER &&
-      s.store[RESOURCE_ENERGY] > 0
+      s.structureType === STRUCTURE_CONTAINER && s.store[RESOURCE_ENERGY] > 0,
   });
   const droppedEnergy = room.find(FIND_DROPPED_RESOURCES, {
-    filter: (r) => r.resourceType === RESOURCE_ENERGY && r.amount > 50
+    filter: (r) => r.resourceType === RESOURCE_ENERGY && r.amount > 50,
   });
-  const hasHaulingTarget = containersForHauling.length > 0 || droppedEnergy.length > 0;
-  
+  const hasHaulingTarget =
+    containersForHauling.length > 0 || droppedEnergy.length > 0;
+
   // Check for delivery targets (spawns/extensions/towers/storage needing energy)
   const deliveryTargets = room.find(FIND_STRUCTURES, {
     filter: (s) =>
-      ((s.structureType === STRUCTURE_SPAWN ||
+      (s.structureType === STRUCTURE_SPAWN ||
         s.structureType === STRUCTURE_EXTENSION ||
         s.structureType === STRUCTURE_TOWER ||
         s.structureType === STRUCTURE_STORAGE) &&
-       s.store.getFreeCapacity(RESOURCE_ENERGY) > 0)
+      s.store.getFreeCapacity(RESOURCE_ENERGY) > 0,
   });
   const hasDeliveryTarget = deliveryTargets.length > 0;
 
@@ -315,7 +314,8 @@ const getActionAvailability = (creep) => {
     harvesting: energyAvailable < energyCapacity,
     transporting: storage && containersWithEnergy.length > 0,
     mining: hasMiningTarget,
-    hauling: hasHaulingTarget && creep.store.getFreeCapacity(RESOURCE_ENERGY) > 0,
+    hauling:
+      hasHaulingTarget && creep.store.getFreeCapacity(RESOURCE_ENERGY) > 0,
     delivering: hasDeliveryTarget && creep.store[RESOURCE_ENERGY] > 0,
     upgrading: true, // Always available as fallback
     // Include targets for immediate use
@@ -424,10 +424,10 @@ const selectAction = (creep, priorityList) => {
 
 /**
  * Placeholder for worker role check - can be expanded with actual logic
- * @param {Creep} creep 
- * @returns 
+ * @param {Creep} creep
+ * @returns
  */
-const isWorker = (creep) => true
+const isWorker = (creep) => true;
 // ============================================================================
 // Effectful Functions - Game State Modifications
 // ============================================================================
@@ -452,7 +452,7 @@ const sayAction = (creep, action) => {
  */
 const moveToTarget = (creep, target, color = "#ffffff") => {
   const options = { visualizePathStyle: { stroke: color } };
-  
+
   // Non-fighters avoid enemy creeps
   if (!isFighter(creep) && utils.areThereInvaders(creep.room)) {
     options.costCallback = (roomName, costMatrix) => {
@@ -475,7 +475,7 @@ const moveToTarget = (creep, target, color = "#ffffff") => {
       return costMatrix;
     };
   }
-  
+
   creep.moveTo(target, options);
 };
 
@@ -517,18 +517,17 @@ const clearCreepAction = (creep) => {
  */
 const selectGatheringTarget = (creep) => {
   // Upgraders preferentially pick energy from storage
-  if (creep.memory.role === 'upgrader') {
+  if (creep.memory.role === "upgrader") {
     const storage = creep.room.find(FIND_STRUCTURES, {
       filter: (s) =>
-        s.structureType === STRUCTURE_STORAGE &&
-        s.store[RESOURCE_ENERGY] > 0
+        s.structureType === STRUCTURE_STORAGE && s.store[RESOURCE_ENERGY] > 0,
     })[0];
-    
+
     if (storage) {
       return { id: storage.id, pos: storage.pos };
     }
   }
-  
+
   const source = utils.findBestSourceForCreep(creep);
   if (!source) {
     return null;
@@ -591,20 +590,21 @@ const handleGathering = (creep) => {
   }
 
   // Check if the target is a container or storage
-  const isContainer = source.structureType === STRUCTURE_CONTAINER || 
-                     source.structureType === STRUCTURE_STORAGE;
+  const isContainer =
+    source.structureType === STRUCTURE_CONTAINER ||
+    source.structureType === STRUCTURE_STORAGE;
 
   // Check if source is empty
-  const isEmpty = isContainer 
-    ? source.store[RESOURCE_ENERGY] === 0 
+  const isEmpty = isContainer
+    ? source.store[RESOURCE_ENERGY] === 0
     : source.energy === 0;
 
   if (isEmpty) {
     // Source is empty, find a new target
-    const newTarget = isContainer 
+    const newTarget = isContainer
       ? selectTransporterGatheringTarget(creep)
       : selectGatheringTarget(creep);
-    
+
     if (newTarget) {
       setCreepAction(creep, "gathering", newTarget);
     } else {
@@ -780,15 +780,27 @@ const handleAttacking = (creep) => {
 
   const target = Game.getObjectById(actionTarget.id);
 
+  console.log(`Creep ${creep.name} is attacking target ${actionTarget.id}`);
+
   // Target no longer exists - clear action
   if (!target) {
     clearCreepAction(creep);
     return;
   }
 
+  if (creep.body.some((part) => part.type === RANGED_ATTACK)) {
+    if (creep.rangedAttack(target) === ERR_NOT_IN_RANGE) {
+      moveToTarget(creep, target, PATH_COLORS.attacking);
+    }
+    return;
+  }
   // Attack the target
-  if (creep.attack(target) === ERR_NOT_IN_RANGE) {
+  else if (creep.attack(target) === ERR_NOT_IN_RANGE) {
     moveToTarget(creep, target, PATH_COLORS.attacking);
+  } else {
+    console.log(
+      `ERROR attacking target ${actionTarget.id}: ${creep.attack(target)}`,
+    );
   }
 };
 
@@ -830,13 +842,13 @@ const handleTransporting = (creep) => {
  */
 const handleMining = (creep) => {
   const { assignedSource } = creep.memory;
-  
+
   // Get assigned source from memory or find nearest
   let source = null;
   if (assignedSource) {
     source = Game.getObjectById(assignedSource);
   }
-  
+
   // If no assigned source or source no longer exists, find nearest
   if (!source) {
     const sources = creep.room.find(FIND_SOURCES);
@@ -847,12 +859,12 @@ const handleMining = (creep) => {
       }
     }
   }
-  
+
   if (!source) {
     // No sources available, this shouldn't happen
     return;
   }
-  
+
   // Harvest from source
   const result = creep.harvest(source);
   if (result === ERR_NOT_IN_RANGE) {
@@ -861,11 +873,14 @@ const handleMining = (creep) => {
     // Mining successfully - check if we need to drop energy to container
     // Look for container at source position
     const containers = source.pos.findInRange(FIND_STRUCTURES, 1, {
-      filter: (s) => s.structureType === STRUCTURE_CONTAINER
+      filter: (s) => s.structureType === STRUCTURE_CONTAINER,
     });
-    
+
     // If creep is full and there's a container nearby, transfer to it
-    if (creep.store.getFreeCapacity(RESOURCE_ENERGY) === 0 && containers.length > 0) {
+    if (
+      creep.store.getFreeCapacity(RESOURCE_ENERGY) === 0 &&
+      containers.length > 0
+    ) {
       const container = containers[0];
       if (container.store.getFreeCapacity(RESOURCE_ENERGY) > 0) {
         creep.transfer(container, RESOURCE_ENERGY);
@@ -885,47 +900,52 @@ const handleHauling = (creep) => {
     clearCreepAction(creep);
     return;
   }
-  
+
   const { actionTarget } = creep.memory;
-  
+
   // Find target if not set
   if (!actionTarget) {
     // Prioritize dropped energy first (before it decays)
     const droppedEnergy = creep.room.find(FIND_DROPPED_RESOURCES, {
-      filter: (r) => r.resourceType === RESOURCE_ENERGY && r.amount > 50
+      filter: (r) => r.resourceType === RESOURCE_ENERGY && r.amount > 50,
     });
-    
+
     // If dropped energy exists, prioritize it
     if (droppedEnergy.length > 0) {
       const sorted = sortByContention(creep, droppedEnergy, false);
-      setCreepAction(creep, "hauling", { id: sorted[0].id, pos: sorted[0].pos });
+      setCreepAction(creep, "hauling", {
+        id: sorted[0].id,
+        pos: sorted[0].pos,
+      });
       return;
     }
-    
+
     // Otherwise, look for containers near sources with energy
     const containers = creep.room.find(FIND_STRUCTURES, {
       filter: (s) =>
-        s.structureType === STRUCTURE_CONTAINER &&
-        s.store[RESOURCE_ENERGY] > 0
+        s.structureType === STRUCTURE_CONTAINER && s.store[RESOURCE_ENERGY] > 0,
     });
-    
+
     if (containers.length > 0) {
       const sorted = sortByContention(creep, containers, false);
-      setCreepAction(creep, "hauling", { id: sorted[0].id, pos: sorted[0].pos });
+      setCreepAction(creep, "hauling", {
+        id: sorted[0].id,
+        pos: sorted[0].pos,
+      });
       return;
     }
-    
+
     // No targets available
     clearCreepAction(creep);
     return;
   }
-  
+
   const target = Game.getObjectById(actionTarget.id);
   if (!target) {
     clearCreepAction(creep);
     return;
   }
-  
+
   // Pickup or withdraw
   let result;
   if (target instanceof Resource) {
@@ -933,7 +953,7 @@ const handleHauling = (creep) => {
   } else {
     result = creep.withdraw(target, RESOURCE_ENERGY);
   }
-  
+
   if (result === ERR_NOT_IN_RANGE) {
     moveToTarget(creep, target, PATH_COLORS.hauling);
   } else if (result === OK || result === ERR_FULL) {
@@ -951,53 +971,53 @@ const handleHauling = (creep) => {
 const handleDelivering = (creep) => {
   const { room } = creep;
   const { energyAvailable, energyCapacityAvailable } = room;
-  
+
   // If creep is empty, switch back to hauling
   if (creep.store[RESOURCE_ENERGY] === 0) {
     clearCreepAction(creep);
     return;
   }
-  
+
   const { actionTarget } = creep.memory;
-  
+
   // Find target if not set
   if (!actionTarget) {
     // Priority: Spawn > Extensions > Towers > Storage
     let targets = creep.room.find(FIND_STRUCTURES, {
       filter: (s) =>
         (s.structureType === STRUCTURE_SPAWN ||
-         s.structureType === STRUCTURE_EXTENSION ||
-         s.structureType === STRUCTURE_TOWER) &&
-        s.store.getFreeCapacity(RESOURCE_ENERGY) > 0
+          s.structureType === STRUCTURE_EXTENSION ||
+          s.structureType === STRUCTURE_TOWER) &&
+        s.store.getFreeCapacity(RESOURCE_ENERGY) > 0,
     });
-    
+
     // If no priority targets, deliver to storage
     if (targets.length === 0) {
       targets = creep.room.find(FIND_STRUCTURES, {
         filter: (s) =>
           s.structureType === STRUCTURE_STORAGE &&
-          s.store.getFreeCapacity(RESOURCE_ENERGY) > 0
+          s.store.getFreeCapacity(RESOURCE_ENERGY) > 0,
       });
     }
-    
+
     if (targets.length === 0) {
       clearCreepAction(creep);
       return;
     }
-    
+
     const closest = creep.pos.findClosestByPath(targets);
     if (closest) {
       setCreepAction(creep, "delivering", { id: closest.id, pos: closest.pos });
     }
     return;
   }
-  
+
   const target = Game.getObjectById(actionTarget.id);
   if (!target) {
     clearCreepAction(creep);
     return;
   }
-  
+
   const result = creep.transfer(target, RESOURCE_ENERGY);
   if (result === ERR_NOT_IN_RANGE) {
     moveToTarget(creep, target, PATH_COLORS.delivering);
@@ -1048,13 +1068,15 @@ const workerActions = (creep, priorityList) => {
 
   // Check for "upgrade" flag - harvesters prioritize upgrading when this flag exists
   const upgradeFlag = creep.room.find(FIND_FLAGS, {
-    filter: (flag) => flag.name === "upgrade"
+    filter: (flag) => flag.name === "upgrade",
   })[0];
-  
+
   // If upgrade flag exists and this is a harvester, modify priority list
-  if (upgradeFlag && creep.memory.role === 'harvester') {
+  if (upgradeFlag && creep.memory.role === "harvester") {
     // Move "upgrading" to the front of the priority list
-    const modifiedPriorityList = priorityList.filter(action => action !== "upgrading");
+    const modifiedPriorityList = priorityList.filter(
+      (action) => action !== "upgrading",
+    );
     modifiedPriorityList.unshift("upgrading");
     priorityList = modifiedPriorityList;
   }
@@ -1071,7 +1093,10 @@ const workerActions = (creep, priorityList) => {
   }
 
   // If was attacking but no more invaders, reset action
-  if (creep.memory.action === "attacking" && !utils.areThereInvaders(creep.room)) {
+  if (
+    creep.memory.action === "attacking" &&
+    !utils.areThereInvaders(creep.room)
+  ) {
     clearCreepAction(creep);
   }
 
@@ -1080,15 +1105,17 @@ const workerActions = (creep, priorityList) => {
   if (isMiner || isHauler) {
     // For specialized roles, always use priority-based action selection
     // Clear action if undefined or if it's a legacy action type
-    if (!creep.memory.action || 
-        creep.memory.action === "gathering" || 
-        creep.memory.action === "harvesting") {
+    if (
+      !creep.memory.action ||
+      creep.memory.action === "gathering" ||
+      creep.memory.action === "harvesting"
+    ) {
       clearCreepAction(creep);
     }
-    
+
     // Select action from priority list
     const { action, target } = selectAction(creep, priorityList);
-    
+
     // Only update if action changed or no target set
     if (creep.memory.action !== action || !creep.memory.actionTarget) {
       setCreepAction(creep, action, target);

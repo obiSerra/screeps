@@ -258,7 +258,7 @@ const calculateRoster = (roomStatus) => {
 
 /**
  * Handle all towers in the room
- * Effectful function - makes towers attack enemies
+ * Effectful function - makes towers attack enemies, heal creeps, and repair structures
  * @param {Room} room - The room containing towers
  */
 const handleTowers = (room) => {
@@ -267,16 +267,50 @@ const handleTowers = (room) => {
   });
 
   towers.forEach((tower) => {
-    // Find hostile creeps in the room
+    // Priority 1: Attack hostile creeps
     const hostileCreeps = room.find(FIND_HOSTILE_CREEPS);
     
     if (hostileCreeps.length > 0) {
-      // Attack the closest hostile creep
-  
-      console.log(`Tower in room ${room.name} attacking hostile creep ${hostileCreeps[0].name}`);
       const target = tower.pos.findClosestByRange(hostileCreeps);
       if (target) {
+        console.log(`Tower in room ${room.name} attacking hostile creep ${target.name}`);
         tower.attack(target);
+        return;
+      }
+    }
+
+    // Priority 2: Heal friendly creeps
+    const damagedCreeps = room.find(FIND_MY_CREEPS, {
+      filter: (creep) => creep.hits < creep.hitsMax
+    });
+    
+    if (damagedCreeps.length > 0) {
+      const target = tower.pos.findClosestByRange(damagedCreeps);
+      if (target) {
+        tower.heal(target);
+        return;
+      }
+    }
+
+    // Priority 3: Repair structures
+    const damagedStructures = room.find(FIND_STRUCTURES, {
+      filter: (structure) => {
+        return structure.hits < structure.hitsMax &&
+               structure.structureType !== STRUCTURE_WALL &&
+               structure.structureType !== STRUCTURE_RAMPART;
+      }
+    });
+    
+    if (damagedStructures.length > 0) {
+      // Repair the most damaged structure (by percentage)
+      const target = damagedStructures.reduce((min, structure) => {
+        const structurePercent = structure.hits / structure.hitsMax;
+        const minPercent = min.hits / min.hitsMax;
+        return structurePercent < minPercent ? structure : min;
+      });
+      
+      if (target) {
+        tower.repair(target);
       }
     }
   });
