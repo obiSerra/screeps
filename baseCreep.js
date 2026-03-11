@@ -890,30 +890,33 @@ const handleHauling = (creep) => {
   
   // Find target if not set
   if (!actionTarget) {
-    // Look for containers near sources with energy
+    // Prioritize dropped energy first (before it decays)
+    const droppedEnergy = creep.room.find(FIND_DROPPED_RESOURCES, {
+      filter: (r) => r.resourceType === RESOURCE_ENERGY && r.amount > 50
+    });
+    
+    // If dropped energy exists, prioritize it
+    if (droppedEnergy.length > 0) {
+      const sorted = sortByContention(creep, droppedEnergy, false);
+      setCreepAction(creep, "hauling", { id: sorted[0].id, pos: sorted[0].pos });
+      return;
+    }
+    
+    // Otherwise, look for containers near sources with energy
     const containers = creep.room.find(FIND_STRUCTURES, {
       filter: (s) =>
         s.structureType === STRUCTURE_CONTAINER &&
         s.store[RESOURCE_ENERGY] > 0
     });
     
-    // Also look for dropped energy
-    const droppedEnergy = creep.room.find(FIND_DROPPED_RESOURCES, {
-      filter: (r) => r.resourceType === RESOURCE_ENERGY && r.amount > 50
-    });
-    
-    // Combine and sort by contention (number of haulers) and distance
-    const targets = [...containers, ...droppedEnergy];
-    if (targets.length === 0) {
-      clearCreepAction(creep);
+    if (containers.length > 0) {
+      const sorted = sortByContention(creep, containers, false);
+      setCreepAction(creep, "hauling", { id: sorted[0].id, pos: sorted[0].pos });
       return;
     }
     
-    // Use contention-based sorting to distribute haulers across targets
-    const sorted = sortByContention(creep, targets, false);
-    if (sorted.length > 0) {
-      setCreepAction(creep, "hauling", { id: sorted[0].id, pos: sorted[0].pos });
-    }
+    // No targets available
+    clearCreepAction(creep);
     return;
   }
   
