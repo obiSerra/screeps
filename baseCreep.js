@@ -576,6 +576,26 @@ const handleGathering = (creep) => {
   const isContainer = source.structureType === STRUCTURE_CONTAINER || 
                      source.structureType === STRUCTURE_STORAGE;
 
+  // Check if source is empty
+  const isEmpty = isContainer 
+    ? source.store[RESOURCE_ENERGY] === 0 
+    : source.energy === 0;
+
+  if (isEmpty) {
+    // Source is empty, find a new target
+    const newTarget = isContainer 
+      ? selectTransporterGatheringTarget(creep)
+      : selectGatheringTarget(creep);
+    
+    if (newTarget) {
+      setCreepAction(creep, "gathering", newTarget);
+    } else {
+      // No alternative targets available, clear action
+      clearCreepAction(creep);
+    }
+    return;
+  }
+
   if (isContainer) {
     // Withdraw from container/storage
     if (creep.withdraw(source, RESOURCE_ENERGY) === ERR_NOT_IN_RANGE) {
