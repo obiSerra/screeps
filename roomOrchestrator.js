@@ -295,7 +295,8 @@ const handleTowers = (room) => {
     // Priority 3: Repair structures
     const damagedStructures = room.find(FIND_STRUCTURES, {
       filter: (structure) => {
-        return structure.hits < structure.hitsMax &&
+        const healthPercent = structure.hits / structure.hitsMax;
+        return healthPercent < 0.4 &&
                structure.structureType !== STRUCTURE_WALL &&
                structure.structureType !== STRUCTURE_RAMPART;
       }
