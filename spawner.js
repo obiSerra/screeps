@@ -477,9 +477,21 @@ const countCreepsByRole = (creeps) =>
  * @param {Object} roster - Target roster {role: count}
  * @param {Object} currentCreeps - Current creep counts by role
  * @param {Object} roomStatus - Room status info
+ * @param {Room} room - The room object
  * @returns {string|null} Role to spawn or null if none needed
  */
-const determineSpawnRole = (roster, currentCreeps, roomStatus) => {
+const determineSpawnRole = (roster, currentCreeps, roomStatus, room) => {
+  // EMERGENCY: Spawn fighter if hostiles detected and no fighters exist
+  if (room && utils.areThereInvaders(room)) {
+    const fighterCount = currentCreeps.fighter || 0;
+    // Spawn 1-2 fighters depending on room size and threat
+    const targetFighters = 2;
+    if (fighterCount < targetFighters) {
+      console.log(`⚔️ ALERT: Hostiles detected! Spawning emergency fighter (${fighterCount}/${targetFighters})`);
+      return "fighter";
+    }
+  }
+
   const harvesterCount = currentCreeps.harvester || 0;
 
   // Critical: always spawn harvester if none exist
@@ -653,6 +665,10 @@ const getBodyForRole = (role, rcl, energyAvailable, room, currentCreeps, roster)
     case "defender":
       return getDefenderBody(rcl, energyAvailable);
     
+    case "fighter":
+      // Emergency combat role
+      return getFighterCreepBody(energyAvailable);
+    
     default:
       // Fallback to generalist for unknown roles
       return getGeneralistBody(rcl, energyAvailable);
@@ -697,8 +713,8 @@ const spawnProcedure = (spawn, roster, roomStatus) => {
   const room = Game.rooms[roomStatus.roomName];
   const rcl = roomStatus.controllerLevel;
 
-  // Try primary spawn based on roster
-  const primaryRole = determineSpawnRole(roster, currentCreeps, roomStatus);
+  // Try primary spawn based on roster (includes emergency fighter spawning)
+  const primaryRole = determineSpawnRole(roster, currentCreeps, roomStatus, room);
   if (primaryRole) {
     // Get appropriate body for role and RCL
     const spawnBody = getBodyForRole(

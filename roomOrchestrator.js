@@ -9,6 +9,7 @@ const roleClaimer = require("./role.claimer");
 const roleTransporter = require("./role.transporter");
 const roleMiner = require("./role.miner");
 const roleHauler = require("./role.hauler");
+const roleFighter = require("./role.fighter");
 
 // ============================================================================
 // Room Mode Management
@@ -297,6 +298,7 @@ const roleHandlers = {
   transporter: roleTransporter.run,
   miner: roleMiner.run,
   hauler: roleHauler.run,
+  fighter: roleFighter.run,
 };
 
 
