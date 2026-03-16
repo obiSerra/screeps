@@ -6,6 +6,7 @@ var roleBuilder = () => {
   return {
     run: function (creep) {
       base.workerActions(creep, [
+        "deconstructing",
         "repairCritical",
         "building",
         "repairing",

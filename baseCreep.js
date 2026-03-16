@@ -31,6 +31,7 @@ const ACTION_ICONS = {
   mining: "⛏️",
   hauling: "🚚",
   delivering: "📬",
+  deconstructing: "🔨",
 };
 
 const PATH_COLORS = {
@@ -44,6 +45,7 @@ const PATH_COLORS = {
   mining: "#ffaa00",
   hauling: "#00aaff",
   delivering: "#0004ff",
+  deconstructing: "#ff6600",
 };
 
 // ============================================================================
@@ -182,8 +184,38 @@ const prioritizeConstructionSites = (constructionSites) => {
 };
 
 /**
+ * Find structure at deconstruct flag for deconstruction
+ * Pure function
+ * @param {Room} room
+ * @returns {Object|null} Structure at deconstruct flag or null
+ */
+const findDeconstructTarget = (room) => {
+  const deconstructFlag = Game.flags['deconstruct'];
+  if (!deconstructFlag) {
+    return null;
+  }
+
+  // Only consider flags in the same room
+  if (deconstructFlag.pos.roomName !== room.name) {
+    return null;
+  }
+
+  // Find structure at flag position
+  const structures = deconstructFlag.pos.lookFor(LOOK_STRUCTURES);
+  if (structures.length > 0) {
+    // Filter out structures that can't be deconstructed (like controller)
+    const deconstructible = structures.filter(
+      (s) => s.structureType !== STRUCTURE_CONTROLLER
+    );
+    return deconstructible.length > 0 ? deconstructible[0] : null;
+  }
+
+  return null;
+};
+
+/**
  * Find and prioritize attack targets for fighters
- * Prioritizes enemy creeps first, then structures when attack flag exists
+ * Prioritizes enemy creeps first, then targets marked by attack flag
  * Pure function
  * @param {Creep} creep
  * @returns {Object|null} Highest priority attack target or null
@@ -202,7 +234,21 @@ const findPrioritizedAttackTarget = (creep) => {
     return null;
   }
 
-  // Find hostile structures in the creep's room
+  // Find the structure at the flag's position
+  const flagPos = attackFlag.pos;
+  const structuresAtFlag = flagPos.lookFor(LOOK_STRUCTURES);
+  
+  // If there's a structure at the flag position, target it specifically
+  // This includes walls, ramparts, and any other structure type
+  if (structuresAtFlag.length > 0) {
+    // Prioritize non-wall structures if multiple exist at same position
+    const nonWallStructure = structuresAtFlag.find(
+      (s) => s.structureType !== STRUCTURE_WALL && s.structureType !== STRUCTURE_RAMPART
+    );
+    return nonWallStructure || structuresAtFlag[0];
+  }
+  
+  // If no structure at flag, find all potential targets in the room
   const hostileStructures = creep.room.find(FIND_HOSTILE_STRUCTURES);
   
   // Also include walls and ramparts as valid targets when attack flag is present
@@ -368,6 +414,10 @@ const getActionAvailability = (creep) => {
   });
   const hasDeliveryTarget = deliveryTargets.length > 0;
 
+  // Check for deconstruct target
+  const deconstructTarget = findDeconstructTarget(room);
+  const hasDeconstructTarget = deconstructTarget !== null;
+
   return {
     repairCritical: criticalRepairs.length > 0,
     building: constructionSites.length > 0,
@@ -378,6 +428,7 @@ const getActionAvailability = (creep) => {
     hauling:
       hasHaulingTarget && creep.store.getFreeCapacity(RESOURCE_ENERGY) > 0,
     delivering: hasDeliveryTarget && creep.store[RESOURCE_ENERGY] > 0,
+    deconstructing: hasDeconstructTarget,
     upgrading: true, // Always available as fallback
     // Include targets for immediate use
     targets: {
@@ -390,6 +441,7 @@ const getActionAvailability = (creep) => {
       containersForHauling,
       droppedEnergy,
       deliveryTargets,
+      deconstructTarget,
     },
   };
 };
@@ -473,6 +525,13 @@ const selectAction = (creep, priorityList) => {
     }
     if (action === "delivering" && availability.delivering) {
       return { action: "delivering", target: null };
+    }
+    if (action === "deconstructing" && availability.deconstructing) {
+      const target = targets.deconstructTarget;
+      return {
+        action: "deconstructing",
+        target: { id: target.id, pos: target.pos },
+      };
     }
     if (action === "upgrading") {
       return { action: "upgrading", target: null };
@@ -849,19 +908,33 @@ const handleAttacking = (creep) => {
     return;
   }
 
-  if (creep.body.some((part) => part.type === RANGED_ATTACK)) {
-    if (creep.rangedAttack(target) === ERR_NOT_IN_RANGE) {
-      moveToTarget(creep, target, PATH_COLORS.attacking);
-    }
+  // Check what attack parts the creep has
+  const hasRangedAttack = creep.body.some((part) => part.type === RANGED_ATTACK);
+  const hasMeleeAttack = creep.body.some((part) => part.type === ATTACK);
+  const range = creep.pos.getRangeTo(target);
+
+  // Use the most appropriate attack type based on range and available parts
+  let attackResult = ERR_NO_BODYPART;
+  
+  if (hasRangedAttack && range <= 3) {
+    // Use ranged attack if in range (1-3 tiles)
+    attackResult = creep.rangedAttack(target);
+    console.log(`Attack result for ${creep.name} on target ${target.id}: ${attackResult}`);
+  } else if (hasMeleeAttack && range === 1) {
+    // Use melee attack if adjacent
+    attackResult = creep.attack(target);
+  }
+  
+  // If attack was successful or we're in position, we're done
+  if (attackResult === OK) {
     return;
   }
-  // Attack the target
-  else if (creep.attack(target) === ERR_NOT_IN_RANGE) {
+  
+  // Move closer to target
+  if (attackResult === ERR_NOT_IN_RANGE || range > 1) {
+    // If we have ranged attack, stay at range 3; if melee only, move to range 1
+    const targetRange = hasRangedAttack ? 3 : 1;
     moveToTarget(creep, target, PATH_COLORS.attacking);
-  } else {
-    console.log(
-      `ERROR attacking target ${actionTarget.id}: ${creep.attack(target)}`,
-    );
   }
 };
 
@@ -1025,6 +1098,45 @@ const handleHauling = (creep) => {
 };
 
 /**
+ * Handle deconstructing action (dismantle structure at deconstruct flag)
+ * Effectful function
+ * @param {Creep} creep
+ */
+const handleDeconstructing = (creep) => {
+  const { actionTarget } = creep.memory;
+  if (!actionTarget) {
+    clearCreepAction(creep);
+    return;
+  }
+
+  const target = Game.getObjectById(actionTarget.id);
+
+  // Target no longer exists - deconstruction complete
+  if (!target) {
+    console.log(
+      `Deconstruction target ${actionTarget.id} no longer exists. ` +
+        `Creep ${creep.name} completed deconstruction.`,
+    );
+    clearCreepAction(creep);
+    return;
+  }
+
+  // Deconstruct the target
+  const result = creep.dismantle(target);
+  if (result === ERR_NOT_IN_RANGE) {
+    moveToTarget(creep, target, PATH_COLORS.deconstructing);
+  } else if (result === OK) {
+    // Successfully deconstructing
+  } else {
+    console.log(
+      `Creep ${creep.name} failed to deconstruct ${target.structureType} ` +
+        `at ${target.pos}: error ${result}`,
+    );
+    clearCreepAction(creep);
+  }
+};
+
+/**
  * Handle delivering action (deliver energy to spawns/extensions/towers/storage)
  * Effectful function
  * @param {Creep} creep
@@ -1110,6 +1222,7 @@ const ACTION_HANDLERS = {
   mining: handleMining,
   hauling: handleHauling,
   delivering: handleDelivering,
+  deconstructing: handleDeconstructing,
 };
 
 // ============================================================================
@@ -1272,6 +1385,7 @@ module.exports = {
   findRepairTargets,
   filterCriticalRepairs,
   findEnergyDepositTargets,
+  findDeconstructTarget,
   isWorker,
   isFighter,
   // Pure functions - sorting
@@ -1302,6 +1416,7 @@ module.exports = {
   handleHarvesting,
   handleAttacking,
   handleTransporting,
+  handleDeconstructing,
   ACTION_HANDLERS,
 
   // Main orchestration
