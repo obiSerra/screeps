@@ -177,6 +177,68 @@ const getFighterCreepBody = (energyAvailable) => {
 };
 
 /**
+ * Get explorer body (for multi-room exploration and claiming)
+ * Pure function - no side effects
+ * @param {number} rcl - Room Control Level
+ * @param {number} energyAvailable - Current energy available
+ * @returns {Array} Body parts array
+ */
+const getExplorerBody = (rcl, energyAvailable) => {
+  const claimCost = BODYPART_COST[CLAIM];          // 600
+  const rangedCost = BODYPART_COST[RANGED_ATTACK]; // 150
+  const moveCost = BODYPART_COST[MOVE];            // 50
+  const toughCost = BODYPART_COST[TOUGH];          // 10
+
+  // Minimum: 1 CLAIM + 1 RANGED_ATTACK + 1 MOVE = 800 energy
+  const minEnergy = claimCost + rangedCost + moveCost;
+  
+  if (energyAvailable < minEnergy) {
+    return undefined; // Not enough energy for explorer
+  }
+
+  // Start with required parts
+  let remainingEnergy = energyAvailable - minEnergy;
+  
+  // Build body: TOUGH first (takes damage), then CLAIM, RANGED_ATTACK, then MOVE
+  const body = [];
+  
+  // Add MOVE + TOUGH pairs, prioritizing MOVE for speed (2 MOVE per 1 TOUGH)
+  // Alternate: MOVE, MOVE, TOUGH pattern for 2:1 ratio
+  let moveCount = 1; // Already have 1 from minimum
+  let toughCount = 0;
+  
+  while (remainingEnergy > 0) {
+    // Try to add 2 MOVE + 1 TOUGH (110 energy)
+    if (remainingEnergy >= moveCost * 2 + toughCost) {
+      moveCount += 2;
+      toughCount += 1;
+      remainingEnergy -= moveCost * 2 + toughCost;
+    }
+    // Try to add 1 MOVE (50 energy)
+    else if (remainingEnergy >= moveCost) {
+      moveCount += 1;
+      remainingEnergy -= moveCost;
+    }
+    // Try to add 1 TOUGH (10 energy)
+    else if (remainingEnergy >= toughCost) {
+      toughCount += 1;
+      remainingEnergy -= toughCost;
+    }
+    else {
+      break; // Not enough energy for any more parts
+    }
+  }
+  
+  // Assemble body in optimal order
+  for (let i = 0; i < toughCount; i++) body.push(TOUGH);
+  body.push(CLAIM);
+  body.push(RANGED_ATTACK);
+  for (let i = 0; i < moveCount; i++) body.push(MOVE);
+  
+  return body;
+};
+
+/**
  * Get RCL tier for scaling strategy
  * Pure function - no side effects
  * @param {number} rcl - Room Control Level (1-8)
@@ -669,6 +731,10 @@ const getBodyForRole = (role, rcl, energyAvailable, room, currentCreeps, roster)
       // Emergency combat role
       return getFighterCreepBody(energyAvailable);
     
+    case "explorer":
+      // Multi-room exploration and claiming
+      return getExplorerBody(rcl, energyAvailable);
+    
     default:
       // Fallback to generalist for unknown roles
       return getGeneralistBody(rcl, energyAvailable);
@@ -792,6 +858,7 @@ module.exports = {
   getUpgraderBody,
   getBuilderBody,
   getDefenderBody,
+  getExplorerBody,
   getBodyForRole,
   
   // Helper functions

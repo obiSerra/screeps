@@ -10,6 +10,7 @@ const roleTransporter = require("./role.transporter");
 const roleMiner = require("./role.miner");
 const roleHauler = require("./role.hauler");
 const roleFighter = require("./role.fighter");
+const roleExplorer = require("./role.explorer");
 
 // ============================================================================
 // Room Mode Management
@@ -141,6 +142,17 @@ const calculateInitialRoster = (roomStatus) => {
  */
 const calculateRoster = (roomStatus) => {
   const rcl = roomStatus.controllerLevel;
+  
+  // Check if explore flag exists - spawn explorer if present
+  const exploreFlag = Game.flags['explore'];
+  if (exploreFlag) {
+    const explorerCount = roomStatus.creeps.explorer || 0;
+    // Only spawn 1 explorer at a time
+    if (explorerCount < 1) {
+      console.log(`[EXPLORE FLAG] Flag detected at ${exploreFlag.pos}. Spawning explorer.`);
+      return { explorer: 1 };
+    }
+  }
   
   // Check if attack flag is present - spawn fighters as if there's an invader
   const attackFlag = Game.flags['attack'];
@@ -368,6 +380,7 @@ const roleHandlers = {
   miner: roleMiner.run,
   hauler: roleHauler.run,
   fighter: roleFighter.run,
+  explorer: roleExplorer.run,
 };
 
 /**
