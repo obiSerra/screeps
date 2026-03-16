@@ -182,6 +182,67 @@ const prioritizeConstructionSites = (constructionSites) => {
 };
 
 /**
+ * Find and prioritize attack targets for fighters
+ * Prioritizes enemy creeps first, then structures when attack flag exists
+ * Pure function
+ * @param {Creep} creep
+ * @returns {Object|null} Highest priority attack target or null
+ */
+const findPrioritizedAttackTarget = (creep) => {
+  // Priority 1: Always look for enemy creeps first (highest priority)
+  const hostileCreeps = creep.room.find(FIND_HOSTILE_CREEPS);
+  if (hostileCreeps.length > 0) {
+    // Sort by distance and return closest
+    return creep.pos.findClosestByPath(hostileCreeps) || hostileCreeps[0];
+  }
+
+  // Priority 2: Check for attack flag to target structures
+  const attackFlag = Game.flags['attack'];
+  if (!attackFlag) {
+    return null;
+  }
+
+  // Find hostile structures in the creep's room
+  const hostileStructures = creep.room.find(FIND_HOSTILE_STRUCTURES);
+  
+  // Also include walls and ramparts as valid targets when attack flag is present
+  const walls = creep.room.find(FIND_STRUCTURES, {
+    filter: (s) =>
+      s.structureType === STRUCTURE_WALL || s.structureType === STRUCTURE_RAMPART,
+  });
+  
+  const allStructureTargets = [...hostileStructures, ...walls];
+  
+  if (allStructureTargets.length === 0) {
+    return null;
+  }
+  
+  // Structure priority mapping (lower = higher priority)
+  const structurePriority = {
+    [STRUCTURE_SPAWN]: 1,
+    [STRUCTURE_TOWER]: 2,
+    [STRUCTURE_EXTENSION]: 3,
+    [STRUCTURE_WALL]: 5,
+    [STRUCTURE_RAMPART]: 5,
+  };
+  
+  // Sort by priority, then by distance
+  allStructureTargets.sort((a, b) => {
+    const priorityA = structurePriority[a.structureType] || 4;
+    const priorityB = structurePriority[b.structureType] || 4;
+    
+    if (priorityA !== priorityB) {
+      return priorityA - priorityB;
+    }
+    
+    // Same priority - sort by distance
+    return creep.pos.getRangeTo(a) - creep.pos.getRangeTo(b);
+  });
+  
+  return allStructureTargets[0];
+};
+
+/**
  * Sort targets by least contention and distance
  * Pure function - distributes creeps across targets
  * @param {Creep} creep
@@ -1081,23 +1142,22 @@ const workerActions = (creep, priorityList) => {
     priorityList = modifiedPriorityList;
   }
 
-  // Check for combat: if there are invaders and creep is a fighter
-  if (utils.areThereInvaders(creep.room) && isFighter(creep)) {
-    const hostiles = creep.room.find(FIND_HOSTILE_CREEPS);
-    if (hostiles.length > 0) {
-      const target = hostiles[0];
+  // Check for combat: if creep is a fighter and there are targets to attack
+  if (isFighter(creep)) {
+    const target = findPrioritizedAttackTarget(creep);
+    if (target) {
       setCreepAction(creep, "attacking", { id: target.id, pos: target.pos });
       sayAction(creep, "attacking");
       return;
     }
   }
 
-  // If was attacking but no more invaders, reset action
-  if (
-    creep.memory.action === "attacking" &&
-    !utils.areThereInvaders(creep.room)
-  ) {
-    clearCreepAction(creep);
+  // If was attacking but no more targets, reset action
+  if (creep.memory.action === "attacking") {
+    const target = findPrioritizedAttackTarget(creep);
+    if (!target) {
+      clearCreepAction(creep);
+    }
   }
 
   // Specialized roles (miners, haulers) use their own action selection

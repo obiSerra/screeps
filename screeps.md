@@ -495,6 +495,79 @@ When invaders are present:
 - Maintained at 50% health minimum
 - Walls built to 1M hits minimum for additional security
 
+### Fighter Attack Prioritization
+
+**Strategic Overview**: Fighters use an intelligent target prioritization system that enables both defensive and offensive operations.
+
+#### Target Detection and Selection
+Fighters (identified via `baseCreep.isFighter()` helper) automatically engage targets based on a two-tier priority system:
+
+**Priority 1: Enemy Creeps (Automatic Defense)**
+- Fighters **always prioritize hostile creeps** when detected in their room
+- Target selection: Closest enemy by pathfinding distance
+- Behavior: Engage immediately without requiring flags or commands
+- Strategic value: Eliminates active threats first (threat elimination doctrine)
+
+**Priority 2: Structures (Flag-Commanded Offense)**
+- Requires `Game.flags['attack']` to be placed in the target room
+- Fighters will attack structures when no enemy creeps are present
+- Valid targets when flag exists:
+  - Hostile structures (spawns, towers, extensions, etc.)
+  - Walls (STRUCTURE_WALL)
+  - Ramparts (STRUCTURE_RAMPART)
+
+#### Structure Target Prioritization
+When attacking structures (via attack flag), fighters use the following priority order:
+
+1. **Spawns** (STRUCTURE_SPAWN) - Highest priority, disable reinforcements
+2. **Towers** (STRUCTURE_TOWER) - Second priority, eliminate defensive structures
+3. **Extensions** (STRUCTURE_EXTENSION) - Third priority, reduce spawn capacity
+4. **Other structures** - Fourth priority (labs, storage, terminal, etc.)
+5. **Walls and Ramparts** - Lowest priority, only after critical structures
+
+Within each priority tier, targets are sorted by distance (closest first).
+
+#### Combat Behavior
+
+**Attack Execution**:
+- Fighters with RANGED_ATTACK parts use `rangedAttack()` (3-tile range)
+- Fighters with ATTACK parts use `attack()` (melee, 1-tile range)
+- Movement: Automatically pathfind to target if out of range
+- Visual indicator: Red path when attacking
+
+**Dynamic Target Switching**:
+- Continuously re-evaluates targets each tick
+- Automatically switches from structures to enemy creeps if hostiles appear
+- Clears attacking action when no valid targets remain (returns to backup behavior)
+
+#### Tactical Use Cases
+
+**Defensive Mode (Default)**:
+- No flags required
+- Fighters automatically patrol and defend against invaders
+- Engage any hostile creep that enters owned rooms
+- Works in coordination with towers for layered defense
+
+**Offensive Mode (Flag-Commanded)**:
+- Place `Game.flags['attack']` in target room
+- Fighters path to flag location (coordinated by roomOrchestrator)
+- Prioritize high-value structures (spawns, towers, extensions)
+- Systematically dismantle enemy infrastructure
+- Falls back to defensive mode if attacked during raid
+
+**Mixed Engagement**:
+- During raids, if enemy spawns defending creeps:
+  - Fighters switch to enemy creeps immediately (threat elimination)
+  - Resume structure attacking after hostiles are eliminated
+  - Maintains strategic focus while handling tactical threats
+
+#### Strategic Benefits
+- **Zero-flag defense**: Fighters defend automatically without manual commands
+- **Intelligent prioritization**: Always handles immediate threats before objectives
+- **Flexible deployment**: Same fighters work for defense and offense
+- **Coordinated raids**: Multiple fighters target structures in optimal order
+- **Resource efficiency**: No wasted attacks on low-value targets
+
 ### Pathfinding Evasion
 Non-combat creeps avoid hostile creeps by:
 - Detecting enemies in current room

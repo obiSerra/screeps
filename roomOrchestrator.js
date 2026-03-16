@@ -142,6 +142,10 @@ const calculateInitialRoster = (roomStatus) => {
 const calculateRoster = (roomStatus) => {
   const rcl = roomStatus.controllerLevel;
   
+  // Check if attack flag is present - spawn fighters as if there's an invader
+  const attackFlag = Game.flags['attack'];
+  const underAttack = attackFlag !== undefined;
+  
   // Critical: ensure at least 1 harvester
   if ((roomStatus.creeps.harvester || 0) < 1 && rcl < 4) {
     return { harvester: 1, upgrader: 0, builder: 0 };
@@ -158,7 +162,13 @@ const calculateRoster = (roomStatus) => {
   if (rcl <= 3) {
     // Level 1: focus on upgrading to unlock extensions
     if (rcl < 2) {
-      return calculateInitialRoster(roomStatus);
+      const initialRoster = calculateInitialRoster(roomStatus);
+      // Add fighters even at RCL 1 if under attack
+      if (underAttack && roomStatus.energyCapacity >= 250) {
+        initialRoster.fighter = 1;
+        console.log(`[ATTACK FLAG] RCL ${rcl}: Spawning 1 fighter`);
+      }
+      return initialRoster;
     }
 
     // Scale base roster with energy capacity (1 worker per 300 energy capacity)
@@ -177,11 +187,19 @@ const calculateRoster = (roomStatus) => {
       builderCount = Math.max(builderCount, 2);
     }
 
-    return {
+    const roster = {
       harvester: harvesterCount,
       builder: builderCount,
       upgrader: upgraderCount
     };
+
+    // Add fighters if under attack
+    if (underAttack) {
+      roster.fighter = Math.max(2, Math.floor(roomStatus.energyCapacity / 400));
+      console.log(`[ATTACK FLAG] RCL ${rcl}: Spawning ${roster.fighter} fighters`);
+    }
+
+    return roster;
   }
 
   // ========================================================================
@@ -211,12 +229,20 @@ const calculateRoster = (roomStatus) => {
       builderCount = 2;
     }
 
-    return {
+    const roster = {
       miner: minerCount,
       hauler: haulerCount,
       upgrader: upgraderCount,
       builder: builderCount
     };
+
+    // Add fighters if under attack
+    if (underAttack) {
+      roster.fighter = Math.max(3, Math.floor(roomStatus.energyCapacity / 600));
+      console.log(`[ATTACK FLAG] RCL ${rcl}: Spawning ${roster.fighter} fighters`);
+    }
+
+    return roster;
   }
 
   // ========================================================================
@@ -244,12 +270,20 @@ const calculateRoster = (roomStatus) => {
     builderCount = 1;
   }
 
-  return {
+  const roster = {
     miner: minerCount,
     hauler: haulerCount,
     upgrader: upgraderCount,
     builder: builderCount
   };
+
+  // Add fighters if under attack (RCL 8+ gets powerful fighters)
+  if (underAttack) {
+    roster.fighter = Math.max(4, Math.floor(roomStatus.energyCapacity / 800));
+    console.log(`[ATTACK FLAG] RCL ${rcl}: Spawning ${roster.fighter} elite fighters`);
+  }
+
+  return roster;
 };
 
 // ============================================================================
@@ -336,6 +370,66 @@ const roleHandlers = {
   fighter: roleFighter.run,
 };
 
+/**
+ * Handle attack flag coordination
+ * If an "attack" flag exists, all creeps with ATTACK parts move to attack
+ * @returns {boolean} True if attack flag exists and was handled
+ */
+const handleAttackFlag = () => {
+  const attackFlag = Game.flags['attack'];
+  if (!attackFlag) {
+    return false;
+  }
+
+  // Find all creeps with ATTACK parts
+  const attackingCreeps = Object.values(Game.creeps).filter(creep => baseCreep.isFighter(creep));
+
+  if (attackingCreeps.length === 0) {
+    console.log('[ATTACK FLAG] Flag detected but no creeps with ATTACK parts available');
+    return true;
+  }
+
+  console.log(`[ATTACK FLAG] Coordinating ${attackingCreeps.length} attacking creeps to ${attackFlag.pos}`);
+
+  attackingCreeps.forEach(creep => {
+    // Move to flag position
+    if (creep.pos.getRangeTo(attackFlag.pos) > 3) {
+      creep.moveTo(attackFlag.pos, {
+        visualizePathStyle: { stroke: '#ff0000' }
+      });
+    } else {
+      // Look for hostile creeps or structures nearby
+      const hostileCreep = creep.pos.findClosestByRange(FIND_HOSTILE_CREEPS);
+      const hostileStructure = creep.pos.findClosestByRange(FIND_HOSTILE_STRUCTURES);
+      
+      if (hostileCreep && creep.pos.getRangeTo(hostileCreep) <= 3) {
+        if (creep.pos.getRangeTo(hostileCreep) > 1) {
+          creep.moveTo(hostileCreep, {
+            visualizePathStyle: { stroke: '#ff0000' }
+          });
+        } else {
+          creep.attack(hostileCreep);
+        }
+      } else if (hostileStructure && creep.pos.getRangeTo(hostileStructure) <= 3) {
+        if (creep.pos.getRangeTo(hostileStructure) > 1) {
+          creep.moveTo(hostileStructure, {
+            visualizePathStyle: { stroke: '#ff0000' }
+          });
+        } else {
+          creep.attack(hostileStructure);
+        }
+      } else {
+        // No enemies nearby, move toward flag
+        creep.moveTo(attackFlag.pos, {
+          visualizePathStyle: { stroke: '#ff0000' }
+        });
+      }
+    }
+  });
+
+  return true;
+};
+
 
 
 
@@ -345,11 +439,17 @@ const roleHandlers = {
  * @param {Room} room - The room (currently unused, handles all creeps)
  */
 const handleCreeps = (room) => {
-
+  // Check for attack flag first - if present, attacking creeps follow it
+  const attackFlagActive = handleAttackFlag();
 
   // Logic for rebalancing workers tasks
 
   Object.values(Game.creeps).forEach((creep) => {
+    // Skip creeps already handled by attack flag
+    if (attackFlagActive && creep.body.some(part => part.type === ATTACK)) {
+      return; // Skip normal role handling for attacking creeps
+    }
+
     const handler = roleHandlers[creep.memory.role];
     if (handler) {
       handler(creep);
