@@ -4,6 +4,7 @@
  */
 
 const roomOrchestrator = require("roomOrchestrator");
+const stats = require("./stats");
 
 // ============================================================================
 // Memory Management
@@ -16,6 +17,12 @@ const roomOrchestrator = require("roomOrchestrator");
 const clearCreepsMemory = () => {
   for (const name in Memory.creeps) {
     if (!Game.creeps[name]) {
+      // Track creep death before deleting memory
+      const creepMemory = Memory.creeps[name];
+      if (creepMemory.role && creepMemory.spawnRoom) {
+        const ticksLived = Game.time - (creepMemory.spawnTick || 0);
+        stats.recordCreepDeath(creepMemory.spawnRoom, name, creepMemory.role, ticksLived);
+      }
       delete Memory.creeps[name];
     }
   }
@@ -55,10 +62,80 @@ module.exports.loop = function () {
     .filter((room) => room.controller && room.controller.my)
     .forEach((room) => {
       try {
+        // Update system and creep statistics
+        stats.updateSystemStats(room.name);
+        stats.updateCreepStats(room.name);
+        
+        // Run room orchestration
         roomOrchestrator.orchestrateRoom(room);
       } catch (error) {
         console.log(`Error in room ${room.name}: ${error.message}`);
         console.log(error.stack);
       }
     });
+};
+
+// ============================================================================
+// Global Console Functions
+// ============================================================================
+
+/**
+ * Display statistics report for a room
+ * Usage: statsReport('W1N1')
+ */
+global.statsReport = function(roomName) {
+  if (!roomName) {
+    // Report for all owned rooms
+    const ownedRooms = Object.values(Game.rooms)
+      .filter(room => room.controller && room.controller.my)
+      .map(room => room.name);
+    
+    if (ownedRooms.length === 0) {
+      console.log('No owned rooms found');
+      return;
+    }
+    
+    ownedRooms.forEach(name => stats.report(name));
+  } else {
+    stats.report(roomName);
+  }
+};
+
+/**
+ * Display trend report for a room
+ * Usage: statsTrends('W1N1')
+ */
+global.statsTrends = function(roomName) {
+  if (!roomName) {
+    // Report for all owned rooms
+    const ownedRooms = Object.values(Game.rooms)
+      .filter(room => room.controller && room.controller.my)
+      .map(room => room.name);
+    
+    if (ownedRooms.length === 0) {
+      console.log('No owned rooms found');
+      return;
+    }
+    
+    ownedRooms.forEach(name => stats.reportTrends(name));
+  } else {
+    stats.reportTrends(roomName);
+  }
+};
+
+/**
+ * Export statistics data as JSON
+ * Usage: statsExport('W1N1')
+ */
+global.statsExport = function(roomName) {
+  if (!roomName) {
+    console.log('Please specify a room name: statsExport("W1N1")');
+    return;
+  }
+  const data = stats.exportData(roomName);
+  if (data) {
+    console.log(data);
+  } else {
+    console.log(`No statistics available for room ${roomName}`);
+  }
 };

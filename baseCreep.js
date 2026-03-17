@@ -9,6 +9,7 @@
  */
 
 const utils = require("./utils");
+const stats = require("./stats");
 
 // ============================================================================
 // Constants
@@ -741,8 +742,14 @@ const handleGathering = (creep) => {
     }
   } else {
     // Harvest from source
-    if (creep.harvest(source) === ERR_NOT_IN_RANGE) {
+    const result = creep.harvest(source);
+    if (result === ERR_NOT_IN_RANGE) {
       moveToTarget(creep, source, PATH_COLORS.gathering);
+    } else if (result === OK) {
+      // Track harvested energy (estimate based on WORK parts)
+      const workParts = creep.body.filter(p => p.type === WORK).length;
+      const harvestAmount = workParts * 2; // Each WORK part harvests 2 energy per tick
+      stats.recordHarvest(creep.room.name, source.id, harvestAmount);
     }
   }
 };
@@ -764,8 +771,14 @@ const handleBuilding = (creep) => {
 
   // Target still exists and needs building
   if (target && target.progress < target.progressTotal) {
-    if (creep.build(target) === ERR_NOT_IN_RANGE) {
+    const result = creep.build(target);
+    if (result === ERR_NOT_IN_RANGE) {
       moveToTarget(creep, target, PATH_COLORS.building);
+    } else if (result === OK) {
+      // Track construction work (estimate based on WORK parts)
+      const workParts = creep.body.filter(p => p.type === WORK).length;
+      const buildAmount = workParts * 5; // Each WORK part builds 5 energy worth per tick
+      stats.recordConstruction(creep.room.name, buildAmount);
     }
     return;
   }
@@ -827,8 +840,14 @@ const handleRepairing = (creep) => {
 
   // Target exists and needs repair
   if (target && target.hits < target.hitsMax) {
-    if (creep.repair(target) === ERR_NOT_IN_RANGE) {
+    const result = creep.repair(target);
+    if (result === ERR_NOT_IN_RANGE) {
       moveToTarget(creep, target, PATH_COLORS.repairing);
+    } else if (result === OK) {
+      // Track repair work (estimate based on WORK parts)
+      const workParts = creep.body.filter(p => p.type === WORK).length;
+      const repairAmount = workParts * 100; // Each WORK part repairs 100 hits per tick
+      stats.recordRepair(creep.room.name, repairAmount);
     }
     return;
   }
@@ -854,8 +873,14 @@ const handleRepairing = (creep) => {
  */
 const handleUpgrading = (creep) => {
   const { controller } = creep.room;
-  if (creep.upgradeController(controller) === ERR_NOT_IN_RANGE) {
+  const result = creep.upgradeController(controller);
+  if (result === ERR_NOT_IN_RANGE) {
     moveToTarget(creep, controller, PATH_COLORS.upgrading);
+  } else if (result === OK) {
+    // Track controller upgrade work (based on WORK parts)
+    const workParts = creep.body.filter(p => p.type === WORK).length;
+    const upgradeAmount = workParts * 1; // Each WORK part upgrades 1 energy per tick
+    stats.recordUpgrade(creep.room.name, upgradeAmount);
   }
 };
 
@@ -1004,6 +1029,11 @@ const handleMining = (creep) => {
   if (result === ERR_NOT_IN_RANGE) {
     moveToTarget(creep, source, PATH_COLORS.mining);
   } else if (result === OK) {
+    // Track mined energy (based on WORK parts)
+    const workParts = creep.body.filter(p => p.type === WORK).length;
+    const harvestAmount = workParts * 2; // Each WORK part harvests 2 energy per tick
+    stats.recordHarvest(creep.room.name, source.id, harvestAmount);
+    
     // Mining successfully - check if we need to drop energy to container
     // Look for container at source position
     const containers = source.pos.findInRange(FIND_STRUCTURES, 1, {

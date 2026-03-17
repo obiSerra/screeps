@@ -4,6 +4,7 @@
  */
 
 const utils = require("./utils");
+const stats = require("./stats");
 
 const calculateBodyCost = (body) =>
   body.reduce((total, part) => total + BODYPART_COST[part], 0);
@@ -656,8 +657,23 @@ const generateCreepName = (role, gameTime) =>
 const executeSpawn = (spawn, role, body, gameTime, extraMemory = {}) => {
   const name = generateCreepName(role, gameTime);
   console.log(`Spawning new ${role}: ${name}`);
-  const memory = { role, ...extraMemory };
-  return spawn.spawnCreep(body, name, { memory });
+  const memory = { 
+    role, 
+    spawnTick: gameTime,
+    spawnRoom: spawn.room.name,
+    ...extraMemory 
+  };
+  const result = spawn.spawnCreep(body, name, { memory });
+  
+  // Track spawn statistics
+  if (result === OK) {
+    const energyCost = calculateBodyCost(body);
+    stats.recordSpawn(spawn.room.name, role, body, energyCost);
+  } else if (result === ERR_NOT_ENOUGH_ENERGY) {
+    stats.recordSpawnFailure(spawn.room.name);
+  }
+  
+  return result;
 };
 
 /**

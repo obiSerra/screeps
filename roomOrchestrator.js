@@ -1,6 +1,7 @@
 const utils = require("./utils");
 const spawner = require("./spawner");
 const planner = require("./planner");
+const stats = require("./stats");
 const roleHarvester = require("./role.harvester");
 const roleUpgrader = require("./role.upgrader");
 const roleBuilder = require("./role.builder");
@@ -320,7 +321,10 @@ const handleTowers = (room) => {
       const target = tower.pos.findClosestByRange(hostileCreeps);
       if (target) {
         console.log(`Tower in room ${room.name} attacking hostile creep ${target.name}`);
-        tower.attack(target);
+        const result = tower.attack(target);
+        if (result === OK) {
+          stats.recordTowerAction(room.name, 'attack');
+        }
         return;
       }
     }
@@ -333,7 +337,10 @@ const handleTowers = (room) => {
     if (damagedCreeps.length > 0) {
       const target = tower.pos.findClosestByRange(damagedCreeps);
       if (target) {
-        tower.heal(target);
+        const result = tower.heal(target);
+        if (result === OK) {
+          stats.recordTowerAction(room.name, 'heal');
+        }
         return;
       }
     }
@@ -357,7 +364,10 @@ const handleTowers = (room) => {
       });
       
       if (target) {
-        tower.repair(target);
+        const result = tower.repair(target);
+        if (result === OK) {
+          stats.recordTowerAction(room.name, 'repair');
+        }
       }
     }
   });
