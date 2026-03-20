@@ -240,22 +240,31 @@ const findPrioritizedAttackTarget = (creep) => {
   const structuresAtFlag = flagPos.lookFor(LOOK_STRUCTURES);
   
   // If there's a structure at the flag position, target it specifically
-  // This includes walls, ramparts, and any other structure type
+  // Filter out allied structures to never target them
   if (structuresAtFlag.length > 0) {
-    // Prioritize non-wall structures if multiple exist at same position
-    const nonWallStructure = structuresAtFlag.find(
-      (s) => s.structureType !== STRUCTURE_WALL && s.structureType !== STRUCTURE_RAMPART
+    // Only target structures that are hostile or neutral (no owner)
+    const hostileStructuresAtFlag = structuresAtFlag.filter(
+      (s) => !s.my && (!s.owner || s.owner.username !== creep.owner.username)
     );
-    return nonWallStructure || structuresAtFlag[0];
+    
+    if (hostileStructuresAtFlag.length > 0) {
+      // Prioritize non-wall structures if multiple exist at same position
+      const nonWallStructure = hostileStructuresAtFlag.find(
+        (s) => s.structureType !== STRUCTURE_WALL && s.structureType !== STRUCTURE_RAMPART
+      );
+      return nonWallStructure || hostileStructuresAtFlag[0];
+    }
   }
   
   // If no structure at flag, find all potential targets in the room
   const hostileStructures = creep.room.find(FIND_HOSTILE_STRUCTURES);
   
   // Also include walls and ramparts as valid targets when attack flag is present
+  // Only include hostile or neutral walls/ramparts, never allied ones
   const walls = creep.room.find(FIND_STRUCTURES, {
     filter: (s) =>
-      s.structureType === STRUCTURE_WALL || s.structureType === STRUCTURE_RAMPART,
+      (s.structureType === STRUCTURE_WALL || s.structureType === STRUCTURE_RAMPART) &&
+      !s.my && (!s.owner || s.owner.username !== creep.owner.username),
   });
   
   const allStructureTargets = [...hostileStructures, ...walls];
