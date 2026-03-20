@@ -138,13 +138,17 @@ const calculateInitialRoster = (roomStatus) => {
 };
 
 /**
- * Calculate roster based on room status
- * Pure function - scales with energy capacity and RCL
+ * Calculate roster based on room status with priority-based spawning
+ * Prioritizes energy collection, then core operations, then advanced roles
+ * Maintains generalists at all RCLs and gradually transitions to specialists
+ * Pure function - scales with energy capacity, RCL, and efficiency metrics
  * @param {Object} roomStatus - Current room status
+ * @param {Object} efficiencyMetrics - Energy collection efficiency metrics from stats
  * @returns {Object} Roster object {role: count}
  */
-const calculateRoster = (roomStatus) => {
+const calculateRoster = (roomStatus, efficiencyMetrics = null) => {
   const rcl = roomStatus.controllerLevel;
+  const efficiencyTier = efficiencyMetrics ? efficiencyMetrics.efficiencyTier : 'bootstrapping';
   
   // Check if explore flag exists - spawn explorer if present
   const exploreFlag = Game.flags['explore'];
@@ -161,196 +165,219 @@ const calculateRoster = (roomStatus) => {
   const attackFlag = Game.flags['attack'];
   const underAttack = attackFlag !== undefined;
   
-  // Critical: ensure at least 1 harvester
-  if ((roomStatus.creeps.harvester || 0) < 1 && rcl < 4) {
-    return { harvester: 1, upgrader: 0, builder: 0 };
-  }
+  // Critical: ensure at least 2 energy collectors (harvester or miner)
+  const harvesterCount = roomStatus.creeps.harvester || 0;
+  const minerCount = roomStatus.creeps.miner || 0;
+  const totalCollectors = harvesterCount + minerCount;
   
-  // Emergency: for RCL 4+, ensure at least 1 miner if no harvesters
-  if ((roomStatus.creeps.miner || 0) < 1 && (roomStatus.creeps.harvester || 0) < 1 && rcl >= 4) {
-    return { miner: 1, hauler: 0, upgrader: 0, builder: 0 };
+  if (totalCollectors < 2) {
+    // Emergency bootstrap: spawn harvesters or miners
+    if (rcl < 4) {
+      return { harvester: 2, upgrader: 0, builder: 0 };
+    } else {
+      return { miner: 1, hauler: 1, harvester: 1, upgrader: 0, builder: 0 };
+    }
   }
 
+  // Get room and source count for calculations
+  const room = Game.rooms[roomStatus.roomName];
+  const sources = room ? room.find(FIND_SOURCES) : [];
+  const sourceCount = sources.length || 2; // Default to 2 if room not visible
+
   // ========================================================================
-  // RCL 1-3: Swarm strategy with small generalist creeps
+  // RCL 1-3: Bootstrap with generalists, gradually add specialists
   // ========================================================================
   if (rcl <= 3) {
-    // Level 1: focus on upgrading to unlock extensions
-    if (rcl < 2) {
-      const initialRoster = calculateInitialRoster(roomStatus);
-      // Add fighters even at RCL 1 if under attack
-      if (underAttack && roomStatus.energyCapacity >= 250) {
-        initialRoster.fighter = 1;
-        console.log(`[ATTACK FLAG] RCL ${rcl}: Spawning 1 fighter`);
-      }
-      return initialRoster;
-    }
-
-    // Scale base roster with energy capacity (1 worker per 300 energy capacity)
-    const baseWorkersPerCapacity = Math.max(1, Math.floor(roomStatus.energyCapacity / 300));
+    const roster = {};
     
-    // Distribution: ~50% harvesters, ~25% builders, ~25% upgraders
-    const harvesterCount = Math.max(2, Math.ceil(baseWorkersPerCapacity * 0.5));
-    const baseBuilderCount = Math.max(1, Math.floor(baseWorkersPerCapacity * 0.25));
-    const upgraderCount = Math.max(1, Math.floor(baseWorkersPerCapacity * 0.25));
-
-    // Adjust builder count based on construction sites
-    let builderCount = baseBuilderCount;
-    if (roomStatus.constructionSiteCount > 10) {
-      builderCount = Math.max(builderCount, 4);
-    } else if (roomStatus.constructionSiteCount > 0) {
-      builderCount = Math.max(builderCount, 2);
+    // PRIORITY 1: Energy Collection (primary - always spawn first)
+    // Primarily use generalist harvesters at low RCL
+    const baseHarvesterCount = Math.max(3, Math.ceil(roomStatus.energyCapacity / 250));
+    roster.harvester = Math.min(baseHarvesterCount, 8); // Cap at 8
+    
+    // PRIORITY 2: Core Operations (spawn when collection is at least 'developing')
+    if (efficiencyTier !== 'bootstrapping' || totalCollectors >= 4) {
+      // Upgraders: scale with capacity, but keep modest
+      roster.upgrader = Math.max(1, Math.floor(roomStatus.energyCapacity / 400));
+      roster.upgrader = Math.min(roster.upgrader, 3); // Cap at 3
+      
+      // Builders: scale with construction sites
+      if (roomStatus.constructionSiteCount > 10) {
+        roster.builder = 3;
+      } else if (roomStatus.constructionSiteCount > 3) {
+        roster.builder = 2;
+      } else if (roomStatus.constructionSiteCount > 0) {
+        roster.builder = 1;
+      } else {
+        roster.builder = 0;
+      }
+    } else {
+      // Bootstrapping: minimal non-collection roles
+      roster.upgrader = rcl < 2 ? 1 : 0;
+      roster.builder = 0;
     }
-
-    const roster = {
-      harvester: harvesterCount,
-      builder: builderCount,
-      upgrader: upgraderCount
-    };
-
+    
     // Add fighters if under attack
-    if (underAttack) {
+    if (underAttack && roomStatus.energyCapacity >= 250) {
       roster.fighter = Math.max(2, Math.floor(roomStatus.energyCapacity / 400));
       console.log(`[ATTACK FLAG] RCL ${rcl}: Spawning ${roster.fighter} fighters`);
     }
-
+    
     return roster;
   }
 
   // ========================================================================
-  // RCL 4-7: Specialized medium creeps (miner/hauler split)
+  // RCL 4-7: Gradual transition from generalists to specialists
   // ========================================================================
   if (rcl <= 7) {
-    // Get source count for miner assignment
-    const room = Game.rooms[roomStatus.roomName];
-    const sources = room ? room.find(FIND_SOURCES) : [];
-    const sourceCount = sources.length || 2; // Default to 2 if room not visible
+    const roster = {};
     
-    // 1 miner per source (stationary at source)
-    const minerCount = sourceCount;
+    // PRIORITY 1: Energy Collection Infrastructure
+    // Determine generalist vs specialist balance based on efficiency
+    let generalistCount = 0;
+    let minerCount = 0;
+    let haulerCount = 0;
     
-    // Haulers: 2 per source as baseline (adjust based on room layout later)
-    const haulerCount = sourceCount * 2;
-    
-    // Upgraders: scale with energy surplus
-    const baseUpgraderCount = Math.max(2, Math.floor(roomStatus.energyCapacity / 800));
-    const upgraderCount = Math.min(baseUpgraderCount, 4); // Cap at 4 for mid-tier
-    
-    // Builders: scale with construction sites
-    let builderCount = 1; // Always at least 1
-    if (roomStatus.constructionSiteCount > 10) {
-      builderCount = 3;
-    } else if (roomStatus.constructionSiteCount > 3) {
-      builderCount = 2;
+    if (efficiencyTier === 'bootstrapping') {
+      // Use primarily generalists with 1 specialist per type
+      generalistCount = 3;
+      minerCount = Math.min(sourceCount, 1);
+      haulerCount = Math.min(sourceCount, 1);
+    } else if (efficiencyTier === 'developing') {
+      // Transition: 2 generalists, more specialists
+      generalistCount = 2;
+      minerCount = sourceCount;
+      haulerCount = sourceCount * 2;
+    } else if (efficiencyTier === 'established') {
+      // Mostly specialists: 1 generalist for flexibility
+      generalistCount = 1;
+      minerCount = sourceCount;
+      haulerCount = sourceCount * 2;
+    } else { // optimized
+      // Full specialists: 1 generalist as backup
+      generalistCount = 1;
+      minerCount = sourceCount;
+      haulerCount = sourceCount * 3; // More haulers for optimized rooms
     }
-
-    const roster = {
-      miner: minerCount,
-      hauler: haulerCount,
-      upgrader: upgraderCount,
-      builder: builderCount
-    };
-
-    // RCL 6+ additions: mineral extraction and lab operations
-    if (rcl >= 6) {
-      // Check if room has mineral  and extractor
+    
+    roster.harvester = generalistCount; // Generalists use harvester role
+    roster.miner = minerCount;
+    roster.hauler = haulerCount;
+    
+    // PRIORITY 2: Core Operations (spawn when collection is at least 'developing')
+    if (efficiencyTier === 'developing' || efficiencyTier === 'established' || efficiencyTier === 'optimized') {
+      // Upgraders: scale with room efficiency
+      if (efficiencyTier === 'optimized') {
+        roster.upgrader = 3;
+      } else if (efficiencyTier === 'established') {
+        roster.upgrader = 2;
+      } else {
+        roster.upgrader = 1;
+      }
+      
+      // Builders: scale with construction sites
+      if (roomStatus.constructionSiteCount > 10) {
+        roster.builder = 2;
+      } else if (roomStatus.constructionSiteCount > 3) {
+        roster.builder = 1;
+      } else if (roomStatus.constructionSiteCount > 0) {
+        roster.builder = 1;
+      } else {
+        roster.builder = 0;
+      }
+    } else {
+      // Bootstrapping: minimal core operations
+      roster.upgrader = 1;
+      roster.builder = 0;
+    }
+    
+    // PRIORITY 3: Advanced Roles (RCL 6+ and efficiency 'established' or better)
+    if (rcl >= 6 && (efficiencyTier === 'established' || efficiencyTier === 'optimized')) {
+      // Mineral extraction
       const minerals = room ? room.find(FIND_MINERALS) : [];
       const mineral = minerals.length > 0 ? minerals[0] : null;
       
       if (mineral && mineral.mineralAmount > 0) {
-        // Check for extractor structure
         const extractor = mineral.pos.lookFor(LOOK_STRUCTURES).find(
           s => s.structureType === STRUCTURE_EXTRACTOR
         );
         
         if (extractor) {
-          roster.mineralExtractor = 1; // 1 extractor per mineral
-          roster.hauler = haulerCount + 1; // Add 1 extra hauler for minerals
+          roster.mineralExtractor = 1;
+          roster.hauler = (roster.hauler || 0) + 1; // Extra hauler for minerals
         }
       }
-
-      // Check if room has labs (spawn chemist)
+      
+      // Lab operations
       const labs = room ? room.find(FIND_MY_STRUCTURES, {
         filter: s => s.structureType === STRUCTURE_LAB
       }) : [];
       
       if (labs.length >= 3) {
-        roster.chemist = 1; // 1 chemist when labs operational
+        roster.chemist = 1;
       }
     }
-
-    // Add fighters if under attack
+    
+    // Fighters if under attack
     if (underAttack) {
       roster.fighter = Math.max(3, Math.floor(roomStatus.energyCapacity / 600));
       console.log(`[ATTACK FLAG] RCL ${rcl}: Spawning ${roster.fighter} fighters`);
     }
-
+    
     return roster;
   }
 
   // ========================================================================
-  // RCL 8+: Giant creeps with tight specialization
+  // RCL 8: Optimized with large specialists + 1 generalist
   // ========================================================================
-  // Reduce creep count, increase body sizes (handled in spawner body generation)
-  const room = Game.rooms[roomStatus.roomName];
-  const sources = room ? room.find(FIND_SOURCES) : [];
-  const sourceCount = sources.length || 2;
+  const roster = {};
   
-  // 1 giant miner per source ([WORK×5, MOVE×1])
-  const minerCount = sourceCount;
+  // PRIORITY 1: Energy Collection (always maintain)
+  roster.harvester = 1; // 1 generalist for flexibility
+  roster.miner = sourceCount; // 1 miner per source
+  roster.hauler = sourceCount; // 1 large hauler per source at RCL 8
   
-  // Haulers: fewer but larger - 1 per source for short distances
-  const haulerCount = sourceCount;
+  // PRIORITY 2: Core Operations
+  roster.upgrader = 2; // 2 giant upgraders
   
-  // Upgraders: 2-3 giants near controller
-  const upgraderCount = 2;
-  
-  // Builders: scale with construction, but prefer large creeps
-  let builderCount = 0; // No builders by default at RCL 8 unless needed
+  // Builders: scale with construction
   if (roomStatus.constructionSiteCount > 5) {
-    builderCount = 2;
+    roster.builder = 2;
   } else if (roomStatus.constructionSiteCount > 0) {
-    builderCount = 1;
+    roster.builder = 1;
+  } else {
+    roster.builder = 0;
   }
-
-  const roster = {
-    miner: minerCount,
-    hauler: haulerCount,
-    upgrader: upgraderCount,
-    builder: builderCount
-  };
-
-  // RCL 8: mineral extraction and lab operations
+  
+  // PRIORITY 3: Advanced Roles
   const minerals = room ? room.find(FIND_MINERALS) : [];
   const mineral = minerals.length > 0 ? minerals[0] : null;
   
   if (mineral && mineral.mineralAmount > 0) {
-    // Check for extractor structure
     const extractor = mineral.pos.lookFor(LOOK_STRUCTURES).find(
       s => s.structureType === STRUCTURE_EXTRACTOR
     );
     
     if (extractor) {
-      roster.mineralExtractor = 1; // 1 extractor per mineral
-      roster.hauler = haulerCount + 1; // Add 1 extra hauler for minerals
+      roster.mineralExtractor = 1;
+      roster.hauler = (roster.hauler || 0) + 1;
     }
   }
-
-  // Check if room has labs (spawn chemist)
+  
   const labs = room ? room.find(FIND_MY_STRUCTURES, {
     filter: s => s.structureType === STRUCTURE_LAB
   }) : [];
   
   if (labs.length >= 3) {
-    roster.chemist = 1; // 1 chemist when labs operational
+    roster.chemist = 1;
   }
-
-  // Add fighters if under attack (RCL 8+ gets powerful fighters)
+  
+  // Fighters if under attack
   if (underAttack) {
     roster.fighter = Math.max(4, Math.floor(roomStatus.energyCapacity / 800));
     console.log(`[ATTACK FLAG] RCL ${rcl}: Spawning ${roster.fighter} elite fighters`);
   }
-
+  
   return roster;
 };
 
@@ -598,13 +625,16 @@ const handlePlanningMode = (room, roomStatus) => {
  * @param {Object} roomStatus - Current room status
  */
 const handleExecutingMode = (room, roomStatus) => {
-  // Calculate roster based on room status
-  const roster = calculateRoster(roomStatus);
+  // Get efficiency metrics from stats for adaptive spawning
+  const efficiencyMetrics = stats.getCollectionMetrics(room.name);
+  
+  // Calculate roster based on room status and efficiency
+  const roster = calculateRoster(roomStatus, efficiencyMetrics);
 
   // Get spawn and execute spawn procedure
   const spawn = room.find(FIND_MY_SPAWNS)[0];
   if (spawn) {
-    spawner.spawnProcedure(spawn, roster, roomStatus);
+    spawner.spawnProcedure(spawn, roster, roomStatus, efficiencyMetrics);
   }
 
   // Update plan when controller level increases

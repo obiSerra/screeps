@@ -10,6 +10,62 @@ const calculateBodyCost = (body) =>
   body.reduce((total, part) => total + BODYPART_COST[part], 0);
 
 /**
+ * Determine body set count based on efficiency metrics
+ * Pure function - no side effects
+ * @param {Object} efficiencyMetrics - Metrics from stats.getCollectionMetrics()
+ * @param {number} energyAvailable - Current energy available
+ * @param {number} setCost - Cost per body set
+ * @param {number} maxSets - Maximum sets allowed by role
+ * @param {boolean} isEmergency - If true, always allow minimum spawn
+ * @returns {number} Number of body sets to build
+ */
+const getAdaptiveSetCount = (efficiencyMetrics, energyAvailable, setCost, maxSets, isEmergency = false) => {
+  const maxAffordable = Math.floor(energyAvailable / setCost);
+  
+  if (maxAffordable < 1) {
+    return 0;
+  }
+  
+  // Emergency spawns (e.g., first harvester) always get at least 1 set
+  if (isEmergency) {
+    return Math.min(maxAffordable, maxSets);
+  }
+  
+  // If no metrics provided, use conservative sizing
+  if (!efficiencyMetrics) {
+    return Math.min(Math.max(1, Math.floor(maxAffordable / 2)), maxSets);
+  }
+  
+  // Determine target sets based on efficiency tier
+  let targetSets;
+  const tier = efficiencyMetrics.efficiencyTier;
+  
+  switch (tier) {
+    case 'bootstrapping':
+      // Start small: 1-2 sets
+      targetSets = Math.min(2, maxAffordable);
+      break;
+    case 'developing':
+      // Medium: 2-4 sets
+      targetSets = Math.min(4, maxAffordable);
+      break;
+    case 'established':
+      // Large: 4-8 sets
+      targetSets = Math.min(8, maxAffordable);
+      break;
+    case 'optimized':
+      // Maximum affordable
+      targetSets = maxAffordable;
+      break;
+    default:
+      targetSets = Math.min(2, maxAffordable);
+  }
+  
+  // Cap at role maximum
+  return Math.min(targetSets, maxSets);
+};
+
+/**
  * Get body composition based on available energy
  * Pure function - no side effects
  * @param {number} energyAvailable - Current energy available
@@ -246,20 +302,20 @@ const getRCLTier = (rcl) => {
  * Pure function - no side effects
  * @param {number} rcl - Room Control Level
  * @param {number} energyAvailable - Current energy available
+ * @param {Object} efficiencyMetrics - Optional efficiency metrics for adaptive sizing
  * @returns {Array} Body parts array
  */
-const getGeneralistBody = (rcl, energyAvailable) => {
+const getGeneralistBody = (rcl, energyAvailable, efficiencyMetrics = null) => {
   // Balanced generalist: [WORK, CARRY, MOVE] sets
   const bodySet = [WORK, CARRY, MOVE]; // 200 per set
   const setCost = calculateBodyCost(bodySet);
-  const maxSets = Math.floor(energyAvailable / setCost);
+  const maxSets = 16; // Cap at 16 sets to stay under 50 body parts limit (16 * 3 = 48)
   
-  if (maxSets < 1) {
+  const sets = getAdaptiveSetCount(efficiencyMetrics, energyAvailable, setCost, maxSets, false);
+  
+  if (sets < 1) {
     return undefined;
   }
-  
-  // Cap at 16 sets to stay under 50 body parts limit (16 * 3 = 48)
-  const sets = Math.min(maxSets, 16);
   
   const body = [];
   for (let i = 0; i < sets; i++) body.push(WORK);
@@ -274,29 +330,28 @@ const getGeneralistBody = (rcl, energyAvailable) => {
  * Pure function - no side effects
  * @param {number} rcl - Room Control Level
  * @param {number} energyAvailable - Current energy available
+ * @param {Object} efficiencyMetrics - Optional efficiency metrics for adaptive sizing
  * @returns {Array} Body parts array
  */
-const getMinerBody = (rcl, energyAvailable) => {
+const getMinerBody = (rcl, energyAvailable, efficiencyMetrics = null) => {
   const tier = getRCLTier(rcl);
   
   if (tier === "early") {
     // RCL 1-3: Should not use miners yet, return generalist
-    return getGeneralistBody(rcl, energyAvailable);
+    return getGeneralistBody(rcl, energyAvailable, efficiencyMetrics);
   }
   
   // Miner: [WORK, WORK, MOVE] sets, capped at 5 WORK parts total
   // Max source output is 10 energy/tick with 5 WORK parts (5 * 2 = 10)
   const bodySet = [WORK, WORK, MOVE]; // 250 per set
   const setCost = calculateBodyCost(bodySet);
-  const maxSets = Math.floor(energyAvailable / setCost);
+  const maxSets = 2; // Cap at 2 sets = 4 WORK (with potential for 5th WORK)
   
-  if (maxSets < 1) {
+  const sets = getAdaptiveSetCount(efficiencyMetrics, energyAvailable, setCost, maxSets, false);
+  
+  if (sets < 1) {
     return undefined;
   }
-  
-  // Cap at 2.5 sets = 5 WORK parts (optimal for source output)
-  // Since we need whole sets, cap at 2 sets = 4 WORK, then add 1 WORK + 1 MOVE if energy allows
-  const sets = Math.min(maxSets, 2);
   
   const body = [];
   for (let i = 0; i < sets; i++) body.push(WORK);
@@ -319,32 +374,32 @@ const getMinerBody = (rcl, energyAvailable) => {
  * Pure function - no side effects
  * @param {number} rcl - Room Control Level
  * @param {number} energyAvailable - Current energy available
+ * @param {Object} efficiencyMetrics - Optional efficiency metrics for adaptive sizing
  * @returns {Array} Body parts array
  */
-const getHaulerBody = (rcl, energyAvailable) => {
+const getHaulerBody = (rcl, energyAvailable, efficiencyMetrics = null) => {
   const tier = getRCLTier(rcl);
   
   if (tier === "early") {
     // RCL 1-3: Should not use haulers yet, return generalist
-    return getGeneralistBody(rcl, energyAvailable);
+    return getGeneralistBody(rcl, energyAvailable, efficiencyMetrics);
   }
   
   // Haulers need 1 MOVE per 2 CARRY on roads
   // Build as many [CARRY×2, MOVE] sets as possible
   const setCost = BODYPART_COST[CARRY] * 2 + BODYPART_COST[MOVE]; // 150 per set
-  const maxSets = Math.floor(energyAvailable / setCost);
-  
-  if (maxSets < 1) {
-    return undefined;
-  }
   
   // Cap based on tier
-  let capSets = 16; // 48 parts max (just under 50 limit)
+  let maxSets = 16; // 48 parts max (just under 50 limit)
   if (tier === "mid") {
-    capSets = 8; // Medium haulers for RCL 4-7
+    maxSets = 8; // Medium haulers for RCL 4-7
   }
   
-  const sets = Math.min(maxSets, capSets);
+  const sets = getAdaptiveSetCount(efficiencyMetrics, energyAvailable, setCost, maxSets, false);
+  
+  if (sets < 1) {
+    return undefined;
+  }
   
   const body = [];
   // Add all CARRY parts first
@@ -364,28 +419,28 @@ const getHaulerBody = (rcl, energyAvailable) => {
  * Pure function - no side effects
  * @param {number} rcl - Room Control Level
  * @param {number} energyAvailable - Current energy available
+ * @param {Object} efficiencyMetrics - Optional efficiency metrics for adaptive sizing
  * @returns {Array} Body parts array
  */
-const getUpgraderBody = (rcl, energyAvailable) => {
+const getUpgraderBody = (rcl, energyAvailable, efficiencyMetrics = null) => {
   const tier = getRCLTier(rcl);
   
   if (tier === "early") {
     // RCL 1-3: Use generalist body
-    return getGeneralistBody(rcl, energyAvailable);
+    return getGeneralistBody(rcl, energyAvailable, efficiencyMetrics);
   }
   
   if (tier === "late") {
     // RCL 8+: Giant upgrader - [WORK×3, CARRY, MOVE, MOVE] sets
     const bodySet = [WORK, WORK, WORK, CARRY, MOVE, MOVE]; // 700 per set
     const setCost = calculateBodyCost(bodySet);
-    const maxSets = Math.floor(energyAvailable / setCost);
+    const maxSets = 8; // Cap at 8 sets to stay under 50 body parts (8 * 6 = 48)
     
-    if (maxSets < 1) {
+    const sets = getAdaptiveSetCount(efficiencyMetrics, energyAvailable, setCost, maxSets, false);
+    
+    if (sets < 1) {
       return undefined;
     }
-    
-    // Cap at 8 sets to stay under 50 body parts (8 * 6 = 48)
-    const sets = Math.min(maxSets, 8);
     
     const body = [];
     for (let i = 0; i < sets * 3; i++) body.push(WORK);
@@ -398,14 +453,13 @@ const getUpgraderBody = (rcl, energyAvailable) => {
   // RCL 4-7: Medium upgrader - [WORK×2, CARRY, MOVE, MOVE] sets
   const bodySet = [WORK, WORK, CARRY, MOVE, MOVE]; // 500 per set
   const setCost = calculateBodyCost(bodySet);
-  const maxSets = Math.floor(energyAvailable / setCost);
+  const maxSets = 10; // Cap at 10 sets to stay under 50 body parts (10 * 5 = 50)
   
-  if (maxSets < 1) {
+  const sets = getAdaptiveSetCount(efficiencyMetrics, energyAvailable, setCost, maxSets, false);
+  
+  if (sets < 1) {
     return undefined;
   }
-  
-  // Cap at 10 sets to stay under 50 body parts (10 * 5 = 50)
-  const sets = Math.min(maxSets, 10);
   
   const body = [];
   for (let i = 0; i < sets * 2; i++) body.push(WORK);
@@ -420,27 +474,27 @@ const getUpgraderBody = (rcl, energyAvailable) => {
  * Pure function - no side effects
  * @param {number} rcl - Room Control Level
  * @param {number} energyAvailable - Current energy available
+ * @param {Object} efficiencyMetrics - Optional efficiency metrics for adaptive sizing
  * @returns {Array} Body parts array
  */
-const getBuilderBody = (rcl, energyAvailable) => {
+const getBuilderBody = (rcl, energyAvailable, efficiencyMetrics = null) => {
   const tier = getRCLTier(rcl);
   
   if (tier === "early") {
     // RCL 1-3: Use generalist body
-    return getGeneralistBody(rcl, energyAvailable);
+    return getGeneralistBody(rcl, energyAvailable, efficiencyMetrics);
   }
   
   // RCL 4+: Builder - [WORK, CARRY, CARRY, MOVE, MOVE] sets
   const bodySet = [WORK, CARRY, CARRY, MOVE, MOVE]; // 350 per set
   const setCost = calculateBodyCost(bodySet);
-  const maxSets = Math.floor(energyAvailable / setCost);
+  const maxSets = 10; // Cap at 10 sets to stay under 50 body parts (10 * 5 = 50)
   
-  if (maxSets < 1) {
+  const sets = getAdaptiveSetCount(efficiencyMetrics, energyAvailable, setCost, maxSets, false);
+  
+  if (sets < 1) {
     return undefined;
   }
-  
-  // Cap at 10 sets to stay under 50 body parts (10 * 5 = 50)
-  const sets = Math.min(maxSets, 10);
   
   const body = [];
   for (let i = 0; i < sets; i++) body.push(WORK);
@@ -537,9 +591,10 @@ const countCreepsByRole = (creeps) =>
  * @param {Object} currentCreeps - Current creep counts by role
  * @param {Object} roomStatus - Room status info
  * @param {Room} room - The room object
+ * @param {Object} efficiencyMetrics - Energy collection efficiency metrics
  * @returns {string|null} Role to spawn or null if none needed
  */
-const determineSpawnRole = (roster, currentCreeps, roomStatus, room) => {
+const determineSpawnRole = (roster, currentCreeps, roomStatus, room, efficiencyMetrics = null) => {
   // EMERGENCY: Spawn fighter if hostiles detected and no fighters exist
   if (room && utils.areThereInvaders(room)) {
     const fighterCount = currentCreeps.fighter || 0;
@@ -552,24 +607,26 @@ const determineSpawnRole = (roster, currentCreeps, roomStatus, room) => {
   }
 
   const harvesterCount = currentCreeps.harvester || 0;
+  const minerCount = currentCreeps.miner || 0;
 
-  // Critical: always spawn harvester if none exist
-  if (harvesterCount < 1) {
-    return "harvester";
+  // Critical: always spawn harvester/miner if we have fewer than 2 energy collectors
+  if (harvesterCount + minerCount < 2) {
+    return harvesterCount < 1 ? "harvester" : (roster.harvester ? "harvester" : "miner");
+  }
+
+  // Determine spawn threshold based on efficiency metrics
+  let spawnThreshold = 0.8; // Default
+  if (efficiencyMetrics) {
+    spawnThreshold = efficiencyMetrics.spawnThreshold;
+  }
+  
+  // Emergency override: if we have very few energy collectors, lower threshold
+  if (harvesterCount + minerCount < 3) {
+    spawnThreshold = Math.min(spawnThreshold, 0.3);
   }
 
   // Check energy conditions for non-critical spawning
-  // Wait for 80% capacity to spawn larger, more efficient creeps
-  let canSpawn = roomStatus.energyAvailable >= roomStatus.energyCapacity * 0.8;
-
-  // canSpawn = roomStatus.energyAvailable >= roomStatus.energyCapacity * 0.5;
-
-  // if (roomStatus.energyCapacity <= 450) {
-  //   // Early game: spawn as soon as we have 200 energy to get going
-  //   canSpawn = roomStatus.energyAvailable >= 200;
-  // } else {
-  //   roomStatus.energyAvailable >= roomStatus.energyCapacity * 0.5;
-  // }
+  const canSpawn = roomStatus.energyAvailable >= roomStatus.energyCapacity * spawnThreshold;
 
   if (!canSpawn) {
     return null;
@@ -677,9 +734,29 @@ const executeSpawn = (spawn, role, body, gameTime, extraMemory = {}) => {
  * Display spawning visual
  * Effectful function - modifies visuals
  * @param {StructureSpawn} spawn - The spawn structure
+ * @param {Object} efficiencyMetrics - Optional efficiency metrics for display
  */
-const displaySpawningVisual = (spawn) => {
-  if (!spawn.spawning) return;
+const displaySpawningVisual = (spawn, efficiencyMetrics = null) => {
+  if (!spawn.spawning) {
+    // Display efficiency tier when not spawning
+    if (efficiencyMetrics) {
+      const tierEmoji = {
+        'bootstrapping': '🌱',
+        'developing': '🌿',
+        'established': '🌳',
+        'optimized': '⚡'
+      };
+      const emoji = tierEmoji[efficiencyMetrics.efficiencyTier] || '❓';
+      const rate = efficiencyMetrics.energyCollectionRate.toFixed(1);
+      spawn.room.visual.text(
+        `${emoji} ${rate}/t`,
+        spawn.pos.x + 1,
+        spawn.pos.y,
+        { align: "left", opacity: 0.6, font: 0.4 }
+      );
+    }
+    return;
+  }
 
   const spawningCreep = Game.creeps[spawn.spawning.name];
   if (spawningCreep) {
@@ -706,32 +783,38 @@ const spawnClaimer = (spawn) => {
  * @param {Room} room - The room object
  * @param {Object} currentCreeps - Current creep counts by role
  * @param {Object} roster - Target roster counts
+ * @param {Object} efficiencyMetrics - Optional efficiency metrics for adaptive sizing
  * @returns {Array} Body parts array
  */
-const getBodyForRole = (role, rcl, energyAvailable, room, currentCreeps, roster) => {
+const getBodyForRole = (role, rcl, energyAvailable, room, currentCreeps, roster, efficiencyMetrics = null) => {
   const tier = getRCLTier(rcl);
   
   // Check for invaders (for combat parts in early tiers)
   const areInvaders = room ? utils.areThereInvaders(room) : false;
   
+  // Determine if this is an emergency spawn (always allow minimum viable body)
+  const harvesterCount = currentCreeps.harvester || 0;
+  const minerCount = currentCreeps.miner || 0;
+  const isEmergencyHarvester = (role === "harvester" || role === "miner") && (harvesterCount + minerCount < 2);
+  
   switch (role) {
     case "harvester":
       // RCL 1-3 only
-      return getGeneralistBody(rcl, energyAvailable);
+      return getGeneralistBody(rcl, energyAvailable, efficiencyMetrics);
     
     case "upgrader":
-      return getUpgraderBody(rcl, energyAvailable);
+      return getUpgraderBody(rcl, energyAvailable, efficiencyMetrics);
     
     case "builder":
-      return getBuilderBody(rcl, energyAvailable);
+      return getBuilderBody(rcl, energyAvailable, efficiencyMetrics);
     
     case "miner":
       // RCL 4+ only
-      return getMinerBody(rcl, energyAvailable);
+      return getMinerBody(rcl, energyAvailable, efficiencyMetrics);
     
     case "hauler":
       // RCL 4+ only
-      return getHaulerBody(rcl, energyAvailable);
+      return getHaulerBody(rcl, energyAvailable, efficiencyMetrics);
     
     case "transporter":
       // Legacy role (deprecated at RCL 4+)
@@ -758,7 +841,7 @@ const getBodyForRole = (role, rcl, energyAvailable, room, currentCreeps, roster)
     
     default:
       // Fallback to generalist for unknown roles
-      return getGeneralistBody(rcl, energyAvailable);
+      return getGeneralistBody(rcl, energyAvailable, efficiencyMetrics);
   }
 };
 
@@ -785,11 +868,12 @@ const findUnassignedSource = (room, existingMiners) => {
  * @param {StructureSpawn} spawn - The spawn structure
  * @param {Object} roster - Target roster {role: count}
  * @param {Object} roomStatus - Current room status
+ * @param {Object} efficiencyMetrics - Optional energy collection efficiency metrics
  * @returns {Object} Spawn result info
  */
-const spawnProcedure = (spawn, roster, roomStatus) => {
+const spawnProcedure = (spawn, roster, roomStatus, efficiencyMetrics = null) => {
   if (!spawn || spawn.spawning) {
-    displaySpawningVisual(spawn);
+    displaySpawningVisual(spawn, efficiencyMetrics);
     return {
       spawned: false,
       reason: spawn && spawn.spawning ? "busy" : "no_spawn",
@@ -801,7 +885,7 @@ const spawnProcedure = (spawn, roster, roomStatus) => {
   const rcl = roomStatus.controllerLevel;
 
   // Try primary spawn based on roster (includes emergency fighter spawning)
-  const primaryRole = determineSpawnRole(roster, currentCreeps, roomStatus, room);
+  const primaryRole = determineSpawnRole(roster, currentCreeps, roomStatus, room, efficiencyMetrics);
   if (primaryRole) {
     // Get appropriate body for role and RCL
     const spawnBody = getBodyForRole(
@@ -810,11 +894,12 @@ const spawnProcedure = (spawn, roster, roomStatus) => {
       roomStatus.energyAvailable,
       room,
       currentCreeps,
-      roster
+      roster,
+      efficiencyMetrics
     );
     
     if (!spawnBody) {
-      displaySpawningVisual(spawn);
+      displaySpawningVisual(spawn, efficiencyMetrics);
       return { spawned: false, reason: "insufficient_energy" };
     }
     
@@ -830,7 +915,7 @@ const spawnProcedure = (spawn, roster, roomStatus) => {
     }
     
     const result = executeSpawn(spawn, primaryRole, spawnBody, Game.time, extraMemory);
-    displaySpawningVisual(spawn);
+    displaySpawningVisual(spawn, efficiencyMetrics);
     return { spawned: result === OK, role: primaryRole, result };
   }
 
@@ -848,20 +933,21 @@ const spawnProcedure = (spawn, roster, roomStatus) => {
       roomStatus.energyAvailable,
       room,
       currentCreeps,
-      roster
+      roster,
+      efficiencyMetrics
     );
     
     if (!extraBody) {
-      displaySpawningVisual(spawn);
+      displaySpawningVisual(spawn, efficiencyMetrics);
       return { spawned: false, reason: "insufficient_energy" };
     }
 
     const result = executeSpawn(spawn, extraRole, extraBody, Game.time);
-    displaySpawningVisual(spawn);
+    displaySpawningVisual(spawn, efficiencyMetrics);
     return { spawned: result === OK, role: extraRole, result, extra: true };
   }
 
-  displaySpawningVisual(spawn);
+  displaySpawningVisual(spawn, efficiencyMetrics);
   return { spawned: false, reason: "roster_full" };
 };
 

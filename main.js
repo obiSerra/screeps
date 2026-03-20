@@ -8,6 +8,7 @@ const linkManager = require("./linkManager");
 const labManager = require("./labManager");
 const terminalManager = require("./terminalManager");
 const stats = require("./stats");
+const spawner = require("./spawner");
 
 // ============================================================================
 // Memory Management
@@ -68,6 +69,7 @@ module.exports.loop = function () {
         // Update system and creep statistics
         stats.updateSystemStats(room.name);
         stats.updateCreepStats(room.name);
+        stats.updateEnergyCollection(room.name);
         
         // Run room orchestration (spawning and creep management)
         roomOrchestrator.orchestrateRoom(room);
@@ -158,5 +160,67 @@ global.statsExport = function(roomName) {
     console.log(data);
   } else {
     console.log(`No statistics available for room ${roomName}`);
+  }
+};
+
+/**
+ * Display spawn metrics and efficiency information
+ * Usage: spawnMetrics('W1N1')
+ */
+global.spawnMetrics = function(roomName) {
+  if (!roomName) {
+    // Report for all owned rooms
+    const ownedRooms = Object.values(Game.rooms)
+      .filter(room => room.controller && room.controller.my)
+      .map(room => room.name);
+    
+    if (ownedRooms.length === 0) {
+      console.log('No owned rooms found');
+      return;
+    }
+    
+    ownedRooms.forEach(name => {
+      const metrics = stats.getCollectionMetrics(name);
+      const room = Game.rooms[name];
+      const rcl = room && room.controller ? room.controller.level : 0;
+      
+      console.log(`\n═══════════════════════════════════════════`);
+      console.log(`  SPAWN METRICS - ${name}`);
+      console.log(`  RCL: ${rcl}`);
+      console.log(`═══════════════════════════════════════════`);
+      console.log(`⚡ EFFICIENCY:`);
+      console.log(`  • Tier: ${metrics.efficiencyTier.toUpperCase()}`);
+      console.log(`  • Collection Rate: ${metrics.energyCollectionRate.toFixed(2)} energy/tick`);
+      console.log(`  • Time to Fill: ${metrics.timeToFillCapacity.toFixed(0)} ticks`);
+      console.log(`  • Spawn Threshold: ${(metrics.spawnThreshold * 100).toFixed(0)}%`);
+      
+      const currentCreeps = spawner.countCreepsByRole(Game.creeps);
+      console.log(`\n👥 CURRENT CREEPS:`);
+      Object.keys(currentCreeps).forEach(role => {
+        console.log(`  • ${role}: ${currentCreeps[role]}`);
+      });
+      console.log(`═══════════════════════════════════════════\n`);
+    });
+  } else {
+    const metrics = stats.getCollectionMetrics(roomName);
+    const room = Game.rooms[roomName];
+    const rcl = room && room.controller ? room.controller.level : 0;
+    
+    console.log(`\n═══════════════════════════════════════════`);
+    console.log(`  SPAWN METRICS - ${roomName}`);
+    console.log(`  RCL: ${rcl}`);
+    console.log(`═══════════════════════════════════════════`);
+    console.log(`⚡ EFFICIENCY:`);
+    console.log(`  • Tier: ${metrics.efficiencyTier.toUpperCase()}`);
+    console.log(`  • Collection Rate: ${metrics.energyCollectionRate.toFixed(2)} energy/tick`);
+    console.log(`  • Time to Fill: ${metrics.timeToFillCapacity.toFixed(0)} ticks`);
+    console.log(`  • Spawn Threshold: ${(metrics.spawnThreshold * 100).toFixed(0)}%`);
+    
+    const currentCreeps = spawner.countCreepsByRole(Game.creeps);
+    console.log(`\n👥 CURRENT CREEPS:`);
+    Object.keys(currentCreeps).forEach(role => {
+      console.log(`  • ${role}: ${currentCreeps[role]}`);
+    });
+    console.log(`═══════════════════════════════════════════\n`);
   }
 };

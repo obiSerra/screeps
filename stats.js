@@ -45,7 +45,10 @@ const stats = {
                 totalHarvested: 0,
                 totalSpent: 0,
                 energyStart: 0,
-                energyEnd: 0
+                energyEnd: 0,
+                // Rolling energy collection tracking (last 100 ticks)
+                rollingHarvest: [],
+                rollingWindow: 100
             },
             work: {
                 controllerProgress: 0,
@@ -163,6 +166,37 @@ const stats = {
         
         current.resources.sources[sourceId].harvested += amount;
         current.resources.totalHarvested += amount;
+    },
+
+    /**
+     * Update rolling energy collection tracking - call once per tick
+     * Tracks energy harvested this tick for rolling average calculation
+     */
+    updateEnergyCollection: function(roomName) {
+        this.initRoom(roomName);
+        this.checkIntervalRollover(roomName);
+        
+        const current = Memory.stats.rooms[roomName].current;
+        const resources = current.resources;
+        
+        // Initialize rolling harvest array if not present
+        if (!resources.rollingHarvest) {
+            resources.rollingHarvest = [];
+            resources.rollingWindow = 100;
+            resources.lastTickHarvested = 0;
+        }
+        
+        // Calculate energy harvested this tick
+        const harvestedThisTick = current.resources.totalHarvested - (resources.lastTickHarvested || 0);
+        resources.lastTickHarvested = current.resources.totalHarvested;
+        
+        // Add to rolling window
+        resources.rollingHarvest.push(harvestedThisTick);
+        
+        // Trim to window size
+        if (resources.rollingHarvest.length > resources.rollingWindow) {
+            resources.rollingHarvest.shift();
+        }
     },
 
     /**
@@ -440,6 +474,67 @@ const stats = {
         }
         
         return JSON.stringify(Memory.stats.rooms[roomName], null, 2);
+    },
+
+    /**
+     * Get energy collection metrics for adaptive spawning
+     * @param {string} roomName - Room name
+     * @returns {Object} Collection metrics including rate, efficiency tier, and threshold
+     */
+    getCollectionMetrics: function(roomName) {
+        this.initRoom(roomName);
+        
+        const current = Memory.stats.rooms[roomName].current;
+        const room = Game.rooms[roomName];
+        
+        if (!room) {
+            return {
+                energyCollectionRate: 0,
+                timeToFillCapacity: Infinity,
+                efficiencyTier: 'bootstrapping',
+                spawnThreshold: 0.3
+            };
+        }
+        
+        const resources = current.resources;
+        
+        // Calculate rolling average energy collection rate
+        let energyCollectionRate = 0;
+        if (resources.rollingHarvest && resources.rollingHarvest.length > 0) {
+            const sum = resources.rollingHarvest.reduce((a, b) => a + b, 0);
+            energyCollectionRate = sum / resources.rollingHarvest.length;
+        } else if (current.creeps.ticksCounted > 10) {
+            // Fallback: use overall average if rolling data not available
+            energyCollectionRate = resources.totalHarvested / current.creeps.ticksCounted;
+        }
+        
+        // Calculate time to fill capacity
+        const energyCapacity = room.energyCapacityAvailable || 300;
+        const timeToFillCapacity = energyCollectionRate > 0 ? 
+            energyCapacity / energyCollectionRate : Infinity;
+        
+        // Determine efficiency tier based on collection rate
+        let efficiencyTier = 'bootstrapping';
+        let spawnThreshold = 0.3;
+        
+        if (energyCollectionRate >= 10) {
+            efficiencyTier = 'optimized';
+            spawnThreshold = 0.85;
+        } else if (energyCollectionRate >= 5) {
+            efficiencyTier = 'established';
+            spawnThreshold = 0.7;
+        } else if (energyCollectionRate >= 2) {
+            efficiencyTier = 'developing';
+            spawnThreshold = 0.5;
+        }
+        
+        return {
+            energyCollectionRate: energyCollectionRate,
+            timeToFillCapacity: timeToFillCapacity,
+            efficiencyTier: efficiencyTier,
+            spawnThreshold: spawnThreshold,
+            collectionEfficiency: energyCapacity / timeToFillCapacity
+        };
     }
 };
 
