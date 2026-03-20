@@ -4,6 +4,9 @@
  */
 
 const roomOrchestrator = require("roomOrchestrator");
+const linkManager = require("./linkManager");
+const labManager = require("./labManager");
+const terminalManager = require("./terminalManager");
 const stats = require("./stats");
 
 // ============================================================================
@@ -66,8 +69,26 @@ module.exports.loop = function () {
         stats.updateSystemStats(room.name);
         stats.updateCreepStats(room.name);
         
-        // Run room orchestration
+        // Run room orchestration (spawning and creep management)
         roomOrchestrator.orchestrateRoom(room);
+
+        // Run infrastructure managers (RCL 5+)
+        const rcl = room.controller ? room.controller.level : 0;
+
+        // Link network management (RCL 5+)
+        if (rcl >= 5) {
+          linkManager.manageLinkNetwork(room);
+        }
+
+        // Lab system management (RCL 6+)
+        if (rcl >= 6) {
+          labManager.manageLabsystem(room);
+        }
+
+        // Terminal trading management (RCL 6+)
+        if (rcl >= 6) {
+          terminalManager.manageTerminal(room);
+        }
       } catch (error) {
         console.log(`Error in room ${room.name}: ${error.message}`);
         console.log(error.stack);

@@ -649,8 +649,22 @@ const clearCreepAction = (creep) => {
  * @returns {Object|null} { id, pos } of selected source or null if none available
  */
 const selectGatheringTarget = (creep) => {
-  // Upgraders preferentially pick energy from storage
+  // Upgraders preferentially pick energy from controller link, then storage
   if (creep.memory.role === "upgrader") {
+    // First priority: Check for controller link with energy
+    const controller = creep.room.controller;
+    if (controller) {
+      const links = controller.pos.findInRange(FIND_MY_STRUCTURES, 3, {
+        filter: (s) =>
+          s.structureType === STRUCTURE_LINK && s.store[RESOURCE_ENERGY] > 0,
+      });
+
+      if (links.length > 0) {
+        return { id: links[0].id, pos: links[0].pos };
+      }
+    }
+
+    // Second priority: Storage
     const storage = creep.room.find(FIND_STRUCTURES, {
       filter: (s) =>
         s.structureType === STRUCTURE_STORAGE && s.store[RESOURCE_ENERGY] > 0,
@@ -1046,8 +1060,28 @@ const handleMining = (creep) => {
     const harvestAmount = workParts * 2; // Each WORK part harvests 2 energy per tick
     stats.recordHarvest(creep.room.name, source.id, harvestAmount);
     
-    // Mining successfully - check if we need to drop energy to container
-    // Look for container at source position
+    // Mining successfully - check for link deposit first, then container
+    // Look for link adjacent to source (link network optimization)
+    const links = source.pos.findInRange(FIND_MY_STRUCTURES, 2, {
+      filter: (s) => s.structureType === STRUCTURE_LINK,
+    });
+
+    // If link exists and has capacity, transfer to it (instant delivery)
+    if (
+      links.length > 0 &&
+      creep.store.getFreeCapacity(RESOURCE_ENERGY) === 0
+    ) {
+      const link = links[0];
+      if (link.store.getFreeCapacity(RESOURCE_ENERGY) > 0) {
+        const transferResult = creep.transfer(link, RESOURCE_ENERGY);
+        if (transferResult === OK) {
+          // Successfully transferred to link
+          return;
+        }
+      }
+    }
+    
+    // Fallback: Look for container at source position
     const containers = source.pos.findInRange(FIND_STRUCTURES, 1, {
       filter: (s) => s.structureType === STRUCTURE_CONTAINER,
     });
@@ -1066,13 +1100,13 @@ const handleMining = (creep) => {
 };
 
 /**
- * Handle hauling action (pickup energy from containers/dropped resources)
- * Effectful function
+ * Handle hauling action (pickup resources from containers/dropped resources)
+ * Effectful function - supports energy and minerals
  * @param {Creep} creep
  */
 const handleHauling = (creep) => {
   // If creep is full, switch to delivering
-  if (creep.store.getFreeCapacity(RESOURCE_ENERGY) === 0) {
+  if (creep.store.getFreeCapacity() === 0) {
     clearCreepAction(creep);
     return;
   }
@@ -1081,34 +1115,86 @@ const handleHauling = (creep) => {
 
   // Find target if not set
   if (!actionTarget) {
-    // Prioritize dropped energy first (before it decays)
+    // Priority 1: Dropped energy (before it decays)
     const droppedEnergy = creep.room.find(FIND_DROPPED_RESOURCES, {
       filter: (r) => r.resourceType === RESOURCE_ENERGY && r.amount > 50,
     });
 
-    // If dropped energy exists, prioritize it
     if (droppedEnergy.length > 0) {
       const sorted = sortByContention(creep, droppedEnergy, false);
       setCreepAction(creep, "hauling", {
         id: sorted[0].id,
         pos: sorted[0].pos,
+        resourceType: RESOURCE_ENERGY,
       });
       return;
     }
 
-    // Otherwise, look for containers near sources with energy
-    const containers = creep.room.find(FIND_STRUCTURES, {
+    // Priority 2: Containers with energy (for spawns/extensions)
+    const energyContainers = creep.room.find(FIND_STRUCTURES, {
       filter: (s) =>
         s.structureType === STRUCTURE_CONTAINER && s.store[RESOURCE_ENERGY] > 0,
     });
 
-    if (containers.length > 0) {
-      const sorted = sortByContention(creep, containers, false);
+    if (energyContainers.length > 0) {
+      const sorted = sortByContention(creep, energyContainers, false);
       setCreepAction(creep, "hauling", {
         id: sorted[0].id,
         pos: sorted[0].pos,
+        resourceType: RESOURCE_ENERGY,
       });
       return;
+    }
+
+    // Priority 3: Dropped minerals (RCL 6+)
+    const droppedMinerals = creep.room.find(FIND_DROPPED_RESOURCES, {
+      filter: (r) => r.resourceType !== RESOURCE_ENERGY && r.amount > 50,
+    });
+
+    if (droppedMinerals.length > 0) {
+      const sorted = sortByContention(creep, droppedMinerals, false);
+      setCreepAction(creep, "hauling", {
+        id: sorted[0].id,
+        pos: sorted[0].pos,
+        resourceType: sorted[0].resourceType,
+      });
+      return;
+    }
+
+    // Priority 4: Containers with minerals (RCL 6+)
+    const mineralContainers = creep.room.find(FIND_STRUCTURES, {
+      filter: (s) => {
+        if (s.structureType !== STRUCTURE_CONTAINER) return false;
+        // Check if container has any non-energy resources
+        for (const resourceType in s.store) {
+          if (resourceType !== RESOURCE_ENERGY && s.store[resourceType] > 0) {
+            return true;
+          }
+        }
+        return false;
+      },
+    });
+
+    if (mineralContainers.length > 0) {
+      const sorted = sortByContention(creep, mineralContainers, false);
+      const container = sorted[0];
+      // Find which mineral type to haul
+      let mineralType = null;
+      for (const resourceType in container.store) {
+        if (resourceType !== RESOURCE_ENERGY && container.store[resourceType] > 0) {
+          mineralType = resourceType;
+          break;
+        }
+      }
+      
+      if (mineralType) {
+        setCreepAction(creep, "hauling", {
+          id: container.id,
+          pos: container.pos,
+          resourceType: mineralType,
+        });
+        return;
+      }
     }
 
     // No targets available
@@ -1122,12 +1208,14 @@ const handleHauling = (creep) => {
     return;
   }
 
+  const resourceType = actionTarget.resourceType || RESOURCE_ENERGY;
+
   // Pickup or withdraw
   let result;
   if (target instanceof Resource) {
     result = creep.pickup(target);
   } else {
-    result = creep.withdraw(target, RESOURCE_ENERGY);
+    result = creep.withdraw(target, resourceType);
   }
 
   if (result === ERR_NOT_IN_RANGE) {

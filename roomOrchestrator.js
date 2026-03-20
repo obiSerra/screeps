@@ -12,6 +12,8 @@ const roleMiner = require("./role.miner");
 const roleHauler = require("./role.hauler");
 const roleFighter = require("./role.fighter");
 const roleExplorer = require("./role.explorer");
+const roleMineralExtractor = require("./role.mineralExtractor");
+const roleChemist = require("./role.chemist");
 
 // ============================================================================
 // Room Mode Management
@@ -249,6 +251,34 @@ const calculateRoster = (roomStatus) => {
       builder: builderCount
     };
 
+    // RCL 6+ additions: mineral extraction and lab operations
+    if (rcl >= 6) {
+      // Check if room has mineral  and extractor
+      const minerals = room ? room.find(FIND_MINERALS) : [];
+      const mineral = minerals.length > 0 ? minerals[0] : null;
+      
+      if (mineral && mineral.mineralAmount > 0) {
+        // Check for extractor structure
+        const extractor = mineral.pos.lookFor(LOOK_STRUCTURES).find(
+          s => s.structureType === STRUCTURE_EXTRACTOR
+        );
+        
+        if (extractor) {
+          roster.mineralExtractor = 1; // 1 extractor per mineral
+          roster.hauler = haulerCount + 1; // Add 1 extra hauler for minerals
+        }
+      }
+
+      // Check if room has labs (spawn chemist)
+      const labs = room ? room.find(FIND_MY_STRUCTURES, {
+        filter: s => s.structureType === STRUCTURE_LAB
+      }) : [];
+      
+      if (labs.length >= 3) {
+        roster.chemist = 1; // 1 chemist when labs operational
+      }
+    }
+
     // Add fighters if under attack
     if (underAttack) {
       roster.fighter = Math.max(3, Math.floor(roomStatus.energyCapacity / 600));
@@ -289,6 +319,31 @@ const calculateRoster = (roomStatus) => {
     upgrader: upgraderCount,
     builder: builderCount
   };
+
+  // RCL 8: mineral extraction and lab operations
+  const minerals = room ? room.find(FIND_MINERALS) : [];
+  const mineral = minerals.length > 0 ? minerals[0] : null;
+  
+  if (mineral && mineral.mineralAmount > 0) {
+    // Check for extractor structure
+    const extractor = mineral.pos.lookFor(LOOK_STRUCTURES).find(
+      s => s.structureType === STRUCTURE_EXTRACTOR
+    );
+    
+    if (extractor) {
+      roster.mineralExtractor = 1; // 1 extractor per mineral
+      roster.hauler = haulerCount + 1; // Add 1 extra hauler for minerals
+    }
+  }
+
+  // Check if room has labs (spawn chemist)
+  const labs = room ? room.find(FIND_MY_STRUCTURES, {
+    filter: s => s.structureType === STRUCTURE_LAB
+  }) : [];
+  
+  if (labs.length >= 3) {
+    roster.chemist = 1; // 1 chemist when labs operational
+  }
 
   // Add fighters if under attack (RCL 8+ gets powerful fighters)
   if (underAttack) {
@@ -391,6 +446,8 @@ const roleHandlers = {
   hauler: roleHauler.run,
   fighter: roleFighter.run,
   explorer: roleExplorer.run,
+  mineralExtractor: roleMineralExtractor.run,
+  chemist: roleChemist.run,
 };
 
 /**

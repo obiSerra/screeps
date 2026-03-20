@@ -758,6 +758,14 @@ const getBodyForRole = (role, rcl, energyAvailable, room, currentCreeps, roster)
       // Multi-room exploration and claiming
       return getExplorerBody(rcl, energyAvailable);
     
+    case "mineralExtractor":
+      // RCL 6+ only (mineral mining)
+      return getMineralExtractorBody(rcl, energyAvailable);
+    
+    case "chemist":
+      // RCL 6+ only (lab logistics)
+      return getChemistBody(rcl, energyAvailable);
+    
     default:
       // Fallback to generalist for unknown roles
       return getGeneralistBody(rcl, energyAvailable);
@@ -867,6 +875,72 @@ const spawnProcedure = (spawn, roster, roomStatus) => {
   return { spawned: false, reason: "roster_full" };
 };
 
+/**
+ * Get mineral extractor body (stationary mineral harvester)
+ * Pure function - no side effects
+ * @param {number} rcl - Room Control Level
+ * @param {number} energyAvailable - Current energy available
+ * @returns {Array} Body parts array
+ */
+const getMineralExtractorBody = (rcl, energyAvailable) => {
+  // Only spawn mineral extractors at RCL 6+ (when extractors available)
+  if (rcl < 6) {
+    return undefined;
+  }
+
+  // Mineral extractor: [WORK×2, MOVE] sets, similar to miner
+  // Max of 10 WORK parts for maximum mineral harvest rate
+  const bodySet = [WORK, WORK, MOVE]; // 250 per set
+  const setCost = calculateBodyCost(bodySet);
+  const maxSets = Math.floor(energyAvailable / setCost);
+  
+  if (maxSets < 1) {
+    return undefined;
+  }
+  
+  // Cap at 5 sets = 10 WORK parts (good balance)
+  const sets = Math.min(maxSets, 5);
+  
+  const body = [];
+  for (let i = 0; i < sets * 2; i++) body.push(WORK);
+  for (let i = 0; i < sets; i++) body.push(MOVE);
+  
+  return body;
+};
+
+/**
+ * Get chemist body (lab logistics)
+ * Pure function - no side effects
+ * @param {number} rcl - Room Control Level
+ * @param {number} energyAvailable - Current energy available
+ * @returns {Array} Body parts array
+ */
+const getChemistBody = (rcl, energyAvailable) => {
+  // Only spawn chemists at RCL 6+ (when labs available)
+  if (rcl < 6) {
+    return undefined;
+  }
+
+  // Chemist: small [CARRY, MOVE] sets
+  // Low priority, small body to minimize cost
+  const bodySet = [CARRY, MOVE]; // 100 per set
+  const setCost = calculateBodyCost(bodySet);
+  const maxSets = Math.floor(energyAvailable / setCost);
+  
+  if (maxSets < 1) {
+    return undefined;
+  }
+  
+  // Cap at 4 sets = 8 parts (small, efficient)
+  const sets = Math.min(maxSets, 4);
+  
+  const body = [];
+  for (let i = 0; i < sets; i++) body.push(CARRY);
+  for (let i = 0; i < sets; i++) body.push(MOVE);
+  
+  return body;
+};
+
 module.exports = {
   // Pure functions
   getCreepBody: getWorkerCreepBody,
@@ -882,6 +956,8 @@ module.exports = {
   getBuilderBody,
   getDefenderBody,
   getExplorerBody,
+  getMineralExtractorBody,
+  getChemistBody,
   getBodyForRole,
   
   // Helper functions

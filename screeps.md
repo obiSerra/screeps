@@ -971,7 +971,507 @@ Each tick the bot:
 - Potential for creep transfers between rooms
 - Centralized spawning decisions per room
 
-## Strategic Weaknesses and Mitigations
+## Advanced RCL 6+ Features
+
+### Mineral Extraction Strategy (RCL 6+)
+
+**Philosophy**: Transition from energy-only economy to full mineral extraction and compound production
+
+#### Mineral Extractor Role
+**Strategic Role**: Mine minerals from extractor structure at room's mineral deposit
+**Behavior**:
+- Assigned to room's mineral deposit (found via `room.find(FIND_MINERALS)`)
+- Only spawns when extractor structure exists AND mineral amount > 0
+- Drops minerals to adjacent container for haulers
+- Stationary mining similar to energy miners
+
+**Body Composition**:
+- RCL 6-7: [WORK×5-10, MOVE×3-5] (scaled based on energy capacity)
+- RCL 8: [WORK×10, MOVE×5] (maximum mineral harvesting)
+
+**Action Priority**: Mining only (single-purpose specialist)
+
+**Strategic Benefits**:
+- Unlocks compound production for labs
+- Enables mineral trading via terminal
+- Required for boosted creeps
+- Minerals regenerate slowly (every 50,000 ticks), so efficiency matters
+
+#### Multi-Resource Logistics
+
+**Hauler Extension**: Haulers modified to handle multiple resource types
+- Accept resource type parameter (RESOURCE_ENERGY, RESOURCE_HYDROGEN, etc.)
+- Identify mineral containers (near extractor) vs energy containers (near sources)
+- Transport minerals to storage separately from energy
+- Storage organizes resources by type automatically
+
+**Strategic Benefits**:
+- Single hauler role handles all resources
+- No need for specialized mineral haulers
+- Scales automatically as new minerals extracted
+
+#### Resource Management
+- **Storage**: Central repository for all resource types (energy, minerals, compounds)
+- **Thresholds**: 
+  - Base minerals (H, O, U, L, K, Z, X): Keep 5,000-20,000 units
+  - Energy: Keep 50,000-200,000 units
+  - Compounds: Keep 2,000-10,000 units each
+- **Overflow Strategy**: Sell excess via terminal, buy shortages via market
+
+### Link Network Strategy (RCL 5+)
+
+**Philosophy**: Eliminate hauler travel time for energy transport using instantaneous link transfers
+
+#### Link Architecture
+The bot uses a hub-and-spoke link network:
+
+**Link Types**:
+1. **Source Links**: 1 link per energy source (adjacent to source)
+2. **Storage Link**: Central distribution hub (adjacent to storage)
+3. **Controller Link**: 1 link near controller (range 2 for upgraders)
+
+**Energy Flow**:
+- Source links receive energy from miners (instant deposit)
+- Source links transfer to storage link (800 energy per transfer)
+- Storage link transfers to controller link on demand
+- Upgraders withdraw from controller link
+
+#### Link Manager (linkManager.js)
+**Strategic Role**: Centralized coordinator for all link transfers
+
+**Responsibilities**:
+1. Identify link types by position (near sources, storage, controller)
+2. Balance energy distribution across the network
+3. Prioritize controller link refills when upgraders active
+4. Transfer excess from source links to storage link
+5. Handle cooldown timing (links have 10-tick cooldown)
+
+**Tick Loop Logic**:
+```javascript
+// Every tick:
+1. Find all source links with energy > 400
+2. Transfer to storage link if available
+3. Check if controller link needs energy (< 400)
+4. Transfer from storage link to controller link
+5. Respect cooldown periods
+```
+
+**Strategic Benefits**:
+- **50% reduction in hauler count**: Links handle source→storage→controller flow
+- **Instant transfer**: No travel time, no fatigue
+- **CPU efficiency**: Fewer creeps to process per tick
+- **Upgrader efficiency**: Continuous energy supply at controller
+
+#### Miner Link Integration
+**Modified Behavior**:
+- Miners check for adjacent link before dropping to container
+- If link exists and has capacity: `link.transferEnergy(miner)`
+- If link full or on cooldown: drop to container (hauler backup)
+- Haulers still spawn for construction, towers, and overflow
+
+**Body Composition**: Unchanged from RCL 4+ (already optimal)
+
+#### Upgrader Link Integration
+**Modified Behavior**:
+- Upgraders prioritize controller link withdrawal
+- If controller link available and has energy: withdraw from link
+- If link empty: fall back to storage or containers
+- Never travels to sources (link network handles energy supply)
+
+**Strategic Benefits**:
+- Upgraders remain at controller continuously
+- No travel time = maximum upgrade efficiency
+- Controller link acts as dedicated upgrader energy buffer
+
+### Lab System Strategy (RCL 6+)
+
+**Philosophy**: Automated compound production for boosting creeps and trading
+
+#### Lab Layout
+The bot uses the CORE_STAMP 9-lab configuration:
+- **3×3 Grid**: 9 labs arranged for maximum reaction efficiency
+- **Input Labs**: 2 labs designated as input (filled with base minerals)
+- **Output Labs**: 1 lab designated as output (collects reaction product)
+- **Boost Labs**: 2 labs reserved for boosting creeps (separate from reactions)
+- **Additional Labs**: Remaining labs for parallel reactions or storage
+
+**Layout Advantage**: Input labs within range 2 of output lab for reaction
+
+#### Lab Manager (labManager.js)
+**Strategic Role**: Orchestrates all lab operations (reactions, boosting, inventory)
+
+**Core Functions**:
+
+1. **Compound Recipe System**
+   - Tier 1 (T1): Base mineral + Base mineral + Energy → Basic compound
+     - Example: Hydrogen (H) + Oxygen (O) → Hydroxide (OH)
+   - Tier 2 (T2): T1 compound + Base mineral + Energy → Advanced compound
+     - Example: Hydroxide (OH) + Lemergium (L) → Lemergium Hydroxide (LH)
+   - Tier 3 (T3): T2 compound + Catalyst + Energy → Boost compound
+     - Example: Lemergium Hydroxide (LH) + Catalyst → LH2O (build speed boost)
+
+2. **Production Queue**
+   - Priority order: Combat boosts > Utility boosts > Trade compounds
+   - Combat priorities:
+     1. UH (attack boost) - increases ATTACK part effectiveness
+     2. UO (harvest boost) - increases WORK part harvest speed
+     3. LH (build boost) - increases WORK part build/repair speed
+     4. ZH / ZO (move boost) - increases MOVE part speed
+   - Auto-queue when compound stock below threshold (< 2,000 units)
+
+3. **Lab Assignment**
+   - Assign 2 labs as inputs (for reaction ingredients)
+   - Assign 1 lab as output (for collecting product)
+   - Reserve 2 labs for boosting (never used for reactions)
+   - Rotate reactions based on queue priorities
+
+4. **Reaction Execution**
+   - Wait until both input labs filled with correct minerals (1,000+ units each)
+   - Run reaction: `outputLab.runReaction(inputLab1, inputLab2)`
+   - Continue until inputs depleted or output full
+   - Output lab auto-stops at 3,000 units (lab capacity)
+
+5. **Boost Station**
+   - Track creeps with `memory.needsBoosting = true`
+   - Fill boost labs with required compound
+   - Creep moves adjacent to boost lab
+   - Apply boost: `lab.boostCreep(creep, compoundType)`
+   - Each boost: 30 mineral + 20 energy per body part
+
+**Tick Loop Logic**:
+```javascript
+// Every tick:
+1. Check production queue for next compound needed
+2. Verify input labs have correct minerals
+3. Run reactions on output labs (if inputs ready)
+4. Check for creeps requesting boosts
+5. Apply boosts to adjacent creeps
+```
+
+**Strategic Benefits**:
+- **Automated production**: No manual management required
+- **Smart prioritization**: Produces what's needed, when needed
+- **Boost capability**: Multiplies creep effectiveness (2x-4x stats)
+- **Trade opportunity**: Excess compounds sold via terminal
+
+#### Chemist Role
+**Strategic Role**: Lab logistics - fills input labs, empties output labs
+
+**Behavior**:
+1. Withdraw minerals from storage matching lab requirement
+2. Transfer minerals to assigned input lab
+3. Withdraw compounds from output labs when reaction complete
+4. Transfer compounds to storage for use or trade
+
+**Action Priority**:
+1. Empty full output labs (prevent production stalling)
+2. Fill empty input labs (enable reactions)
+3. Idle near labs when no tasks (minimal travel)
+
+**Body Composition**: [CARRY×2-4, MOVE×1-2] (small, low priority)
+
+**Spawn Logic**: 1 chemist when labs exist and reactions active
+
+**Strategic Benefits**:
+- Dedicated logistics eliminates hauler overhead
+- Small body = cheap spawn, low CPU
+- Keeps labs operating continuously
+
+### Terminal Trading Strategy (RCL 6+)
+
+**Philosophy**: Automated market trading for resource optimization and profit
+
+#### Terminal Manager (terminalManager.js)
+**Strategic Role**: Market interface and automated trading
+
+**Core Functions**:
+
+1. **Resource Threshold Management**
+   - **Energy**: 
+     - Minimum: 50,000 (reserve for operations)
+     - Maximum: 200,000 (sell excess to free storage)
+   - **Base Minerals** (H, O, U, L, K, Z, X):
+     - Minimum: 5,000 each (enable continuous lab production)
+     - Maximum: 20,000 each (sell excess for credits)
+   - **Compounds** (OH, UH, LH, etc.):
+     - Minimum: 2,000 each (maintain boost capability)
+     - Maximum: 10,000 each (sell excess boosting compounds)
+   - **Power**:
+     - Minimum: 500 (for power spawn at RCL 8)
+     - Target: 5,000 (sustained power processing)
+
+2. **Buy Order Logic**
+   - Scan storage for resources below minimum threshold
+   - Check market for best price: `Game.market.getAllOrders({type: ORDER_SELL, resourceType: X})`
+   - Sort by price (cheapest first) and distance (minimize energy cost)
+   - Create buy order if credits available (> 10,000 reserve)
+   - Send resources to own terminal via `terminal.send()`
+
+3. **Sell Order Logic**
+   - Scan storage for resources above maximum threshold
+   - Check market for best price: `Game.market.getAllOrders({type: ORDER_BUY, resourceType: X})`
+   - Sort by price (highest first)
+   - Create sell order or fulfill existing buy orders
+   - Prioritize selling rare compounds (higher profit margins)
+
+4. **Credit Management**
+   - Track credit balance: `Game.market.credits`
+   - Reserve 10,000 credits minimum (emergency buffer)
+   - Profit tracking: Log credit changes per transaction
+   - Adjust trading thresholds based on credit availability
+
+5. **Energy Cost Optimization**
+   - Terminal transfers cost energy based on distance
+   - Formula: `Math.ceil(amount * linearDistanceBetweenRooms / 1000)`
+   - Prioritize nearby rooms for trades (lower energy cost)
+   - Only trade if profit > energy cost + transaction fee
+
+**Tick Loop Logic**:
+```javascript
+// Every 10 ticks (rate limit to avoid spam):
+1. Check storage levels against thresholds
+2. Identify shortages (below minimum)
+3. Create buy orders for shortages
+4. Identify surpluses (above maximum)
+5. Create sell orders for surpluses
+6. Process existing orders (fulfill or cancel)
+7. Update credit tracking
+```
+
+**Strategic Benefits**:
+- **Automated economy**: Maintains optimal resource levels
+- **Profit generation**: Converts surplus to credits
+- **Resource availability**: Always has minerals for labs
+- **Hands-off operation**: No manual market management
+
+#### Terminal Hauler Integration
+**Strategy**: Reuse existing hauler role with terminal as target
+
+**Modified Hauler Behavior**:
+- Identify terminal as valid delivery target (alongside spawns, extensions, towers, storage)
+- Prioritize terminal for resources flagged for sending (via terminal manager)
+- Withdraw from storage to terminal for outgoing trades
+- Withdraw from terminal to storage for incoming resources
+
+**No New Role Required**: Existing hauler flexibility handles terminal logistics
+
+### Boosted Combat Strategy (RCL 6+)
+
+**Philosophy**: Multiply fighter effectiveness through compound boosting
+
+#### Boost Types and Effects
+Screeps compounds boost specific body part types:
+
+**Attack Boosts** (UH series):
+- **UH** (Tier 1): +100% ATTACK effectiveness (2x damage)
+- **UH2O** (Tier 2): +200% ATTACK effectiveness (3x damage)
+- **XUH2O** (Tier 3): +300% ATTACK effectiveness (4x damage)
+
+**Harvest Boosts** (UO series):
+- **UO** (Tier 1): +100% WORK harvest (2x energy/tick from sources)
+- **UO2H** (Tier 2): +200% WORK harvest (3x energy/tick)
+- **XUHO2** (Tier 3): +300% WORK harvest (4x energy/tick)
+
+**Build Boosts** (LH series):
+- **LH** (Tier 1): +50% WORK build/repair (1.5x speed)
+- **LH2O** (Tier 2): +80% WORK build/repair (1.8x speed)
+- **XLH2O** (Tier 3): +100% WORK build/repair (2x speed)
+
+**Move Boosts** (ZH/ZO series):
+- **ZH** / **ZO** (Tier 1): +100% MOVE fatigue decrease (2x speed)
+- **ZH2O** / **ZO2H** (Tier 2): +200% MOVE fatigue decrease (3x speed)
+- **XZH2O** / **XZHO2** (Tier 3): +300% MOVE fatigue decrease (4x speed)
+
+#### Fighter Boost Integration
+**Modified Fighter Role**:
+
+1. **Spawn with Boost Request**
+   - Set `creep.memory.needsBoosting = true` on spawn
+   - Set `creep.memory.boostTypes = ['UH', 'ZH']` (attack + move boosts)
+   - Fighter moves to boost labs before engaging enemies
+
+2. **Boost Application Process**
+   - Chemist fills boost labs with UH and ZH compounds
+   - Fighter moves adjacent to boost lab
+   - Lab manager calls `lab.boostCreep(creep, 'UH')` for each body part
+   - Boost consumes: 30 UH + 20 energy per ATTACK part
+   - Repeat for movement boost: 30 ZH + 20 energy per MOVE part
+
+3. **Enhanced Combat Bodies**
+   - **Unboosted Fighter**: [TOUGH×5, ATTACK×10, MOVE×15] @ 1200 energy
+     - Damage: 10 ATTACK × 30 = 300 damage/tick
+   - **Boosted Fighter** (with UH): Same body, boosted
+     - Damage: 10 ATTACK × 30 × 2 (UH boost) = 600 damage/tick
+   - **Result**: 2x effectiveness for mineral cost (30 UH × 10 parts = 300 UH per creep)
+
+4. **Boost Economics**
+   - Cost per boosted fighter: ~300 UH + 300 ZH + 600 energy
+   - Production time: ~50 ticks (if labs idle)
+   - Lifespan: 1500 ticks
+   - **ROI**: 2x damage for 30x lifespan = extremely cost-effective
+
+**Strategic Benefits**:
+- **Force multiplication**: Same creep count, double effectiveness
+- **Resource conversion**: Converts minerals to military power
+- **Deterrence**: Boosted fighters dominate unboosted invaders
+- **Scalability**: Can boost workers (builders, upgraders) for economy too
+
+#### Boost Priorities
+**High Priority** (Combat - always produce):
+1. UH (attack boost) - for fighters
+2. ZH (move boost) - for fighters
+3. UO (harvest boost) - for emergency energy recovery
+
+**Medium Priority** (Economy - produce when surplus):
+1. LH (build boost) - for rapid construction
+2. GH (upgrade boost) - for fast RCL progression
+3. KH (carry boost) - for massive haulers
+
+**Low Priority** (Specialty - produce for trade):
+1. Tier 2/3 boosts - extreme effectiveness but expensive
+2. Heal boosts (LO series) - for dedicated healers
+3. Ranged boosts (KO series) - for ranged attackers
+
+### Factory Strategy (RCL 7+)
+
+**Philosophy**: Convert base resources into commodities for profit and progression
+
+#### Factory Manager (factoryManager.js)
+**Strategic Role**: Commodity production automation
+
+**Core Functions**:
+
+1. **Commodity Recipes**
+   - **Level 0** (Basic): Base minerals → Tier 1 commodities
+     - Battery: 6 energy → 1 battery (store energy)
+     - Wire: 6 energy + 2 silicon → 1 wire (factory component)
+   - **Level 1**: Tier 1 → Tier 2 (more complex)
+   - **Level 2+**: Advanced commodities (higher value)
+
+2. **Production Queue**
+   - Prioritize by market value (check `Game.market.getAllOrders()`)
+   - Produce batteries when energy > 200k (convert excess)
+   - Produce higher-tier commodities when factory level increases
+   - Auto-queue based on storage availability
+
+3. **Factory Logistics**
+   - Chemist or dedicated factory worker fills factory input
+   - Factory produces commodity: `factory.produce(commodityType)`
+   - Worker empties factory output to storage
+   - Terminal sells completed commodities
+
+**Tick Loop Logic**:
+```javascript
+// Every tick:
+1. Check factory level (determines available recipes)
+2. Check storage for production inputs
+3. Select highest-value commodity producible
+4. Transfer inputs to factory
+5. Run factory.produce()
+6. Transfer outputs to storage/terminal
+```
+
+**Strategic Benefits**:
+- **Energy conversion**: Batteries store excess energy compactly
+- **Profit generation**: Commodities sell for high prices on market
+- **Progression**: Factory leveling unlocks better recipes
+- **Resource sink**: Converts mineral surplus into credits
+
+#### Factory Worker Role
+**Option 1**: Reuse chemist role (extend to handle factory)
+**Option 2**: Dedicated factory worker (if factory production intense)
+
+**Recommended**: Extend chemist to handle both labs and factory (low overhead)
+
+### Observer Strategy (RCL 8+)
+
+**Philosophy**: Automated room scouting for intel and expansion
+
+#### Observer Manager (observerManager.js)
+**Strategic Role**: Multi-room intelligence gathering
+
+**Core Functions**:
+
+1. **Room Scanning Pattern**
+   - Spiral outward from owned room: adjacent → 2 range → 3 range
+   - Cycle through rooms: observe different room every 50 ticks
+   - Store observations in `Memory.scouting[roomName]`
+
+2. **Intelligence Gathering**
+   - **Mineral Type**: Identify mineral deposits (find FIND_MINERALS)
+   - **Controller**: Check owner, level, reservation status
+   - **Sources**: Count energy sources (2 or 3 sources)
+   - **Hostiles**: Detect enemy structures or creeps
+   - **Neutral Structures**: Identify keeper lairs, power banks
+
+3. **Remote Mining Opportunities**
+   - Identify unclaimed rooms with 2-3 sources
+   - Calculate distance from owned room (pathfinding cost)
+   - Rank by value: sources × energy per source / distance
+   - Flag high-value targets for expansion or remote mining
+
+4. **Threat Detection**
+   - Monitor adjacent rooms for enemy buildup
+   - Alert if hostile structures appear near borders
+   - Track enemy controller progress (expansion warning)
+
+**Tick Loop Logic**:
+```javascript
+// Every 50 ticks:
+1. Select next room to observe (spiral pattern)
+2. Call observer.observeRoom(roomName)
+3. Scan observed room for minerals, sources, hostiles
+4. Store data in Memory.scouting[roomName]
+5. Update expansion opportunities ranking
+```
+
+**Strategic Benefits**:
+- **No vision cost**: Observer provides vision without creep presence
+- **Intel advantage**: Know enemy movements before they arrive
+- **Expansion planning**: Identify best rooms for claiming
+- **Resource scouting**: Find rare minerals in other rooms
+- **Power farming**: Locate power banks for harvesting
+
+### Power Spawn Strategy (RCL 8+)
+
+**Philosophy**: Process power for power creep progression
+
+#### Power Manager (powerManager.js)
+**Strategic Role**: Power acquisition and processing
+
+**Core Functions**:
+
+1. **Power Acquisition**
+   - Monitor storage: if credits > 100,000, buy power
+   - Check market for power sell orders: `Game.market.getAllOrders({resourceType: RESOURCE_POWER})`
+   - Buy in bulk: 5,000-10,000 units at a time
+   - Store power in storage (haulers move to power spawn as needed)
+
+2. **Power Processing**
+   - Power spawn consumes: 1 power + 50 energy → enable power creep ops
+   - Process continuously when power available: `powerSpawn.processPower()`
+   - Haulers keep power spawn stocked: 100-500 power buffer
+
+3. **Power Creep Integration** (Future Enhancement)
+   - Power processing enables power creep operations
+   - Power creeps provide powerful abilities (generate ops, operate labs, etc.)
+   - Requires separate power creep management system
+
+**Tick Loop Logic**:
+```javascript
+// Every tick:
+1. Check if power spawn has power and energy
+2. Call powerSpawn.processPower()
+3. Track processing rate and power balance
+```
+
+**Strategic Benefits**:
+- **Power creep enablement**: Unlocks power creeps after processing
+- **Ops generation**: Power creeps can generate ops for boosting
+- **Late-game advantage**: Power creeps provide significant bonuses
+- **Resource conversion**: Converts credits → power → ops
+
+### Strategic Weaknesses and Mitigations
 
 ### Current Limitations
 1. **Single-Room Focus**: Limited multi-room optimization
@@ -980,21 +1480,17 @@ Each tick the bot:
 2. **Hardcoded Expansion**: Claimer target room not dynamic
    - *Mitigation*: Easy to modify target in roleClaimer
    
-3. **No Market Trading**: Terminal built but not utilized
-   - *Future Enhancement*: Market monitoring and trading logic
-   
-4. **No Lab Reactions**: Labs planned but reactions not automated
-   - *Future Enhancement*: Reaction queue and resource management
-   
-5. **Basic Combat**: Workers defend but no dedicated military
-   - *Mitigation*: Sufficient for NPC invaders, towers provide main defense
+3. **No Remote Mining**: Doesn't harvest from adjacent rooms yet
+   - *Future Enhancement*: Observer + remote harvester coordination
 
 ### Risk Mitigation
 - **Energy Starvation**: Emergency harvester spawning prevents death spiral
 - **Structure Loss**: Critical repair priority prevents collapse
-- **Invader Damage**: Combat-capable workers and towers defend
+- **Invader Damage**: Boosted fighters and towers defend
 - **Construction Gridlock**: Dynamic builder scaling handles varying loads
 - **Memory Bloat**: Automatic cleanup maintains performance
+- **Market Volatility**: Conservative thresholds prevent over-trading
+- **Mineral Depletion**: Extractor auto-shuts down when mineral depletes (50k tick respawn)
 
 ## Conclusion
 
