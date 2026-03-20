@@ -30,25 +30,14 @@ const getWorkerCreepBody = (energyAvailable, room, currentCreeps = {}, targetRos
   const combatParts = [TOUGH, TOUGH, ATTACK];
   const combatCost = calculateBodyCost(combatParts);
 
-  // Calculate total current workers and target
-  const totalCurrent = Object.values(currentCreeps).reduce((sum, count) => sum + count, 0);
-  const totalTarget = Object.values(targetRoster).reduce((sum, count) => sum + count, 0);
-  
-  // Only use larger bodies when we have at least 75% of target worker count
-  const hasEnoughWorkers = totalCurrent >= totalTarget * 0.75;
-  
   const bodyCosts = bodyList
     .map((body) => [calculateBodyCost(body), body])
     .sort((a, b) => b[0] - a[0]); // Sort by cost descending
 
-  // Find base body that fits
+  // Find base body that fits - always prefer largest affordable body
   let selectedBody = null;
   for (const [cost, body] of bodyCosts) {
     if (energyAvailable >= cost) {
-      // If we don't have enough workers, prefer smaller bodies to spawn more creeps faster
-      if (!hasEnoughWorkers && cost > 400) {
-        continue; // Skip larger bodies when workforce is insufficient
-      }
       selectedBody = [...body];
       break;
     }
@@ -570,7 +559,8 @@ const determineSpawnRole = (roster, currentCreeps, roomStatus, room) => {
   }
 
   // Check energy conditions for non-critical spawning
-  let canSpawn = roomStatus.energyAvailable >= 200;
+  // Wait for 80% capacity to spawn larger, more efficient creeps
+  let canSpawn = roomStatus.energyAvailable >= roomStatus.energyCapacity * 0.8;
 
   // canSpawn = roomStatus.energyAvailable >= roomStatus.energyCapacity * 0.5;
 
