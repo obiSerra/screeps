@@ -127,50 +127,39 @@ const getTransporterBody = (energyAvailable) => {
 /**
  * Get fighter creep body based on available energy
  * Pure function - no side effects
+ * Ratio: 3 TOUGH : 1 RANGED_ATTACK : 1 MOVE
  * @param {number} energyAvailable - Current energy available
  * @returns {Array} Body parts array
  */
 const getFighterCreepBody = (energyAvailable) => {
-  const moveCost = BODYPART_COST[MOVE];
-  const toughCost = BODYPART_COST[TOUGH];
-  const rangedAttackCost = BODYPART_COST[RANGED_ATTACK];
-  const workCost = BODYPART_COST[WORK];
-  const carryCost = BODYPART_COST[CARRY];
+  // Fighter set: [TOUGH×3, RANGED_ATTACK, MOVE]
+  // Cost: 3*10 + 150 + 50 = 230 per set
+  const bodySet = [TOUGH, TOUGH, TOUGH, RANGED_ATTACK, MOVE];
+  const setCost = calculateBodyCost(bodySet);
+  const maxSets = Math.floor(energyAvailable / setCost);
 
-  // Start with 2 MOVE parts, 1 WORK, and 1 CARRY
-  const moveCount = 1;
-  let remainingEnergy =
-    energyAvailable - moveCount * moveCost - workCost - carryCost;
-
-  if (remainingEnergy < 0) {
+  if (maxSets < 1) {
     return undefined; // Not enough energy
   }
 
-  // Add as many [TOUGH, RANGED_ATTACK, TOUGH] triplets as possible
-  const tripletCost = moveCost + toughCost + rangedAttackCost;
-  const tripletCount = Math.floor(remainingEnergy / tripletCost);
+  // Cap at 10 sets to stay under 50 body parts (10 * 5 = 50)
+  const sets = Math.min(maxSets, 10);
 
-  // Build the body array: TOUGH parts first, then RANGED_ATTACK, then WORK/CARRY, then MOVE
+  // Build the body array: TOUGH parts first, then RANGED_ATTACK, then MOVE
   const body = [];
 
-  // Add all TOUGH parts (one per triplet)
-  for (let i = 0; i < tripletCount; i++) {
+  // Add all TOUGH parts (3 per set)
+  for (let i = 0; i < sets * 3; i++) {
     body.push(TOUGH);
   }
 
-  // Add all RANGED_ATTACK parts (one per triplet)
-  for (let i = 0; i < tripletCount; i++) {
+  // Add all RANGED_ATTACK parts (1 per set)
+  for (let i = 0; i < sets; i++) {
     body.push(RANGED_ATTACK);
   }
 
-  // Add WORK part
-  body.push(WORK);
-
-  // Add CARRY part
-  body.push(CARRY);
-
-  // Add all MOVE parts (one per triplet + initial moveCount)
-  for (let i = 0; i < moveCount + tripletCount; i++) {
+  // Add all MOVE parts (1 per set)
+  for (let i = 0; i < sets; i++) {
     body.push(MOVE);
   }
 
