@@ -38,6 +38,21 @@ const hasExtractor = (mineral) => {
 };
 
 /**
+ * Get the extractor structure at the mineral position
+ * @param {Mineral} mineral - The mineral deposit
+ * @returns {StructureExtractor|null} The extractor or null
+ */
+const getExtractor = (mineral) => {
+  if (!mineral) return null;
+
+  const extractor = mineral.pos.lookFor(LOOK_STRUCTURES).find(
+    (s) => s.structureType === STRUCTURE_EXTRACTOR
+  );
+
+  return extractor || null;
+};
+
+/**
  * Mine mineral and drop to container or ground
  * @param {Creep} creep - The creep
  * @returns {number} Status code
@@ -56,25 +71,37 @@ const mineMineral = (creep) => {
   const mineral = Game.getObjectById(creep.memory.assignedMineral);
   
   if (!mineral) {
+    console.log(`[MineralExtractor] ${creep.name} - Lost mineral reference`);
     creep.say("❌ lost mineral");
     delete creep.memory.assignedMineral;
     return ERR_NOT_FOUND;
   }
 
+  console.log(`[MineralExtractor] ${creep.name} - Mineral: ${mineral.mineralType}, Amount: ${mineral.mineralAmount}, Pos: ${mineral.pos}`);
+
   // Check if mineral is depleted
   if (mineral.mineralAmount === 0) {
+    console.log(`[MineralExtractor] ${creep.name} - Mineral depleted`);
     creep.say("⏳ depleted");
     return ERR_NOT_ENOUGH_RESOURCES;
   }
 
   // Check if extractor exists
-  if (!hasExtractor(mineral)) {
+  const extractor = getExtractor(mineral);
+  if (!extractor) {
+    console.log(`[MineralExtractor] ${creep.name} - No extractor found at mineral position`);
     creep.say("❌ no extractor");
     return ERR_INVALID_TARGET;
   }
 
-  // Move to mineral if not in range
-  if (!creep.pos.isEqualTo(mineral.pos)) {
+  console.log(`[MineralExtractor] ${creep.name} - Extractor cooldown: ${extractor.cooldown}`);
+  console.log(`[MineralExtractor] ${creep.name} - Creep pos: ${creep.pos}, Distance to mineral: ${creep.pos.getRangeTo(mineral)}`);
+  console.log(`[MineralExtractor] ${creep.name} - Creep WORK parts: ${creep.getActiveBodyparts(WORK)}`);
+  console.log(`[MineralExtractor] ${creep.name} - Creep carry: ${creep.store.getUsedCapacity()}/${creep.store.getCapacity()}`);
+
+  // Move to mineral if not in range (need to be adjacent, not on top!)
+  if (!creep.pos.inRangeTo(mineral, 1)) {
+    console.log(`[MineralExtractor] ${creep.name} - Moving to mineral`);
     creep.moveTo(mineral.pos, {
       visualizePathStyle: { stroke: "#ffaa00" },
       reusePath: 50,
@@ -82,13 +109,29 @@ const mineMineral = (creep) => {
     return ERR_NOT_IN_RANGE;
   }
 
+  console.log(`[MineralExtractor] ${creep.name} - In range, attempting to harvest`);
+
   // Mine mineral
   const result = creep.harvest(mineral);
+  
+  console.log(`[MineralExtractor] ${creep.name} - Harvest result: ${result}`);
   
   if (result === OK) {
     creep.say(`⛏️ ${mineral.mineralType}`);
   } else if (result === ERR_NOT_ENOUGH_RESOURCES) {
     creep.say("⏳ cooldown");
+  } else if (result === ERR_TIRED) {
+    // Extractor is on cooldown
+    creep.say(`⏳ ${extractor.cooldown}`);
+    console.log(`[MineralExtractor] ${creep.name} - Extractor is on cooldown for ${extractor.cooldown} more ticks`);
+  } else if (result === ERR_NO_BODYPART) {
+    console.log(`[MineralExtractor] ${creep.name} - ERROR: No WORK body parts!`);
+    creep.say("❌ no WORK");
+  } else if (result === ERR_FULL) {
+    console.log(`[MineralExtractor] ${creep.name} - Creep inventory is full`);
+    creep.say("📦 full");
+  } else {
+    console.log(`[MineralExtractor] ${creep.name} - Harvest failed with error code: ${result}`);
   }
 
   return result;

@@ -878,9 +878,10 @@ const getMineralExtractorBody = (rcl, energyAvailable) => {
     return undefined;
   }
 
-  // Mineral extractor: [WORK×2, MOVE] sets, similar to miner
+  // Mineral extractor: [WORK×2, MOVE, CARRY] sets
   // Max of 10 WORK parts for maximum mineral harvest rate
-  const bodySet = [WORK, WORK, MOVE]; // 250 per set
+  // Always include at least 1 CARRY part to hold mined minerals
+  const bodySet = [WORK, WORK, MOVE, CARRY]; // 300 per set
   const setCost = calculateBodyCost(bodySet);
   const maxSets = Math.floor(energyAvailable / setCost);
   
@@ -894,6 +895,7 @@ const getMineralExtractorBody = (rcl, energyAvailable) => {
   const body = [];
   for (let i = 0; i < sets * 2; i++) body.push(WORK);
   for (let i = 0; i < sets; i++) body.push(MOVE);
+  for (let i = 0; i < sets; i++) body.push(CARRY);
   
   return body;
 };
