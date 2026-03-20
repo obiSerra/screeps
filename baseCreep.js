@@ -332,14 +332,26 @@ const sortByContention = (creep, targets, considerCurrentSorting = false) => {
  * @param {Room} room
  * @returns {Array} Structures that can receive energy
  */
-const findEnergyDepositTargets = (room) =>
-  room.find(FIND_STRUCTURES, {
+const findEnergyDepositTargets = (room) => {
+  const structures = room.find(FIND_STRUCTURES, {
     filter: (s) =>
       (s.structureType === STRUCTURE_EXTENSION ||
         s.structureType === STRUCTURE_SPAWN ||
         s.structureType === STRUCTURE_TOWER) &&
       s.store.getFreeCapacity(RESOURCE_ENERGY) > 0,
   });
+  
+  // Sort by priority: Spawn > Tower > Extension
+  return structures.sort((a, b) => {
+    const getPriority = (structure) => {
+      if (structure.structureType === STRUCTURE_SPAWN) return 0;
+      if (structure.structureType === STRUCTURE_TOWER) return 1;
+      if (structure.structureType === STRUCTURE_EXTENSION) return 2;
+      return 3;
+    };
+    return getPriority(a) - getPriority(b);
+  });
+};
 
 // ============================================================================
 // Pure Functions - Action Decision
@@ -1185,16 +1197,35 @@ const handleDelivering = (creep) => {
 
   // Find target if not set
   if (!actionTarget) {
-    // Priority: Spawn > Extensions > Towers > Storage
-    let targets = creep.room.find(FIND_STRUCTURES, {
+    // Priority: Spawn > Towers > Extensions > Storage
+    let targets = [];
+    
+    // First priority: Spawns
+    targets = creep.room.find(FIND_STRUCTURES, {
       filter: (s) =>
-        (s.structureType === STRUCTURE_SPAWN ||
-          s.structureType === STRUCTURE_EXTENSION ||
-          s.structureType === STRUCTURE_TOWER) &&
+        s.structureType === STRUCTURE_SPAWN &&
         s.store.getFreeCapacity(RESOURCE_ENERGY) > 0,
     });
 
-    // If no priority targets, deliver to storage
+    // Second priority: Towers
+    if (targets.length === 0) {
+      targets = creep.room.find(FIND_STRUCTURES, {
+        filter: (s) =>
+          s.structureType === STRUCTURE_TOWER &&
+          s.store.getFreeCapacity(RESOURCE_ENERGY) > 0,
+      });
+    }
+
+    // Third priority: Extensions
+    if (targets.length === 0) {
+      targets = creep.room.find(FIND_STRUCTURES, {
+        filter: (s) =>
+          s.structureType === STRUCTURE_EXTENSION &&
+          s.store.getFreeCapacity(RESOURCE_ENERGY) > 0,
+      });
+    }
+
+    // Fallback: Storage
     if (targets.length === 0) {
       targets = creep.room.find(FIND_STRUCTURES, {
         filter: (s) =>

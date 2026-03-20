@@ -259,22 +259,24 @@ const getRCLTier = (rcl) => {
  * @returns {Array} Body parts array
  */
 const getGeneralistBody = (rcl, energyAvailable) => {
-  // Small, flexible generalists with WORK, CARRY, MOVE
-  const bodyList = [
-    [WORK, WORK, WORK, CARRY, CARRY, CARRY, MOVE, MOVE, MOVE], // 800
-    [WORK, WORK, WORK, CARRY, CARRY, MOVE, MOVE, MOVE],        // 650
-    [WORK, WORK, CARRY, MOVE, MOVE],                           // 400
-    [WORK, CARRY, MOVE],                                        // 200
-  ];
-
-  for (const body of bodyList) {
-    const cost = calculateBodyCost(body);
-    if (energyAvailable >= cost) {
-      return [...body];
-    }
+  // Balanced generalist: [WORK, CARRY, MOVE] sets
+  const bodySet = [WORK, CARRY, MOVE]; // 200 per set
+  const setCost = calculateBodyCost(bodySet);
+  const maxSets = Math.floor(energyAvailable / setCost);
+  
+  if (maxSets < 1) {
+    return undefined;
   }
   
-  return undefined;
+  // Cap at 16 sets to stay under 50 body parts limit (16 * 3 = 48)
+  const sets = Math.min(maxSets, 16);
+  
+  const body = [];
+  for (let i = 0; i < sets; i++) body.push(WORK);
+  for (let i = 0; i < sets; i++) body.push(CARRY);
+  for (let i = 0; i < sets; i++) body.push(MOVE);
+  
+  return body;
 };
 
 /**
@@ -292,31 +294,34 @@ const getMinerBody = (rcl, energyAvailable) => {
     return getGeneralistBody(rcl, energyAvailable);
   }
   
-  if (tier === "late") {
-    // RCL 8+: Giant miner - [WORK×5, MOVE×1] or scaled down
-    // Max source output is 10 energy/tick with 5 WORK parts (5 * 2 = 10)
-    const giantBody = [WORK, WORK, WORK, WORK, WORK, MOVE]; // 550 energy
-    if (energyAvailable >= calculateBodyCost(giantBody)) {
-      return giantBody;
-    }
-    // Fallback to smaller miner
+  // Miner: [WORK, WORK, MOVE] sets, capped at 5 WORK parts total
+  // Max source output is 10 energy/tick with 5 WORK parts (5 * 2 = 10)
+  const bodySet = [WORK, WORK, MOVE]; // 250 per set
+  const setCost = calculateBodyCost(bodySet);
+  const maxSets = Math.floor(energyAvailable / setCost);
+  
+  if (maxSets < 1) {
+    return undefined;
   }
   
-  // RCL 4-7: Medium miner
-  const bodyList = [
-    [WORK, WORK, WORK, WORK, WORK, MOVE],       // 550 - optimal for source
-    [WORK, WORK, WORK, MOVE],                    // 350
-    [WORK, WORK, MOVE],                          // 250
-  ];
+  // Cap at 2.5 sets = 5 WORK parts (optimal for source output)
+  // Since we need whole sets, cap at 2 sets = 4 WORK, then add 1 WORK + 1 MOVE if energy allows
+  const sets = Math.min(maxSets, 2);
   
-  for (const body of bodyList) {
-    const cost = calculateBodyCost(body);
-    if (energyAvailable >= cost) {
-      return [...body];
-    }
+  const body = [];
+  for (let i = 0; i < sets; i++) body.push(WORK);
+  for (let i = 0; i < sets; i++) body.push(WORK);
+  for (let i = 0; i < sets; i++) body.push(MOVE);
+  
+  // Try to add one more WORK if we have room (reaching 5 WORK total)
+  const currentCost = calculateBodyCost(body);
+  const remainingEnergy = energyAvailable - currentCost;
+  if (sets === 2 && remainingEnergy >= BODYPART_COST[WORK] + BODYPART_COST[MOVE]) {
+    body.unshift(WORK); // Add WORK at front
+    body.push(MOVE);     // Add MOVE at end
   }
   
-  return undefined;
+  return body;
 };
 
 /**
@@ -380,46 +385,44 @@ const getUpgraderBody = (rcl, energyAvailable) => {
   }
   
   if (tier === "late") {
-    // RCL 8+: Giant upgrader - stationary near controller
-    // [WORK×15, CARRY×3, MOVE×6] or scaled down
-    const giantBody = [
-      WORK, WORK, WORK, WORK, WORK, WORK, WORK, WORK, WORK, WORK,
-      WORK, WORK, WORK, WORK, WORK, // 15 WORK
-      CARRY, CARRY, CARRY,           // 3 CARRY
-      MOVE, MOVE, MOVE, MOVE, MOVE, MOVE // 6 MOVE
-    ]; // 1500 + 150 + 300 = 1950 energy
+    // RCL 8+: Giant upgrader - [WORK×3, CARRY, MOVE, MOVE] sets
+    const bodySet = [WORK, WORK, WORK, CARRY, MOVE, MOVE]; // 700 per set
+    const setCost = calculateBodyCost(bodySet);
+    const maxSets = Math.floor(energyAvailable / setCost);
     
-    if (energyAvailable >= calculateBodyCost(giantBody)) {
-      return giantBody;
+    if (maxSets < 1) {
+      return undefined;
     }
     
-    // Scaled giant: [WORK×10, CARRY×2, MOVE×4]
-    const mediumGiantBody = [
-      WORK, WORK, WORK, WORK, WORK, WORK, WORK, WORK, WORK, WORK,
-      CARRY, CARRY,
-      MOVE, MOVE, MOVE, MOVE
-    ]; // 1000 + 100 + 200 = 1300
+    // Cap at 8 sets to stay under 50 body parts (8 * 6 = 48)
+    const sets = Math.min(maxSets, 8);
     
-    if (energyAvailable >= calculateBodyCost(mediumGiantBody)) {
-      return mediumGiantBody;
-    }
+    const body = [];
+    for (let i = 0; i < sets * 3; i++) body.push(WORK);
+    for (let i = 0; i < sets; i++) body.push(CARRY);
+    for (let i = 0; i < sets * 2; i++) body.push(MOVE);
+    
+    return body;
   }
   
-  // RCL 4-7: Medium upgrader - more WORK than generalist
-  const bodyList = [
-    [WORK, WORK, WORK, WORK, CARRY, CARRY, MOVE, MOVE, MOVE], // 800
-    [WORK, WORK, WORK, CARRY, CARRY, MOVE, MOVE, MOVE],       // 650
-    [WORK, WORK, CARRY, MOVE, MOVE],                          // 400
-  ];
+  // RCL 4-7: Medium upgrader - [WORK×2, CARRY, MOVE, MOVE] sets
+  const bodySet = [WORK, WORK, CARRY, MOVE, MOVE]; // 500 per set
+  const setCost = calculateBodyCost(bodySet);
+  const maxSets = Math.floor(energyAvailable / setCost);
   
-  for (const body of bodyList) {
-    const cost = calculateBodyCost(body);
-    if (energyAvailable >= cost) {
-      return [...body];
-    }
+  if (maxSets < 1) {
+    return undefined;
   }
   
-  return undefined;
+  // Cap at 10 sets to stay under 50 body parts (10 * 5 = 50)
+  const sets = Math.min(maxSets, 10);
+  
+  const body = [];
+  for (let i = 0; i < sets * 2; i++) body.push(WORK);
+  for (let i = 0; i < sets; i++) body.push(CARRY);
+  for (let i = 0; i < sets * 2; i++) body.push(MOVE);
+  
+  return body;
 };
 
 /**
@@ -437,21 +440,24 @@ const getBuilderBody = (rcl, energyAvailable) => {
     return getGeneralistBody(rcl, energyAvailable);
   }
   
-  // RCL 4+: Balanced builder with equal WORK/CARRY and enough MOVE
-  const bodyList = [
-    [WORK, WORK, WORK, CARRY, CARRY, CARRY, MOVE, MOVE, MOVE], // 800
-    [WORK, WORK, CARRY, CARRY, MOVE, MOVE],                    // 500
-    [WORK, CARRY, MOVE],                                        // 200
-  ];
+  // RCL 4+: Builder - [WORK, CARRY, CARRY, MOVE, MOVE] sets
+  const bodySet = [WORK, CARRY, CARRY, MOVE, MOVE]; // 350 per set
+  const setCost = calculateBodyCost(bodySet);
+  const maxSets = Math.floor(energyAvailable / setCost);
   
-  for (const body of bodyList) {
-    const cost = calculateBodyCost(body);
-    if (energyAvailable >= cost) {
-      return [...body];
-    }
+  if (maxSets < 1) {
+    return undefined;
   }
   
-  return undefined;
+  // Cap at 10 sets to stay under 50 body parts (10 * 5 = 50)
+  const sets = Math.min(maxSets, 10);
+  
+  const body = [];
+  for (let i = 0; i < sets; i++) body.push(WORK);
+  for (let i = 0; i < sets * 2; i++) body.push(CARRY);
+  for (let i = 0; i < sets * 2; i++) body.push(MOVE);
+  
+  return body;
 };
 
 /**
