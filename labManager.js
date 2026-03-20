@@ -343,7 +343,8 @@ const manageLabsystem = (room) => {
  * @returns {Array} Array of tasks { labId, resourceType, action: 'fill'|'empty', amount }
  */
 const getLabTasks = (room) => {
-  const labMemory = Memory.rooms[room.name]?.labs;
+
+  const labMemory = Memory.rooms[room.name] && Memory.rooms[room.name].labs;
   if (!labMemory) return [];
 
   const tasks = [];
