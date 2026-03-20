@@ -127,28 +127,37 @@ const getTransporterBody = (energyAvailable) => {
 /**
  * Get fighter creep body based on available energy
  * Pure function - no side effects
- * Ratio: 3 TOUGH : 1 RANGED_ATTACK : 1 MOVE
+ * Ratio: 3 TOUGH : 1 RANGED_ATTACK : 1 MOVE, plus 1 CARRY for utility
  * @param {number} energyAvailable - Current energy available
  * @returns {Array} Body parts array
  */
 const getFighterCreepBody = (energyAvailable) => {
+  const carryCost = BODYPART_COST[CARRY]; // 50
+  
+  // Reserve energy for 1 CARRY part
+  let remainingEnergy = energyAvailable - carryCost;
+  
+  if (remainingEnergy < 0) {
+    return undefined; // Not enough energy
+  }
+  
   // Fighter set: [TOUGH×3, RANGED_ATTACK, MOVE]
   // Cost: 3*10 + 150 + 50 = 230 per set
   const bodySet = [TOUGH, TOUGH, TOUGH, RANGED_ATTACK, MOVE];
   const setCost = calculateBodyCost(bodySet);
-  const maxSets = Math.floor(energyAvailable / setCost);
+  const maxSets = Math.floor(remainingEnergy / setCost);
 
   if (maxSets < 1) {
-    return undefined; // Not enough energy
+    return undefined; // Not enough energy for combat parts
   }
 
-  // Cap at 10 sets to stay under 50 body parts (10 * 5 = 50)
-  const sets = Math.min(maxSets, 10);
+  // Cap at 9 sets to stay under 50 body parts (9 * 5 + 1 CARRY = 46)
+  const sets = Math.min(maxSets, 9);
 
-  // Build the body array: TOUGH parts first, then RANGED_ATTACK, then MOVE
+  // Build the body array: TOUGH parts first, then RANGED_ATTACK, then CARRY, then MOVE
   const body = [];
 
-  // Add all TOUGH parts (3 per set)
+  // Add all TOUGH parts (3 per set) - absorbs damage first
   for (let i = 0; i < sets * 3; i++) {
     body.push(TOUGH);
   }
@@ -157,6 +166,9 @@ const getFighterCreepBody = (energyAvailable) => {
   for (let i = 0; i < sets; i++) {
     body.push(RANGED_ATTACK);
   }
+
+  // Add 1 CARRY part for utility (can haul energy when not fighting)
+  body.push(CARRY);
 
   // Add all MOVE parts (1 per set)
   for (let i = 0; i < sets; i++) {
