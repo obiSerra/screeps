@@ -124,28 +124,79 @@ const getRoomStatus = (room) => {
 // ============================================================================
 
 /**
- * Calculate initial roster for low-level rooms
- * Simplified: always 2 harvesters, 1 builder, 1 upgrader
- * @param {Object} roomStatus - Current room status
- * @returns {Object} Roster object {role: count}
+ * Get the number of energy sources in a room
+ * @param {string} roomName - Room name
+ * @returns {number} Number of sources (typically 1-2)
  */
-const calculateInitialRoster = (roomStatus) => {
-  return { harvester: 2, upgrader: 1, builder: 1 };
+const getSourceCount = (roomName) => {
+  const room = Game.rooms[roomName];
+  if (!room) return 2; // Default assumption
+  return room.find(FIND_SOURCES).length;
 };
 
 /**
- * Calculate roster based on room status
- * Simplified: always maintain at least 2 harvesters, 1 builder, 1 upgrader
+ * Calculate roster based on room status and RCL
+ * Maintains minimum creeps (2 harvesters, 1 builder, 1 upgrader) at all levels
+ * Scales specialized roles (miners, haulers, etc.) based on RCL progression
+ * 
  * @param {Object} roomStatus - Current room status
- * @param {Object} efficiencyMetrics - Energy collection efficiency metrics (unused in simplified version)
+ * @param {Object} efficiencyMetrics - Energy collection efficiency metrics
  * @returns {Object} Roster object {role: count}
  */
 const calculateRoster = (roomStatus, efficiencyMetrics = null) => {
-  return {
-    harvester: 2,
+  const rcl = roomStatus.controllerLevel;
+  const sourceCount = getSourceCount(roomStatus.roomName);
+  
+  // Base roster - minimum creeps always maintained
+  const roster = {
+    harvester: 2,  // Always keep 2 harvesters as backup
     builder: 1,
     upgrader: 1
   };
+  
+  // Scale builders based on construction sites
+  if (roomStatus.constructionSiteCount > 10) {
+    roster.builder = Math.min(4, 1 + Math.floor(roomStatus.constructionSiteCount / 10));
+  }
+  
+  // RCL 1-3: Early game - generalist harvesters only
+  if (rcl <= 3) {
+    // Adjust based on efficiency tier if available
+    if (efficiencyMetrics && efficiencyMetrics.efficiencyTier === 'established') {
+      roster.upgrader = 2;
+    }
+    return roster;
+  }
+  
+  // RCL 4-5: Mid-early game - introduce miners and haulers
+  if (rcl <= 5) {
+    roster.miner = sourceCount;           // 1 miner per source
+    roster.hauler = sourceCount + 1;      // 1 extra hauler for flexibility
+    roster.builder = Math.max(roster.builder, 2);
+    roster.upgrader = 2;
+    return roster;
+  }
+  
+  // RCL 6-7: Mid-late game - add specialized roles
+  if (rcl <= 7) {
+    roster.miner = sourceCount;
+    roster.hauler = sourceCount + 2;      // More haulers for longer distances
+    roster.builder = Math.max(roster.builder, 2);
+    roster.upgrader = 3;
+    roster.mineralExtractor = 1;          // Mine minerals
+    roster.chemist = 1;                   // Lab logistics
+    return roster;
+  }
+  
+  // RCL 8: Late game - maximum efficiency
+  roster.miner = sourceCount;
+  roster.hauler = sourceCount + 4;        // Large hauler fleet
+  roster.builder = Math.max(roster.builder, 2);
+  roster.upgrader = 4;
+  roster.mineralExtractor = 1;
+  roster.chemist = 1;
+  
+  return roster;
 };
 
 // ============================================================================
