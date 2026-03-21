@@ -249,7 +249,7 @@ const handleTowers = (room) => {
     const damagedStructures = room.find(FIND_STRUCTURES, {
       filter: (structure) => {
         const healthPercent = structure.hits / structure.hitsMax;
-        return healthPercent < 0.4 &&
+        return healthPercent < 0.2 &&
                structure.structureType !== STRUCTURE_WALL &&
                structure.structureType !== STRUCTURE_RAMPART;
       }

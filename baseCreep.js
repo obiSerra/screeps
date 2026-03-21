@@ -238,7 +238,7 @@ const findPrioritizedAttackTarget = (creep) => {
   // Find the structure at the flag's position
   const flagPos = attackFlag.pos;
   const structuresAtFlag = flagPos.lookFor(LOOK_STRUCTURES);
-  
+
   // If there's a structure at the flag position, target it specifically
   // Filter out allied structures to never target them
   if (structuresAtFlag.length > 0) {
@@ -246,7 +246,7 @@ const findPrioritizedAttackTarget = (creep) => {
     const hostileStructuresAtFlag = structuresAtFlag.filter(
       (s) => !s.my && (!s.owner || s.owner.username !== creep.owner.username)
     );
-    
+
     if (hostileStructuresAtFlag.length > 0) {
       // Prioritize non-wall structures if multiple exist at same position
       const nonWallStructure = hostileStructuresAtFlag.find(
@@ -255,10 +255,10 @@ const findPrioritizedAttackTarget = (creep) => {
       return nonWallStructure || hostileStructuresAtFlag[0];
     }
   }
-  
+
   // If no structure at flag, find all potential targets in the room
   const hostileStructures = creep.room.find(FIND_HOSTILE_STRUCTURES);
-  
+
   // Also include walls and ramparts as valid targets when attack flag is present
   // Only include hostile or neutral walls/ramparts, never allied ones
   const walls = creep.room.find(FIND_STRUCTURES, {
@@ -266,13 +266,13 @@ const findPrioritizedAttackTarget = (creep) => {
       (s.structureType === STRUCTURE_WALL || s.structureType === STRUCTURE_RAMPART) &&
       !s.my && (!s.owner || s.owner.username !== creep.owner.username),
   });
-  
+
   const allStructureTargets = [...hostileStructures, ...walls];
-  
+
   if (allStructureTargets.length === 0) {
     return null;
   }
-  
+
   // Structure priority mapping (lower = higher priority)
   const structurePriority = {
     [STRUCTURE_SPAWN]: 1,
@@ -281,20 +281,20 @@ const findPrioritizedAttackTarget = (creep) => {
     [STRUCTURE_WALL]: 5,
     [STRUCTURE_RAMPART]: 5,
   };
-  
+
   // Sort by priority, then by distance
   allStructureTargets.sort((a, b) => {
     const priorityA = structurePriority[a.structureType] || 4;
     const priorityB = structurePriority[b.structureType] || 4;
-    
+
     if (priorityA !== priorityB) {
       return priorityA - priorityB;
     }
-    
+
     // Same priority - sort by distance
     return creep.pos.getRangeTo(a) - creep.pos.getRangeTo(b);
   });
-  
+
   return allStructureTargets[0];
 };
 
@@ -349,12 +349,16 @@ const findEnergyDepositTargets = (room) => {
         s.structureType === STRUCTURE_TOWER) &&
       s.store.getFreeCapacity(RESOURCE_ENERGY) > 0,
   });
-  
+
   // Sort by priority: Spawn > Tower > Extension
   return structures.sort((a, b) => {
     const getPriority = (structure) => {
+
       if (structure.structureType === STRUCTURE_SPAWN) return 0;
-      if (structure.structureType === STRUCTURE_TOWER) return 1;
+      if (structure.structureType === STRUCTURE_TOWER) {
+        if (room.energyAvailable >= room.energyCapacityAvailable * 0.5) return 3;
+        else return 0; // If energy is below 50%, prioritize towers equally with spawns
+      }
       if (structure.structureType === STRUCTURE_EXTENSION) return 2;
       return 3;
     };
@@ -827,7 +831,7 @@ const handleBuilding = (creep) => {
     if (structures.length > 0) {
       console.log(
         `Target construction site ${actionTarget.id} is now a structure. ` +
-          `Creep ${creep.name} will switch to repairing it.`,
+        `Creep ${creep.name} will switch to repairing it.`,
       );
       setCreepAction(creep, "repairing", {
         id: structures[0].id,
@@ -842,7 +846,7 @@ const handleBuilding = (creep) => {
       if (newTarget) {
         console.log(
           `Target construction site ${actionTarget.id} completed. ` +
-            `Creep ${creep.name} will switch to building new target ${newTarget.id}.`,
+          `Creep ${creep.name} will switch to building new target ${newTarget.id}.`,
         );
         setCreepAction(creep, "building", {
           id: newTarget.id,
@@ -932,7 +936,7 @@ const handleHarvesting = (creep) => {
   if (energyAvailable >= energyCapacityAvailable) {
     console.log(
       `Energy is full in room ${room.name}. ` +
-        `Creep ${creep.name} will switch to upgrading.`,
+      `Creep ${creep.name} will switch to upgrading.`,
     );
     setCreepAction(creep, "upgrading", null);
     return;
@@ -975,7 +979,7 @@ const handleAttacking = (creep) => {
 
   // Use the most appropriate attack type based on range and available parts
   let attackResult = ERR_NO_BODYPART;
-  
+
   if (hasRangedAttack && range <= 3) {
     // Use ranged attack if in range (1-3 tiles)
     attackResult = creep.rangedAttack(target);
@@ -984,12 +988,12 @@ const handleAttacking = (creep) => {
     // Use melee attack if adjacent
     attackResult = creep.attack(target);
   }
-  
+
   // If attack was successful or we're in position, we're done
   if (attackResult === OK) {
     return;
   }
-  
+
   // Move closer to target
   if (attackResult === ERR_NOT_IN_RANGE || range > 1) {
     // If we have ranged attack, stay at range 3; if melee only, move to range 1
@@ -1068,7 +1072,7 @@ const handleMining = (creep) => {
     const workParts = creep.body.filter(p => p.type === WORK).length;
     const harvestAmount = workParts * 2; // Each WORK part harvests 2 energy per tick
     stats.recordHarvest(creep.room.name, source.id, harvestAmount);
-    
+
     // Mining successfully - check for link deposit first, then container
     // Look for link adjacent to source (link network optimization)
     const links = source.pos.findInRange(FIND_MY_STRUCTURES, 2, {
@@ -1089,7 +1093,7 @@ const handleMining = (creep) => {
         }
       }
     }
-    
+
     // Fallback: Look for container at source position
     const containers = source.pos.findInRange(FIND_STRUCTURES, 1, {
       filter: (s) => s.structureType === STRUCTURE_CONTAINER,
@@ -1195,7 +1199,7 @@ const handleHauling = (creep) => {
           break;
         }
       }
-      
+
       if (mineralType) {
         setCreepAction(creep, "hauling", {
           id: container.id,
@@ -1254,7 +1258,7 @@ const handleDeconstructing = (creep) => {
   if (!target) {
     console.log(
       `Deconstruction target ${actionTarget.id} no longer exists. ` +
-        `Creep ${creep.name} completed deconstruction.`,
+      `Creep ${creep.name} completed deconstruction.`,
     );
     clearCreepAction(creep);
     return;
@@ -1269,7 +1273,7 @@ const handleDeconstructing = (creep) => {
   } else {
     console.log(
       `Creep ${creep.name} failed to deconstruct ${target.structureType} ` +
-        `at ${target.pos}: error ${result}`,
+      `at ${target.pos}: error ${result}`,
     );
     clearCreepAction(creep);
   }
@@ -1296,7 +1300,7 @@ const handleDelivering = (creep) => {
   if (!actionTarget) {
     // Priority: Spawn > Towers > Extensions > Storage
     let targets = [];
-    
+
     // First priority: Spawns
     targets = creep.room.find(FIND_STRUCTURES, {
       filter: (s) =>
