@@ -644,11 +644,8 @@ const determineSpawnRole = (roster, currentCreeps, roomStatus, room, efficiencyM
   // PRIORITY 2: MINIMUM CREEPS - Always maintain core economy
   // These spawn with lowered thresholds to prevent economy collapse
   
-  // 2a: Must have at least 2 energy collectors (harvesters or miners)
-  if (harvesterCount + minerCount < 2) {
-    // Prefer harvester if none exist, otherwise fill based on what roster needs
-    if (harvesterCount < 2) return "harvester";
-    if (roster.miner && minerCount < roster.miner) return "miner";
+  // 2a: Must have at least 2 energy harvesters
+  if (harvesterCount < 2) {
     return "harvester";
   }
   

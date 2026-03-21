@@ -1398,24 +1398,9 @@ const ACTION_HANDLERS = {
  * @param {Array} priorityList - Action priority order
  */
 const workerActions = (creep, priorityList) => {
-  const isTransporter = priorityList.includes("transporting");
+  const isTransporter = priorityList.includes("transporting") && creep.body.some((part) => part.type === CARRY);
   const isMiner = priorityList.includes("mining");
-  const isHauler = priorityList.includes("hauling");
-
-  // Check for "upgrade" flag - harvesters prioritize upgrading when this flag exists
-  const upgradeFlag = creep.room.find(FIND_FLAGS, {
-    filter: (flag) => flag.name === "upgrade",
-  })[0];
-
-  // If upgrade flag exists and this is a harvester, modify priority list
-  if (upgradeFlag && creep.memory.role === "harvester") {
-    // Move "upgrading" to the front of the priority list
-    const modifiedPriorityList = priorityList.filter(
-      (action) => action !== "upgrading",
-    );
-    modifiedPriorityList.unshift("upgrading");
-    priorityList = modifiedPriorityList;
-  }
+  const isHauler = priorityList.includes("hauling") && creep.body.some((part) => part.type === CARRY);
 
   // Check for combat: if creep is a fighter and there are targets to attack
   if (isFighter(creep)) {
