@@ -647,17 +647,17 @@ const determineSpawnRole = (roster, currentCreeps, roomStatus, room, efficiencyM
   // 2a: Must have at least 2 energy collectors (harvesters or miners)
   if (harvesterCount + minerCount < 2) {
     // Prefer harvester if none exist, otherwise fill based on what roster needs
-    if (harvesterCount < 1) return "harvester";
+    if (harvesterCount < 2) return "harvester";
     if (roster.miner && minerCount < roster.miner) return "miner";
     return "harvester";
   }
   
-  // 2b: Must have at least 1 builder
-  if (builderCount < 1) {
+  // 2b: Must have at least 2 builders
+  if (builderCount < 2) {
     return "builder";
   }
   
-  // 2c: Must have at least 1 upgrader
+  // 2c: Must have at least 1 upgraders
   if (upgraderCount < 1) {
     return "upgrader";
   }
