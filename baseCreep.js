@@ -356,8 +356,8 @@ const findEnergyDepositTargets = (room) => {
 
       if (structure.structureType === STRUCTURE_SPAWN) return 0;
       if (structure.structureType === STRUCTURE_TOWER) {
-        if (room.energyAvailable >= room.energyCapacityAvailable * 0.5) return 3;
-        else return 0; // If energy is below 50%, prioritize towers equally with spawns
+        if (room.energyAvailable <= room.energyCapacityAvailable * 0.5) return 3;
+        else return 1; // If energy is below 50%, prioritize towers equally with spawns
       }
       if (structure.structureType === STRUCTURE_EXTENSION) return 2;
       return 3;
@@ -517,6 +517,9 @@ const selectAction = (creep, priorityList) => {
       // Skip it here in selectAction
       continue;
     }
+    if (action === "harvesting" && availability.harvesting) {
+      return { action: "harvesting", target: null };
+    }
     if (action === "building" && availability.building) {
       const target = selectBuildTarget(creep, targets.constructionSites);
       if (!target) {
@@ -534,9 +537,7 @@ const selectAction = (creep, priorityList) => {
         target: { id: target.id, pos: target.pos },
       };
     }
-    if (action === "harvesting" && availability.harvesting) {
-      return { action: "harvesting", target: null };
-    }
+
     if (action === "transporting" && availability.transporting) {
       return {
         action: "transporting",

@@ -477,7 +477,7 @@ const getUpgraderBody = (rcl, energyAvailable, efficiencyMetrics = null) => {
   }
   
   // RCL 4-7: Medium upgrader - [WORK×2, CARRY, MOVE, MOVE] sets
-  const bodySet = [WORK, WORK, CARRY, MOVE, MOVE]; // 500 per set
+  const bodySet = [WORK, CARRY, MOVE]; // 500 per set
   const setCost = calculateBodyCost(bodySet);
   const maxSets = 10; // Cap at 10 sets to stay under 50 body parts (10 * 5 = 50)
   
@@ -611,152 +611,6 @@ const countCreepsByRole = (creeps) =>
   }, {});
 
 /**
- * Determine which role should be spawned next
- * Enforces minimum creep counts and reserves energy for emergency fighters
- * Pure function - no side effects
- * @param {Object} roster - Target roster {role: count}
- * @param {Object} currentCreeps - Current creep counts by role
- * @param {Object} roomStatus - Room status info
- * @param {Room} room - The room object
- * @param {Object} efficiencyMetrics - Energy collection efficiency metrics
- * @returns {string|null} Role to spawn or null if none needed
- */
-const determineSpawnRole = (roster, currentCreeps, roomStatus, room, efficiencyMetrics = null) => {
-  const hasHostiles = room && utils.areThereInvaders(room);
-  const emergencyReserve = getEmergencyReserve(roomStatus.energyCapacity);
-  
-  // PRIORITY 1: EMERGENCY - Spawn fighter if hostiles detected
-  // Fighters bypass energy reserve (use all available energy)
-  if (hasHostiles) {
-    const fighterCount = currentCreeps.fighter || 0;
-    const targetFighters = 2;
-    if (fighterCount < targetFighters) {
-      console.log(`⚔️ ALERT: Hostiles detected! Spawning emergency fighter (${fighterCount}/${targetFighters})`);
-      return "fighter";
-    }
-  }
-
-  const harvesterCount = currentCreeps.harvester || 0;
-  const minerCount = currentCreeps.miner || 0;
-  const builderCount = currentCreeps.builder || 0;
-  const upgraderCount = currentCreeps.upgrader || 0;
-
-  // PRIORITY 2: MINIMUM CREEPS - Always maintain core economy
-  // These spawn with lowered thresholds to prevent economy collapse
-  
-  // 2a: Must have at least 2 energy harvesters
-  if (harvesterCount < 2) {
-    return "harvester";
-  }
-  
-  // 2b: Must have at least 2 builders
-  if (builderCount < 2) {
-    return "builder";
-  }
-  
-  // 2c: Must have at least 1 upgraders
-  if (upgraderCount < 1) {
-    return "upgrader";
-  }
-
-  // PRIORITY 3: ROSTER FULFILLMENT - Spawn additional creeps based on roster
-  // Apply energy reserve for non-critical spawns (keep reserve for fighters)
-  const effectiveEnergy = hasHostiles ? 
-    roomStatus.energyAvailable :  // No reserve during attack (fighters already spawned)
-    Math.max(0, roomStatus.energyAvailable - emergencyReserve);
-  
-  const effectiveCapacity = Math.max(300, roomStatus.energyCapacity - emergencyReserve);
-
-  // Determine spawn threshold based on efficiency metrics
-  let spawnThreshold = 0.7; // Default - wait for 70% capacity
-  if (efficiencyMetrics) {
-    spawnThreshold = efficiencyMetrics.spawnThreshold;
-  }
-  
-  // Emergency override: if we have very few energy collectors, lower threshold
-  if (harvesterCount + minerCount < 3) {
-    spawnThreshold = Math.min(spawnThreshold, 0.3);
-  }
-
-  // Check energy conditions for non-critical spawning
-  const canSpawn = effectiveEnergy >= effectiveCapacity * spawnThreshold;
-
-  if (!canSpawn) {
-    return null;
-  }
-
-  // Spawn priority order: harvesters > miners > haulers > builders > upgraders > specialized
-  const priorityOrder = ['harvester', 'miner', 'hauler', 'builder', 'upgrader', 'mineralExtractor', 'chemist'];
-  
-  // First pass: check priority roles
-  for (const role of priorityOrder) {
-    if (roster[role]) {
-      const current = currentCreeps[role] || 0;
-      if (current < roster[role]) {
-        return role;
-      }
-    }
-  }
-  
-  // Second pass: any other roles in roster not in priority list
-  for (const role of Object.keys(roster)) {
-    if (!priorityOrder.includes(role)) {
-      const current = currentCreeps[role] || 0;
-      if (current < roster[role]) {
-        return role;
-      }
-    }
-  }
-
-  return null;
-};
-
-/**
- * Determine extra spawn when energy is full
- * Pure function - no side effects
- * @param {Object} currentCreeps - Current creep counts by role
- * @param {Object} roomStatus - Room status info
- * @returns {string|null} Extra role to spawn or null
- */
-const determineExtraSpawn = (currentCreeps, roomStatus) => {
-  if (roomStatus.energyAvailable !== roomStatus.energyCapacity) {
-    return null;
-  }
-
-  // Prioritize builders if there are unbuilt structures
-  if (roomStatus.constructionSiteCount > 0) {
-    return "builder";
-  }
-
-  const builderCount = currentCreeps.builder || 0;
-  const harvesterCount = currentCreeps.harvester || 0;
-  const upgraderCount = currentCreeps.upgrader || 0;
-
-  // Ensure at least 1 of each role
-  if (harvesterCount < 1) return "harvester";
-  if (builderCount < 1) return "builder";
-  if (upgraderCount < 1) return "upgrader";
-
-  // Balance: for each harvester, 0.7 builders and 0.5 upgraders
-  // Normalize counts by their ratio coefficients
-  const normalizedHarvester = harvesterCount / 1;
-  const normalizedBuilder = builderCount / 0.7;
-  const normalizedUpgrader = upgraderCount / 0.5;
-
-  // Spawn whichever role is most deficient
-  if (
-    normalizedHarvester <= normalizedBuilder &&
-    normalizedHarvester <= normalizedUpgrader
-  ) {
-    return "harvester";
-  }
-  if (normalizedBuilder <= normalizedUpgrader) {
-    return "builder";
-  }
-  return "upgrader";
-};
-
-/**
  * Generate a unique creep name
  * Pure function - no side effects
  * @param {string} role - Creep role
@@ -856,15 +710,7 @@ const spawnClaimer = (spawn) => {
  */
 const getBodyForRole = (role, rcl, energyAvailable, room, currentCreeps, roster, efficiencyMetrics = null) => {
   const tier = getRCLTier(rcl);
-  
-  // Check for invaders (for combat parts in early tiers)
-  const areInvaders = room ? utils.areThereInvaders(room) : false;
-  
-  // Determine if this is an emergency spawn (always allow minimum viable body)
-  const harvesterCount = currentCreeps.harvester || 0;
-  const minerCount = currentCreeps.miner || 0;
-  const isEmergencyHarvester = (role === "harvester" || role === "miner") && (harvesterCount + minerCount < 2);
-  
+
   switch (role) {
     case "harvester":
       // RCL 1-3 only
@@ -932,90 +778,110 @@ const findUnassignedSource = (room, existingMiners) => {
 };
 
 /**
- * Main spawn procedure - orchestrates all spawning logic
+ * Find the best role to spawn based on roster deficits
+ * @param {Object} roster - Target roster {role: count}
+ * @param {Object} currentCreeps - Current creep counts
+ * @returns {string|null} Role with biggest deficit or null
+ */
+const findBestRoleToSpawn = (roster, currentCreeps) => {
+  let bestRole = null;
+  let maxDeficit = 0;
+  
+  for (const [role, target] of Object.entries(roster)) {
+    const current = currentCreeps[role] || 0;
+    const deficit = target - current;
+    if (deficit > maxDeficit) {
+      maxDeficit = deficit;
+      bestRole = role;
+    }
+  }
+  
+  return bestRole;
+};
+
+/**
+ * Try to spawn a creep with the given role
+ * @param {StructureSpawn} spawn - The spawn structure
+ * @param {string} role - Role to spawn
+ * @param {Object} roomStatus - Room status
+ * @param {Room} room - The room object
+ * @returns {Object} Spawn result
+ */
+const trySpawn = (spawn, role, roomStatus, room) => {
+  const rcl = roomStatus.controllerLevel;
+  const body = getBodyForRole(role, rcl, roomStatus.energyAvailable, room, {}, {}, null);
+  
+  if (!body || calculateBodyCost(body) > roomStatus.energyAvailable) {
+    return { spawned: false, reason: "insufficient_energy" };
+  }
+  
+  // Extra memory for miners
+  let extraMemory = {};
+  if (role === "miner") {
+    const existingMiners = Object.values(Game.creeps).filter(c => c.memory.role === "miner");
+    const assignedSource = findUnassignedSource(room, existingMiners);
+    if (assignedSource) {
+      extraMemory.assignedSource = assignedSource;
+    }
+  }
+  
+  const result = executeSpawn(spawn, role, body, Game.time, extraMemory);
+  return { spawned: result === OK, role, result };
+};
+
+/**
+ * Main spawn procedure - simplified spawning logic
+ * Priority 1: Fighter (if hostiles) or minimum fleet (2 harvesters, 2 builders, 1 upgrader)
+ * Priority 2: Spawn from roster only if energy >= 80% capacity
  * @param {StructureSpawn} spawn - The spawn structure
  * @param {Object} roster - Target roster {role: count}
  * @param {Object} roomStatus - Current room status
- * @param {Object} efficiencyMetrics - Optional energy collection efficiency metrics
  * @returns {Object} Spawn result info
  */
-const spawnProcedure = (spawn, roster, roomStatus, efficiencyMetrics = null) => {
+const spawnProcedure = (spawn, roster, roomStatus) => {
   if (!spawn || spawn.spawning) {
-    displaySpawningVisual(spawn, efficiencyMetrics);
-    return {
-      spawned: false,
-      reason: spawn && spawn.spawning ? "busy" : "no_spawn",
-    };
+    displaySpawningVisual(spawn);
+    return { spawned: false, reason: spawn?.spawning ? "busy" : "no_spawn" };
   }
 
   const currentCreeps = countCreepsByRole(Game.creeps);
   const room = Game.rooms[roomStatus.roomName];
-  const rcl = roomStatus.controllerLevel;
+  const hasHostiles = room && utils.areThereInvaders(room);
 
-  // Try primary spawn based on roster (includes emergency fighter spawning)
-  const primaryRole = determineSpawnRole(roster, currentCreeps, roomStatus, room, efficiencyMetrics);
-  if (primaryRole) {
-    // Get appropriate body for role and RCL
-    const spawnBody = getBodyForRole(
-      primaryRole,
-      rcl,
-      roomStatus.energyAvailable,
-      room,
-      currentCreeps,
-      roster,
-      efficiencyMetrics
-    );
-    
-    if (!spawnBody) {
-      displaySpawningVisual(spawn, efficiencyMetrics);
-      return { spawned: false, reason: "insufficient_energy" };
-    }
-    
-    // Prepare extra memory for specific roles
-    let extraMemory = {};
-    if (primaryRole === "miner") {
-      // Assign source to miner
-      const existingMiners = Object.values(Game.creeps).filter(c => c.memory.role === "miner");
-      const assignedSource = findUnassignedSource(room, existingMiners);
-      if (assignedSource) {
-        extraMemory.assignedSource = assignedSource;
-      }
-    }
-    
-    const result = executeSpawn(spawn, primaryRole, spawnBody, Game.time, extraMemory);
-    displaySpawningVisual(spawn, efficiencyMetrics);
-    return { spawned: result === OK, role: primaryRole, result };
+  // PRIORITY 1: Emergency fighter if hostiles
+  if (hasHostiles && (currentCreeps.fighter || 0) < 2) {
+    console.log(`⚔️ ALERT: Hostiles detected! Spawning emergency fighter`);
+    const result = trySpawn(spawn, "fighter", roomStatus, room);
+    displaySpawningVisual(spawn);
+    return result;
   }
 
-  // Try extra spawn when energy is full
-  const extraRole = determineExtraSpawn(currentCreeps, roomStatus);
-  if (extraRole) {
-    console.log(
-      `Energy full: ${roomStatus.energyAvailable}/${roomStatus.energyCapacity} spawning extra ${extraRole} Creep`,
-    );
-
-    // Get appropriate body for role and RCL
-    const extraBody = getBodyForRole(
-      extraRole,
-      rcl,
-      roomStatus.energyAvailable,
-      room,
-      currentCreeps,
-      roster,
-      efficiencyMetrics
-    );
-    
-    if (!extraBody) {
-      displaySpawningVisual(spawn, efficiencyMetrics);
-      return { spawned: false, reason: "insufficient_energy" };
+  // PRIORITY 1: Minimum fleet
+  const minimumFleet = { harvester: 2, builder: 2, upgrader: 1 };
+  for (const [role, min] of Object.entries(minimumFleet)) {
+    if ((currentCreeps[role] || 0) < min) {
+      const result = trySpawn(spawn, role, roomStatus, room);
+      displaySpawningVisual(spawn);
+      return result;
     }
-
-    const result = executeSpawn(spawn, extraRole, extraBody, Game.time);
-    displaySpawningVisual(spawn, efficiencyMetrics);
-    return { spawned: result === OK, role: extraRole, result, extra: true };
   }
 
-  displaySpawningVisual(spawn, efficiencyMetrics);
+  // PRIORITY 2: Only spawn if energy >= 80% capacity
+  const energyRatio = roomStatus.energyAvailable / roomStatus.energyCapacity;
+  if (energyRatio < 0.8) {
+    displaySpawningVisual(spawn);
+    return { spawned: false, reason: "waiting_for_energy" };
+  }
+
+  // Find best role from roster (biggest deficit)
+  const bestRole = findBestRoleToSpawn(roster, currentCreeps);
+  if (bestRole) {
+    const result = trySpawn(spawn, bestRole, roomStatus, room);
+    displaySpawningVisual(spawn);
+    return result;
+  }
+
+  displaySpawningVisual(spawn);
   return { spawned: false, reason: "roster_full" };
 };
 
@@ -1110,13 +976,13 @@ module.exports = {
   // Helper functions
   findUnassignedSource,
   countCreepsByRole,
-  determineSpawnRole,
-  determineExtraSpawn,
+  findBestRoleToSpawn,
   generateCreepName,
 
   // Effectful functions
   executeSpawn,
   displaySpawningVisual,
+  trySpawn,
 
   // Main orchestrator
   spawnProcedure,
