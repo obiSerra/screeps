@@ -707,8 +707,11 @@ const getDefenderBody = (rcl, energyAvailable) => {
  * @param {Object} creeps - Game.creeps object
  * @returns {Object} Counts by role
  */
-const countCreepsByRole = (creeps) =>
+const countCreepsByRole = (creeps, roomName) =>
   Object.values(creeps).reduce((counts, creep) => {
+    if (creep.memory.spawnRoom !== roomName) {
+      return counts; // Skip creeps from other rooms
+    }
     const role = creep.memory.role;
     if (role) {
       counts[role] = (counts[role] || 0) + 1;
@@ -902,6 +905,9 @@ const findBestRoleToSpawn = (roster, currentCreeps) => {
   let bestRole = null;
   let maxDeficit = 0;
 
+  console.log(
+    `Current creep counts: ${JSON.stringify(currentCreeps)} - Roster targets: ${JSON.stringify(roster)}`,
+  );
   for (const [role, target] of Object.entries(roster)) {
     const current = currentCreeps[role] || 0;
     const deficit = target - current;
@@ -970,7 +976,7 @@ const spawnProcedure = (spawn, roster, roomStatus) => {
     };
   }
 
-  const currentCreeps = countCreepsByRole(Game.creeps);
+  const currentCreeps = countCreepsByRole(Game.creeps, roomStatus.roomName);
   const room = Game.rooms[roomStatus.roomName];
   const hasHostiles = room && utils.areThereInvaders(room);
 
@@ -1093,7 +1099,7 @@ const getClaimerBody = (rcl, energyAvailable) => {
   }
 
   // Claimer: [CLAIM, MOVE] sets
-  const bodySet = [CLAIM, MOVE]; // 650 per set
+  const bodySet = [CLAIM, WORK, CARRY, MOVE]; // 650 per set
   const additionalSet = [MOVE];
   const additionalSetCost = calculateBodyCost(additionalSet); // 50
   const setCost = calculateBodyCost(bodySet);
@@ -1106,7 +1112,7 @@ const getClaimerBody = (rcl, energyAvailable) => {
   let remainingEnergy = energyAvailable - setCost;
 
   // Add additional MOVE parts if we have energy (for better mobility)
-  while (remainingEnergy >= additionalSetCost && body.length < 50) {
+  while (remainingEnergy >= additionalSetCost && body.length < 10) {
     body.push(MOVE);
     remainingEnergy -= additionalSetCost;
   }

@@ -18,7 +18,6 @@ var roleClaimer = () => {
         creep.moveTo(claimFlag, { visualizePathStyle: { stroke: "#ffffff" } });
         return;
       } else {
-        console.log(`Creep ${creep.name} is in the target room ${creep.room.name}`);
         if (creep.claimController(creep.room.controller) === ERR_NOT_IN_RANGE) {
           creep.moveTo(creep.room.controller, {
             visualizePathStyle: { stroke: "#ffffff" },

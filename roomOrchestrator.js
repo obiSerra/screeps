@@ -196,6 +196,7 @@ const calculateRoster = (roomStatus, efficiencyMetrics = null) => {
   roster.mineralExtractor = 1;
   roster.chemist = 1;
   
+  console.log(`[ROSTER] Calculated roster for room ${roomStatus.roomName} at RCL ${rcl}:`, roster);
   return roster;
 };
 
