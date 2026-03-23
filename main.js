@@ -194,7 +194,7 @@ global.spawnMetrics = function(roomName) {
       console.log(`  • Time to Fill: ${metrics.timeToFillCapacity.toFixed(0)} ticks`);
       console.log(`  • Spawn Threshold: ${(metrics.spawnThreshold * 100).toFixed(0)}%`);
       
-      const currentCreeps = spawner.countCreepsByRole(Game.creeps);
+      const currentCreeps = spawner.countCreepsByRole(Game.creeps, name);
       console.log(`\n👥 CURRENT CREEPS:`);
       Object.keys(currentCreeps).forEach(role => {
         console.log(`  • ${role}: ${currentCreeps[role]}`);
@@ -216,7 +216,7 @@ global.spawnMetrics = function(roomName) {
     console.log(`  • Time to Fill: ${metrics.timeToFillCapacity.toFixed(0)} ticks`);
     console.log(`  • Spawn Threshold: ${(metrics.spawnThreshold * 100).toFixed(0)}%`);
     
-    const currentCreeps = spawner.countCreepsByRole(Game.creeps);
+    const currentCreeps = spawner.countCreepsByRole(Game.creeps, roomName);
     console.log(`\n👥 CURRENT CREEPS:`);
     Object.keys(currentCreeps).forEach(role => {
       console.log(`  • ${role}: ${currentCreeps[role]}`);

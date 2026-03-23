@@ -88,7 +88,7 @@ const getRoomStatus = (room) => {
   ).length;
 
   // Count creeps by role
-  const creeps = spawner.countCreepsByRole(Game.creeps);
+  const creeps = spawner.countCreepsByRole(Game.creeps, room.name);
 
   // Count construction sites
   const constructionSites = room.find(FIND_CONSTRUCTION_SITES);
