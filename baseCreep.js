@@ -698,6 +698,16 @@ const clearCreepAction = (creep) => {
  * @returns {Object|null} { id, pos } of selected source or null if none available
  */
 const selectGatheringTarget = (creep) => {
+  // Priority 0: Check for dropped energy first (before it decays)
+  const droppedEnergy = creep.room.find(FIND_DROPPED_RESOURCES, {
+    filter: (r) => r.resourceType === RESOURCE_ENERGY && r.amount > 50,
+  });
+
+  if (droppedEnergy.length > 0) {
+    const sorted = sortByContention(creep, droppedEnergy, false);
+    return { id: sorted[0].id, pos: sorted[0].pos };
+  }
+
   // Upgraders preferentially pick energy from controller link, then storage
   if (creep.memory.role === "upgrader") {
     // First priority: Check for controller link with energy
@@ -733,11 +743,22 @@ const selectGatheringTarget = (creep) => {
 
 /**
  * Select the best container for transporter gathering
- * Pure function - finds containers at 50%+ capacity
+ * Pure function - finds dropped resources first, then containers at 50%+ capacity
  * @param {Creep} creep
- * @returns {Object|null} { id, pos } of selected container or null
+ * @returns {Object|null} { id, pos } of selected resource or container or null
  */
 const selectTransporterGatheringTarget = (creep) => {
+  // Priority 1: Check for dropped energy first (before it decays)
+  const droppedEnergy = creep.room.find(FIND_DROPPED_RESOURCES, {
+    filter: (r) => r.resourceType === RESOURCE_ENERGY && r.amount > 50,
+  });
+
+  if (droppedEnergy.length > 0) {
+    const sorted = sortByContention(creep, droppedEnergy, false);
+    return { id: sorted[0].id, pos: sorted[0].pos };
+  }
+
+  // Priority 2: Containers at 50%+ capacity
   const containers = creep.room.find(FIND_STRUCTURES, {
     filter: (s) =>
       s.structureType === STRUCTURE_CONTAINER &&
@@ -785,10 +806,28 @@ const handleGathering = (creep) => {
     return;
   }
 
+  // Check if the target is a dropped resource
+  const isDroppedResource = source instanceof Resource;
+
   // Check if the target is a container or storage
   const isContainer =
     source.structureType === STRUCTURE_CONTAINER ||
-    source.structureType === STRUCTURE_STORAGE;
+    source.structureType === STRUCTURE_STORAGE ||
+    source.structureType === STRUCTURE_LINK;
+
+  if (isDroppedResource) {
+    // Pickup dropped resource
+    const result = creep.pickup(source);
+    if (result === ERR_NOT_IN_RANGE) {
+      moveToTarget(creep, source, PATH_COLORS.gathering);
+    } else if (result === OK || result === ERR_FULL) {
+      clearCreepAction(creep);
+    } else {
+      // Resource no longer available or error
+      clearCreepAction(creep);
+    }
+    return;
+  }
 
   // Check if source is empty
   const isEmpty = isContainer
