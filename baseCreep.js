@@ -49,6 +49,20 @@ const PATH_COLORS = {
   deconstructing: "#ff6600",
 };
 
+const ACTION_BODY_REQUIREMENTS = {
+  building: [WORK],
+  repairing: [WORK],
+  upgrading: [WORK],
+  mining: [WORK],
+  deconstructing: [WORK],
+  gathering: [CARRY],
+  harvesting: [CARRY],
+  transporting: [CARRY],
+  hauling: [CARRY],
+  delivering: [CARRY],
+  attacking: [ATTACK, RANGED_ATTACK], // Requires at least one
+};
+
 // ============================================================================
 // Pure Functions - Creep Analysis
 // ============================================================================
@@ -63,6 +77,27 @@ const isFighter = (creep) =>
   creep.body.some(
     (part) => part.type === ATTACK || part.type === RANGED_ATTACK,
   );
+
+/**
+ * Check if creep can perform a specific action based on body parts
+ * Pure function
+ * @param {Creep} creep
+ * @param {string} action - Action name to validate
+ * @returns {boolean} True if creep has required body parts for action
+ */
+const canPerformAction = (creep, action) => {
+  const requiredParts = ACTION_BODY_REQUIREMENTS[action];
+  
+  // If action has no requirements defined, allow it (permissive default)
+  if (!requiredParts || requiredParts.length === 0) {
+    return true;
+  }
+  
+  // Check if creep has at least ONE of the required parts
+  return requiredParts.some((requiredPart) =>
+    creep.body.some((bodyPart) => bodyPart.type === requiredPart)
+  );
+};
 
 // ============================================================================
 // Pure Functions - Target Finding & Sorting
@@ -445,17 +480,17 @@ const getActionAvailability = (creep) => {
   const hasDeconstructTarget = deconstructTarget !== null;
 
   return {
-    repairCritical: criticalRepairs.length > 0,
-    building: constructionSites.length > 0,
-    repairing: repairTargets.length > 0,
-    harvesting: energyAvailable < energyCapacity,
-    transporting: storage && containersWithEnergy.length > 0,
-    mining: hasMiningTarget,
+    repairCritical: criticalRepairs.length > 0 && canPerformAction(creep, "repairing"),
+    building: constructionSites.length > 0 && canPerformAction(creep, "building"),
+    repairing: repairTargets.length > 0 && canPerformAction(creep, "repairing"),
+    harvesting: energyAvailable < energyCapacity && canPerformAction(creep, "harvesting"),
+    transporting: storage && containersWithEnergy.length > 0 && canPerformAction(creep, "transporting"),
+    mining: hasMiningTarget && canPerformAction(creep, "mining"),
     hauling:
-      hasHaulingTarget && creep.store.getFreeCapacity(RESOURCE_ENERGY) > 0,
-    delivering: hasDeliveryTarget && creep.store[RESOURCE_ENERGY] > 0,
-    deconstructing: hasDeconstructTarget,
-    upgrading: true, // Always available as fallback
+      hasHaulingTarget && creep.store.getFreeCapacity(RESOURCE_ENERGY) > 0 && canPerformAction(creep, "hauling"),
+    delivering: hasDeliveryTarget && creep.store[RESOURCE_ENERGY] > 0 && canPerformAction(creep, "delivering"),
+    deconstructing: hasDeconstructTarget && canPerformAction(creep, "deconstructing"),
+    upgrading: canPerformAction(creep, "upgrading"), // Fallback action - requires WORK
     // Include targets for immediate use
     targets: {
       criticalRepairs,
@@ -1525,6 +1560,7 @@ module.exports = {
   STRUCTURE_MIN_HEALTH_PERCENT,
   ACTION_ICONS,
   PATH_COLORS,
+  ACTION_BODY_REQUIREMENTS,
 
   // Pure functions - target finding
   findWallsNeedingRepair,
@@ -1536,6 +1572,7 @@ module.exports = {
   findDeconstructTarget,
   isWorker,
   isFighter,
+  canPerformAction,
   // Pure functions - sorting
   calculateRepairScore,
   countCreepsTargeting,

@@ -896,28 +896,46 @@ const findUnassignedSource = (room, existingMiners) => {
 };
 
 /**
- * Find the best role to spawn based on roster deficits
+ * Find the best role to spawn based on roster deficits and priority order
  * @param {Object} roster - Target roster {role: count}
  * @param {Object} currentCreeps - Current creep counts
- * @returns {string|null} Role with biggest deficit or null
+ * @returns {string|null} Role to spawn (priority-based) or null
  */
 const findBestRoleToSpawn = (roster, currentCreeps) => {
-  let bestRole = null;
-  let maxDeficit = 0;
-
   console.log(
     `Current creep counts: ${JSON.stringify(currentCreeps)} - Roster targets: ${JSON.stringify(roster)}`,
   );
-  for (const [role, target] of Object.entries(roster)) {
-    const current = currentCreeps[role] || 0;
-    const deficit = target - current;
-    if (deficit > maxDeficit) {
-      maxDeficit = deficit;
-      bestRole = role;
+
+  const rosterPriority = [
+    "harvester",
+    "miner",
+    "hauler",
+    "upgrader",
+    "builder",
+  ];
+
+  // Check priority roles first (in order)
+  for (const role of rosterPriority) {
+    if (roster[role]) {
+      const current = currentCreeps[role] || 0;
+      const target = roster[role];
+      if (target > current) {
+        return role;
+      }
     }
   }
 
-  return bestRole;
+  // Check remaining roles not in priority list
+  for (const [role, target] of Object.entries(roster)) {
+    if (!rosterPriority.includes(role)) {
+      const current = currentCreeps[role] || 0;
+      if (target > current) {
+        return role;
+      }
+    }
+  }
+
+  return null;
 };
 
 /**
