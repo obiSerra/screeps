@@ -18,11 +18,11 @@ const calculateBodyCost = (body) =>
 const getEmergencyReserve = (energyCapacity) => {
   // Can't reserve if capacity is too low
   if (energyCapacity < 500) return 0;
-  
+
   // Scale reserve based on capacity tiers
-  if (energyCapacity < 1500) return 300;  // Basic fighter (1 set)
-  if (energyCapacity < 2500) return 500;  // Medium fighter (2 sets)
-  return 800;                              // Full fighter (3+ sets)
+  if (energyCapacity < 1500) return 300; // Basic fighter (1 set)
+  if (energyCapacity < 2500) return 500; // Medium fighter (2 sets)
+  return 800; // Full fighter (3+ sets)
 };
 
 /**
@@ -36,56 +36,67 @@ const getEmergencyReserve = (energyCapacity) => {
  * @param {number} rcl - Room Control Level (optional, used for additional scaling)
  * @returns {number} Number of body sets to build
  */
-const getAdaptiveSetCount = (efficiencyMetrics, energyAvailable, setCost, maxSets, isEmergency = false, rcl = 1) => {
+const getAdaptiveSetCount = (
+  efficiencyMetrics,
+  energyAvailable,
+  setCost,
+  maxSets,
+  isEmergency = false,
+  rcl = 1,
+) => {
   const maxAffordable = Math.floor(energyAvailable / setCost);
-  
+
   if (maxAffordable < 1) {
     return 0;
   }
-  
+
   // Emergency spawns (e.g., first harvester) always get at least 1 set
   if (isEmergency) {
     return Math.min(maxAffordable, maxSets);
   }
-  
+
   // Calculate RCL multiplier: higher RCL = bigger creeps
   // RCL 1-3: 1x, RCL 4-5: 1.5x, RCL 6-7: 2x, RCL 8: 2.5x
   let rclMultiplier = 1;
   if (rcl >= 8) rclMultiplier = 2.5;
   else if (rcl >= 6) rclMultiplier = 2;
   else if (rcl >= 4) rclMultiplier = 1.5;
-  
+
   // If no metrics provided, use conservative sizing with RCL factor
   if (!efficiencyMetrics) {
     const baseTarget = Math.max(1, Math.floor(maxAffordable / 2));
-    return Math.min(Math.floor(baseTarget * rclMultiplier), maxSets, maxAffordable);
+    return Math.min(
+      Math.floor(baseTarget * rclMultiplier),
+      maxSets,
+      maxAffordable,
+    );
   }
-  
+
   // Determine base target sets based on efficiency tier
   let baseSets;
   const tier = efficiencyMetrics.efficiencyTier;
-  
+
   switch (tier) {
-    case 'bootstrapping':
+    case "bootstrapping":
       // Start small: 1-2 sets
       baseSets = 2;
       break;
-    case 'developing':
+    case "developing":
       // Medium: 2-4 sets
       baseSets = 4;
       break;
-    case 'established':
+    case "established":
       // Large: 4-8 sets
       baseSets = 8;
       break;
-    case 'optimized':
+    case "optimized":
       // Maximum affordable
       baseSets = maxAffordable;
       break;
     default:
       baseSets = 2;
   }
-  
+
   // Apply RCL multiplier and cap at maximum
   const targetSets = Math.floor(baseSets * rclMultiplier);
   return Math.min(targetSets, maxSets, maxAffordable);
@@ -100,12 +111,17 @@ const getAdaptiveSetCount = (efficiencyMetrics, energyAvailable, setCost, maxSet
  * @param {Object} targetRoster - Target roster counts
  * @returns {Array} Body parts array
  */
-const getWorkerCreepBody = (energyAvailable, room, currentCreeps = {}, targetRoster = {}) => {
+const getWorkerCreepBody = (
+  energyAvailable,
+  room,
+  currentCreeps = {},
+  targetRoster = {},
+) => {
   const bodyList = [
     [WORK, WORK, WORK, CARRY, CARRY, CARRY, MOVE, MOVE, MOVE], // 800
-    [WORK, WORK, WORK, CARRY, CARRY, MOVE, MOVE, MOVE],        // 650
-    [WORK, WORK, CARRY, MOVE, MOVE],                           // 400
-    [WORK, CARRY, MOVE],                                        // 200
+    [WORK, WORK, WORK, CARRY, CARRY, MOVE, MOVE, MOVE], // 650
+    [WORK, WORK, CARRY, MOVE, MOVE], // 400
+    [WORK, CARRY, MOVE], // 200
   ];
 
   const areInvaders = room ? utils.areThereInvaders(room) : false;
@@ -171,16 +187,17 @@ const getWorkerCreepBody = (energyAvailable, room, currentCreeps = {}, targetRos
  * @returns {Array} Body parts array
  */
 const getTransporterBody = (energyAvailable) => {
-  const setcost = BODYPART_COST[WORK] + BODYPART_COST[CARRY] + BODYPART_COST[MOVE]; // 100 + 50 + 50 = 200
+  const setcost =
+    BODYPART_COST[WORK] + BODYPART_COST[CARRY] + BODYPART_COST[MOVE]; // 100 + 50 + 50 = 200
   const maxSets = Math.floor(energyAvailable / setcost);
-  
+
   if (maxSets < 1) {
     return undefined;
   }
-  
+
   // Cap at 16 sets to stay under 50 body parts limit (16 * 3 = 48)
   const sets = Math.min(maxSets, 16);
-  
+
   const body = [];
   for (let i = 0; i < sets; i++) {
     body.push(WORK);
@@ -191,7 +208,7 @@ const getTransporterBody = (energyAvailable) => {
   for (let i = 0; i < sets; i++) {
     body.push(MOVE);
   }
-  
+
   return body;
 };
 
@@ -204,14 +221,14 @@ const getTransporterBody = (energyAvailable) => {
  */
 const getFighterCreepBody = (energyAvailable) => {
   const carryCost = BODYPART_COST[CARRY]; // 50
-  
+
   // Reserve energy for 1 CARRY part
   let remainingEnergy = energyAvailable - carryCost;
-  
+
   if (remainingEnergy < 0) {
     return undefined; // Not enough energy
   }
-  
+
   // Fighter set: [TOUGH×3, RANGED_ATTACK, MOVE]
   // Cost: 3*10 + 150 + 50 = 230 per set
   const bodySet = [TOUGH, TOUGH, TOUGH, RANGED_ATTACK, MOVE];
@@ -257,29 +274,29 @@ const getFighterCreepBody = (energyAvailable) => {
  * @returns {Array} Body parts array
  */
 const getExplorerBody = (rcl, energyAvailable) => {
-  const claimCost = BODYPART_COST[CLAIM];          // 600
+  const claimCost = BODYPART_COST[CLAIM]; // 600
   const rangedCost = BODYPART_COST[RANGED_ATTACK]; // 150
-  const moveCost = BODYPART_COST[MOVE];            // 50
-  const toughCost = BODYPART_COST[TOUGH];          // 10
+  const moveCost = BODYPART_COST[MOVE]; // 50
+  const toughCost = BODYPART_COST[TOUGH]; // 10
 
   // Minimum: 1 CLAIM + 1 RANGED_ATTACK + 1 MOVE = 800 energy
   const minEnergy = claimCost + rangedCost + moveCost;
-  
+
   if (energyAvailable < minEnergy) {
     return undefined; // Not enough energy for explorer
   }
 
   // Start with required parts
   let remainingEnergy = energyAvailable - minEnergy;
-  
+
   // Build body: TOUGH first (takes damage), then CLAIM, RANGED_ATTACK, then MOVE
   const body = [];
-  
+
   // Add MOVE + TOUGH pairs, prioritizing MOVE for speed (2 MOVE per 1 TOUGH)
   // Alternate: MOVE, MOVE, TOUGH pattern for 2:1 ratio
   let moveCount = 1; // Already have 1 from minimum
   let toughCount = 0;
-  
+
   while (remainingEnergy > 0) {
     // Try to add 2 MOVE + 1 TOUGH (110 energy)
     if (remainingEnergy >= moveCost * 2 + toughCost) {
@@ -296,18 +313,17 @@ const getExplorerBody = (rcl, energyAvailable) => {
     else if (remainingEnergy >= toughCost) {
       toughCount += 1;
       remainingEnergy -= toughCost;
-    }
-    else {
+    } else {
       break; // Not enough energy for any more parts
     }
   }
-  
+
   // Assemble body in optimal order
   for (let i = 0; i < toughCount; i++) body.push(TOUGH);
   body.push(CLAIM);
   body.push(RANGED_ATTACK);
   for (let i = 0; i < moveCount; i++) body.push(MOVE);
-  
+
   return body;
 };
 
@@ -336,18 +352,25 @@ const getGeneralistBody = (rcl, energyAvailable, efficiencyMetrics = null) => {
   const bodySet = [WORK, CARRY, MOVE]; // 200 per set
   const setCost = calculateBodyCost(bodySet);
   const maxSets = 16; // Cap at 16 sets to stay under 50 body parts limit (16 * 3 = 48)
-  
-  const sets = getAdaptiveSetCount(efficiencyMetrics, energyAvailable, setCost, maxSets, false, rcl);
-  
+
+  const sets = getAdaptiveSetCount(
+    efficiencyMetrics,
+    energyAvailable,
+    setCost,
+    maxSets,
+    false,
+    rcl,
+  );
+
   if (sets < 1) {
     return undefined;
   }
-  
+
   const body = [];
   for (let i = 0; i < sets; i++) body.push(WORK);
   for (let i = 0; i < sets; i++) body.push(CARRY);
   for (let i = 0; i < sets; i++) body.push(MOVE);
-  
+
   return body;
 };
 
@@ -361,37 +384,47 @@ const getGeneralistBody = (rcl, energyAvailable, efficiencyMetrics = null) => {
  */
 const getMinerBody = (rcl, energyAvailable, efficiencyMetrics = null) => {
   const tier = getRCLTier(rcl);
-  
+
   if (tier === "early") {
     // RCL 1-3: Should not use miners yet, return generalist
     return getGeneralistBody(rcl, energyAvailable, efficiencyMetrics);
   }
-  
+
   // Miner: [WORK, WORK, MOVE] sets, capped at 5 WORK parts total
   // Max source output is 10 energy/tick with 5 WORK parts (5 * 2 = 10)
   const bodySet = [WORK, WORK, MOVE]; // 250 per set
   const setCost = calculateBodyCost(bodySet);
   const maxSets = 2; // Cap at 2 sets = 4 WORK (with potential for 5th WORK)
-  
-  const sets = getAdaptiveSetCount(efficiencyMetrics, energyAvailable, setCost, maxSets, false, rcl);
-  
+
+  const sets = getAdaptiveSetCount(
+    efficiencyMetrics,
+    energyAvailable,
+    setCost,
+    maxSets,
+    false,
+    rcl,
+  );
+
   if (sets < 1) {
     return undefined;
   }
-  
+
   const body = [];
   for (let i = 0; i < sets; i++) body.push(WORK);
   for (let i = 0; i < sets; i++) body.push(WORK);
   for (let i = 0; i < sets; i++) body.push(MOVE);
-  
+
   // Try to add one more WORK if we have room (reaching 5 WORK total)
   const currentCost = calculateBodyCost(body);
   const remainingEnergy = energyAvailable - currentCost;
-  if (sets === 2 && remainingEnergy >= BODYPART_COST[WORK] + BODYPART_COST[MOVE]) {
+  if (
+    sets === 2 &&
+    remainingEnergy >= BODYPART_COST[WORK] + BODYPART_COST[MOVE]
+  ) {
     body.unshift(WORK); // Add WORK at front
-    body.push(MOVE);     // Add MOVE at end
+    body.push(MOVE); // Add MOVE at end
   }
-  
+
   return body;
 };
 
@@ -405,28 +438,35 @@ const getMinerBody = (rcl, energyAvailable, efficiencyMetrics = null) => {
  */
 const getHaulerBody = (rcl, energyAvailable, efficiencyMetrics = null) => {
   const tier = getRCLTier(rcl);
-  
+
   if (tier === "early") {
     // RCL 1-3: Should not use haulers yet, return generalist
     return getGeneralistBody(rcl, energyAvailable, efficiencyMetrics);
   }
-  
+
   // Haulers need 1 MOVE per 2 CARRY on roads
   // Build as many [CARRY×2, MOVE] sets as possible
   const setCost = BODYPART_COST[CARRY] * 2 + BODYPART_COST[MOVE]; // 150 per set
-  
+
   // Cap based on tier
   let maxSets = 16; // 48 parts max (just under 50 limit)
   if (tier === "mid") {
     maxSets = 8; // Medium haulers for RCL 4-7
   }
-  
-  const sets = getAdaptiveSetCount(efficiencyMetrics, energyAvailable, setCost, maxSets, false, rcl);
-  
+
+  const sets = getAdaptiveSetCount(
+    efficiencyMetrics,
+    energyAvailable,
+    setCost,
+    maxSets,
+    false,
+    rcl,
+  );
+
   if (sets < 1) {
     return undefined;
   }
-  
+
   const body = [];
   // Add all CARRY parts first
   for (let i = 0; i < sets * 2; i++) {
@@ -436,7 +476,7 @@ const getHaulerBody = (rcl, energyAvailable, efficiencyMetrics = null) => {
   for (let i = 0; i < sets; i++) {
     body.push(MOVE);
   }
-  
+
   return body;
 };
 
@@ -450,48 +490,62 @@ const getHaulerBody = (rcl, energyAvailable, efficiencyMetrics = null) => {
  */
 const getUpgraderBody = (rcl, energyAvailable, efficiencyMetrics = null) => {
   const tier = getRCLTier(rcl);
-  
+
   if (tier === "early") {
     // RCL 1-3: Use generalist body
     return getGeneralistBody(rcl, energyAvailable, efficiencyMetrics);
   }
-  
+
   if (tier === "late") {
     // RCL 8+: Giant upgrader - [WORK×3, CARRY, MOVE, MOVE] sets
     const bodySet = [WORK, WORK, WORK, CARRY, MOVE, MOVE]; // 700 per set
     const setCost = calculateBodyCost(bodySet);
     const maxSets = 8; // Cap at 8 sets to stay under 50 body parts (8 * 6 = 48)
-    
-    const sets = getAdaptiveSetCount(efficiencyMetrics, energyAvailable, setCost, maxSets, false, rcl);
-    
+
+    const sets = getAdaptiveSetCount(
+      efficiencyMetrics,
+      energyAvailable,
+      setCost,
+      maxSets,
+      false,
+      rcl,
+    );
+
     if (sets < 1) {
       return undefined;
     }
-    
+
     const body = [];
     for (let i = 0; i < sets * 3; i++) body.push(WORK);
     for (let i = 0; i < sets; i++) body.push(CARRY);
     for (let i = 0; i < sets * 2; i++) body.push(MOVE);
-    
+
     return body;
   }
-  
+
   // RCL 4-7: Medium upgrader - [WORK×2, CARRY, MOVE, MOVE] sets
   const bodySet = [WORK, CARRY, MOVE]; // 500 per set
   const setCost = calculateBodyCost(bodySet);
   const maxSets = 10; // Cap at 10 sets to stay under 50 body parts (10 * 5 = 50)
-  
-  const sets = getAdaptiveSetCount(efficiencyMetrics, energyAvailable, setCost, maxSets, false, rcl);
-  
+
+  const sets = getAdaptiveSetCount(
+    efficiencyMetrics,
+    energyAvailable,
+    setCost,
+    maxSets,
+    false,
+    rcl,
+  );
+
   if (sets < 1) {
     return undefined;
   }
-  
+
   const body = [];
   for (let i = 0; i < sets * 2; i++) body.push(WORK);
   for (let i = 0; i < sets; i++) body.push(CARRY);
   for (let i = 0; i < sets * 2; i++) body.push(MOVE);
-  
+
   return body;
 };
 
@@ -505,28 +559,35 @@ const getUpgraderBody = (rcl, energyAvailable, efficiencyMetrics = null) => {
  */
 const getBuilderBody = (rcl, energyAvailable, efficiencyMetrics = null) => {
   const tier = getRCLTier(rcl);
-  
+
   if (tier === "early") {
     // RCL 1-3: Use generalist body
     return getGeneralistBody(rcl, energyAvailable, efficiencyMetrics);
   }
-  
+
   // RCL 4+: Builder - [WORK, CARRY, CARRY, MOVE, MOVE] sets
   const bodySet = [WORK, CARRY, CARRY, MOVE, MOVE]; // 350 per set
   const setCost = calculateBodyCost(bodySet);
   const maxSets = 10; // Cap at 10 sets to stay under 50 body parts (10 * 5 = 50)
-  
-  const sets = getAdaptiveSetCount(efficiencyMetrics, energyAvailable, setCost, maxSets, false, rcl);
-  
+
+  const sets = getAdaptiveSetCount(
+    efficiencyMetrics,
+    energyAvailable,
+    setCost,
+    maxSets,
+    false,
+    rcl,
+  );
+
   if (sets < 1) {
     return undefined;
   }
-  
+
   const body = [];
   for (let i = 0; i < sets; i++) body.push(WORK);
   for (let i = 0; i < sets * 2; i++) body.push(CARRY);
   for (let i = 0; i < sets * 2; i++) body.push(MOVE);
-  
+
   return body;
 };
 
@@ -539,59 +600,104 @@ const getBuilderBody = (rcl, energyAvailable, efficiencyMetrics = null) => {
  */
 const getDefenderBody = (rcl, energyAvailable) => {
   const tier = getRCLTier(rcl);
-  
+
   if (tier === "early") {
     // RCL 1-3: Small, cheap defenders
     // [TOUGH, ATTACK, MOVE] × N sets
-    const setcost = BODYPART_COST[TOUGH] + BODYPART_COST[ATTACK] + BODYPART_COST[MOVE]; // 140
+    const setcost =
+      BODYPART_COST[TOUGH] + BODYPART_COST[ATTACK] + BODYPART_COST[MOVE]; // 140
     const maxSets = Math.floor(energyAvailable / setcost);
-    
+
     if (maxSets < 1) {
       return undefined;
     }
-    
+
     const sets = Math.min(maxSets, 3); // Cap at 3 sets for early game
     const body = [];
-    
+
     for (let i = 0; i < sets; i++) body.push(TOUGH);
     for (let i = 0; i < sets; i++) body.push(ATTACK);
     for (let i = 0; i < sets; i++) body.push(MOVE);
-    
+
     return body;
   }
-  
+
   if (tier === "late") {
     // RCL 8+: Giant tank
     const giantBody = [
-      TOUGH, TOUGH, TOUGH, TOUGH, TOUGH, TOUGH, TOUGH, TOUGH, TOUGH, TOUGH, // 10 TOUGH
-      ATTACK, ATTACK, ATTACK, ATTACK, ATTACK, ATTACK, ATTACK, ATTACK, ATTACK, ATTACK, // 10 ATTACK
-      RANGED_ATTACK, RANGED_ATTACK, RANGED_ATTACK, RANGED_ATTACK, RANGED_ATTACK, // 5 RANGED_ATTACK
-      MOVE, MOVE, MOVE, MOVE, MOVE, MOVE, MOVE, MOVE, MOVE, MOVE,
-      MOVE, MOVE, MOVE, MOVE, MOVE, MOVE, MOVE, MOVE, MOVE, MOVE,
-      MOVE, MOVE, MOVE, MOVE, MOVE // 25 MOVE
+      TOUGH,
+      TOUGH,
+      TOUGH,
+      TOUGH,
+      TOUGH,
+      TOUGH,
+      TOUGH,
+      TOUGH,
+      TOUGH,
+      TOUGH, // 10 TOUGH
+      ATTACK,
+      ATTACK,
+      ATTACK,
+      ATTACK,
+      ATTACK,
+      ATTACK,
+      ATTACK,
+      ATTACK,
+      ATTACK,
+      ATTACK, // 10 ATTACK
+      RANGED_ATTACK,
+      RANGED_ATTACK,
+      RANGED_ATTACK,
+      RANGED_ATTACK,
+      RANGED_ATTACK, // 5 RANGED_ATTACK
+      MOVE,
+      MOVE,
+      MOVE,
+      MOVE,
+      MOVE,
+      MOVE,
+      MOVE,
+      MOVE,
+      MOVE,
+      MOVE,
+      MOVE,
+      MOVE,
+      MOVE,
+      MOVE,
+      MOVE,
+      MOVE,
+      MOVE,
+      MOVE,
+      MOVE,
+      MOVE,
+      MOVE,
+      MOVE,
+      MOVE,
+      MOVE,
+      MOVE, // 25 MOVE
     ]; // 100 + 800 + 750 + 1250 = 2900
-    
+
     if (energyAvailable >= calculateBodyCost(giantBody)) {
       return giantBody;
     }
-    
+
     // Fallback to medium
   }
-  
+
   // RCL 4-7: Medium defender
   const bodyList = [
     [TOUGH, TOUGH, ATTACK, ATTACK, RANGED_ATTACK, MOVE, MOVE, MOVE, MOVE, MOVE], // 730
-    [TOUGH, ATTACK, ATTACK, MOVE, MOVE, MOVE],                                     // 340
-    [TOUGH, ATTACK, MOVE],                                                         // 140
+    [TOUGH, ATTACK, ATTACK, MOVE, MOVE, MOVE], // 340
+    [TOUGH, ATTACK, MOVE], // 140
   ];
-  
+
   for (const body of bodyList) {
     const cost = calculateBodyCost(body);
     if (energyAvailable >= cost) {
       return [...body];
     }
   }
-  
+
   return undefined;
 };
 
@@ -633,14 +739,14 @@ const generateCreepName = (role, gameTime) =>
 const executeSpawn = (spawn, role, body, gameTime, extraMemory = {}) => {
   const name = generateCreepName(role, gameTime);
   console.log(`Spawning new ${role}: ${name}`);
-  const memory = { 
-    role, 
+  const memory = {
+    role,
     spawnTick: gameTime,
     spawnRoom: spawn.room.name,
-    ...extraMemory 
+    ...extraMemory,
   };
   const result = spawn.spawnCreep(body, name, { memory });
-  
+
   // Track spawn statistics
   if (result === OK) {
     const energyCost = calculateBodyCost(body);
@@ -648,7 +754,7 @@ const executeSpawn = (spawn, role, body, gameTime, extraMemory = {}) => {
   } else if (result === ERR_NOT_ENOUGH_ENERGY) {
     stats.recordSpawnFailure(spawn.room.name);
   }
-  
+
   return result;
 };
 
@@ -663,18 +769,18 @@ const displaySpawningVisual = (spawn, efficiencyMetrics = null) => {
     // Display efficiency tier when not spawning
     if (efficiencyMetrics) {
       const tierEmoji = {
-        'bootstrapping': '🌱',
-        'developing': '🌿',
-        'established': '🌳',
-        'optimized': '⚡'
+        bootstrapping: "🌱",
+        developing: "🌿",
+        established: "🌳",
+        optimized: "⚡",
       };
-      const emoji = tierEmoji[efficiencyMetrics.efficiencyTier] || '❓';
+      const emoji = tierEmoji[efficiencyMetrics.efficiencyTier] || "❓";
       const rate = efficiencyMetrics.energyCollectionRate.toFixed(1);
       spawn.room.visual.text(
         `${emoji} ${rate}/t`,
         spawn.pos.x + 1,
         spawn.pos.y,
-        { align: "left", opacity: 0.6, font: 0.4 }
+        { align: "left", opacity: 0.6, font: 0.4 },
       );
     }
     return;
@@ -691,11 +797,6 @@ const displaySpawningVisual = (spawn, efficiencyMetrics = null) => {
   }
 };
 
-const spawnClaimer = (spawn) => {
-  const body = [MOVE, MOVE, CLAIM];
-  executeSpawn(spawn, "claimer", body, Game.time);
-};
-
 /**
  * Get appropriate body for a role based on RCL
  * Pure function - no side effects
@@ -708,51 +809,61 @@ const spawnClaimer = (spawn) => {
  * @param {Object} efficiencyMetrics - Optional efficiency metrics for adaptive sizing
  * @returns {Array} Body parts array
  */
-const getBodyForRole = (role, rcl, energyAvailable, room, currentCreeps, roster, efficiencyMetrics = null) => {
+const getBodyForRole = (
+  role,
+  rcl,
+  energyAvailable,
+  room,
+  efficiencyMetrics = null,
+) => {
   const tier = getRCLTier(rcl);
 
   switch (role) {
     case "harvester":
       // RCL 1-3 only
       return getGeneralistBody(rcl, energyAvailable, efficiencyMetrics);
-    
+
     case "upgrader":
       return getUpgraderBody(rcl, energyAvailable, efficiencyMetrics);
-    
+
     case "builder":
       return getBuilderBody(rcl, energyAvailable, efficiencyMetrics);
-    
+
     case "miner":
       // RCL 4+ only
       return getMinerBody(rcl, energyAvailable, efficiencyMetrics);
-    
+
     case "hauler":
       // RCL 4+ only
       return getHaulerBody(rcl, energyAvailable, efficiencyMetrics);
-    
+
     case "transporter":
       // Legacy role (deprecated at RCL 4+)
       return getTransporterBody(energyAvailable);
-    
+
     case "defender":
       return getDefenderBody(rcl, energyAvailable);
-    
+
     case "fighter":
       // Emergency combat role
       return getFighterCreepBody(energyAvailable);
-    
+
     case "explorer":
       // Multi-room exploration and claiming
       return getExplorerBody(rcl, energyAvailable);
-    
+
     case "mineralExtractor":
       // RCL 6+ only (mineral mining)
       return getMineralExtractorBody(rcl, energyAvailable);
-    
+
     case "chemist":
       // RCL 6+ only (lab logistics)
       return getChemistBody(rcl, energyAvailable);
-    
+
+    case "claimer":
+      // RCL 4+ only (claiming and reserving)
+      return getClaimerBody(rcl, energyAvailable);
+
     default:
       // Fallback to generalist for unknown roles
       return getGeneralistBody(rcl, energyAvailable, efficiencyMetrics);
@@ -769,12 +880,16 @@ const getBodyForRole = (role, rcl, energyAvailable, room, currentCreeps, roster,
 const findUnassignedSource = (room, existingMiners) => {
   const sources = room.find(FIND_SOURCES);
   const assignedSources = existingMiners
-    .map(m => m.memory.assignedSource)
+    .map((m) => m.memory.assignedSource)
     .filter(Boolean);
-  
+
   // Find a source without a miner
-  const unassignedSource = sources.find(s => !assignedSources.includes(s.id));
-  return unassignedSource ? unassignedSource.id : (sources[0] ? sources[0].id : null);
+  const unassignedSource = sources.find((s) => !assignedSources.includes(s.id));
+  return unassignedSource
+    ? unassignedSource.id
+    : sources[0]
+      ? sources[0].id
+      : null;
 };
 
 /**
@@ -786,7 +901,7 @@ const findUnassignedSource = (room, existingMiners) => {
 const findBestRoleToSpawn = (roster, currentCreeps) => {
   let bestRole = null;
   let maxDeficit = 0;
-  
+
   for (const [role, target] of Object.entries(roster)) {
     const current = currentCreeps[role] || 0;
     const deficit = target - current;
@@ -795,7 +910,7 @@ const findBestRoleToSpawn = (roster, currentCreeps) => {
       bestRole = role;
     }
   }
-  
+
   return bestRole;
 };
 
@@ -809,22 +924,30 @@ const findBestRoleToSpawn = (roster, currentCreeps) => {
  */
 const trySpawn = (spawn, role, roomStatus, room) => {
   const rcl = roomStatus.controllerLevel;
-  const body = getBodyForRole(role, rcl, roomStatus.energyAvailable, room, {}, {}, null);
-  
+  const body = getBodyForRole(
+    role,
+    rcl,
+    roomStatus.energyAvailable,
+    room,
+    null,
+  );
+
   if (!body || calculateBodyCost(body) > roomStatus.energyAvailable) {
     return { spawned: false, reason: "insufficient_energy" };
   }
-  
+
   // Extra memory for miners
   let extraMemory = {};
   if (role === "miner") {
-    const existingMiners = Object.values(Game.creeps).filter(c => c.memory.role === "miner");
+    const existingMiners = Object.values(Game.creeps).filter(
+      (c) => c.memory.role === "miner",
+    );
     const assignedSource = findUnassignedSource(room, existingMiners);
     if (assignedSource) {
       extraMemory.assignedSource = assignedSource;
     }
   }
-  
+
   const result = executeSpawn(spawn, role, body, Game.time, extraMemory);
   return { spawned: result === OK, role, result };
 };
@@ -841,7 +964,10 @@ const trySpawn = (spawn, role, roomStatus, room) => {
 const spawnProcedure = (spawn, roster, roomStatus) => {
   if (!spawn || spawn.spawning) {
     displaySpawningVisual(spawn);
-    return { spawned: false, reason: (spawn && spawn.spawning) ? "busy" : "no_spawn" };
+    return {
+      spawned: false,
+      reason: spawn && spawn.spawning ? "busy" : "no_spawn",
+    };
   }
 
   const currentCreeps = countCreepsByRole(Game.creeps);
@@ -864,6 +990,13 @@ const spawnProcedure = (spawn, roster, roomStatus) => {
       displaySpawningVisual(spawn);
       return result;
     }
+  }
+  // PRIORITY 1.5: Explorer for claiming/exploration flags
+  if (Game.flags["claim"] && !currentCreeps.claimer) {
+    const role = "claimer";
+    const result = trySpawn(spawn, role, roomStatus, room);
+    displaySpawningVisual(spawn);
+    return result;
   }
 
   // PRIORITY 2: Only spawn if energy >= 80% capacity
@@ -904,19 +1037,19 @@ const getMineralExtractorBody = (rcl, energyAvailable) => {
   const bodySet = [WORK, WORK, MOVE, CARRY]; // 300 per set
   const setCost = calculateBodyCost(bodySet);
   const maxSets = Math.floor(energyAvailable / setCost);
-  
+
   if (maxSets < 1) {
     return undefined;
   }
-  
+
   // Cap at 5 sets = 10 WORK parts (good balance)
   const sets = Math.min(maxSets, 5);
-  
+
   const body = [];
   for (let i = 0; i < sets * 2; i++) body.push(WORK);
   for (let i = 0; i < sets; i++) body.push(MOVE);
   for (let i = 0; i < sets; i++) body.push(CARRY);
-  
+
   return body;
 };
 
@@ -938,18 +1071,46 @@ const getChemistBody = (rcl, energyAvailable) => {
   const bodySet = [CARRY, MOVE]; // 100 per set
   const setCost = calculateBodyCost(bodySet);
   const maxSets = Math.floor(energyAvailable / setCost);
-  
+
   if (maxSets < 1) {
     return undefined;
   }
-  
+
   // Cap at 4 sets = 8 parts (small, efficient)
   const sets = Math.min(maxSets, 4);
-  
+
   const body = [];
   for (let i = 0; i < sets; i++) body.push(CARRY);
   for (let i = 0; i < sets; i++) body.push(MOVE);
-  
+
+  return body;
+};
+
+const getClaimerBody = (rcl, energyAvailable) => {
+  // Only spawn claimers at RCL 4+ (when claiming/reserving becomes relevant)
+  if (rcl < 4) {
+    return undefined;
+  }
+
+  // Claimer: [CLAIM, MOVE] sets
+  const bodySet = [CLAIM, MOVE]; // 650 per set
+  const additionalSet = [MOVE];
+  const additionalSetCost = calculateBodyCost(additionalSet); // 50
+  const setCost = calculateBodyCost(bodySet);
+  if (energyAvailable < setCost) {
+    return undefined;
+  }
+
+  // Start with 1 CLAIM + 1 MOVE
+  let body = [...bodySet];
+  let remainingEnergy = energyAvailable - setCost;
+
+  // Add additional MOVE parts if we have energy (for better mobility)
+  while (remainingEnergy >= additionalSetCost && body.length < 50) {
+    body.push(MOVE);
+    remainingEnergy -= additionalSetCost;
+  }
+
   return body;
 };
 
@@ -959,7 +1120,7 @@ module.exports = {
   getFighterCreepBody,
   getTransporterBody,
   getEmergencyReserve,
-  
+
   // RCL-based body generators
   getRCLTier,
   getGeneralistBody,
@@ -972,7 +1133,7 @@ module.exports = {
   getMineralExtractorBody,
   getChemistBody,
   getBodyForRole,
-  
+
   // Helper functions
   findUnassignedSource,
   countCreepsByRole,
