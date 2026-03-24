@@ -901,18 +901,22 @@ const findUnassignedSource = (room, existingMiners) => {
  * @param {Object} currentCreeps - Current creep counts
  * @returns {string|null} Role to spawn (priority-based) or null
  */
-const findBestRoleToSpawn = (roster, currentCreeps) => {
-  console.log(
-    `Current creep counts: ${JSON.stringify(currentCreeps)} - Roster targets: ${JSON.stringify(roster)}`,
-  );
+const findBestRoleToSpawn = (roster, currentCreeps, roomStatus) => {
+  // console.log(
+  //   `Current creep counts: ${JSON.stringify(currentCreeps)} - Roster targets: ${JSON.stringify(roster)}`,
+  // );
 
-  const rosterPriority = [
-    "harvester",
-    "miner",
-    "hauler",
-    "upgrader",
-    "builder",
-  ];
+  const rosterPriority = ["harvester"];
+
+  if (roomStatus.controllerLevel >= 6) {
+    rosterPriority.push("miner");
+    rosterPriority.push("hauler");
+    rosterPriority.push("mineralExtractor");
+    rosterPriority.push("chemist");
+  }
+
+  rosterPriority.push("upgrader", "builder");
+  console.log(`Roster priority order: ${rosterPriority.join(", ")}`);
 
   // Check priority roles first (in order)
   for (const role of rosterPriority) {
@@ -1029,9 +1033,11 @@ const spawnProcedure = (spawn, roster, roomStatus) => {
     displaySpawningVisual(spawn);
     return { spawned: false, reason: "waiting_for_energy" };
   }
-
+  console.log(
+    `Energy sufficient for spawning - checking roster priorities - ${roomStatus.roomName}`,
+  );
   // Find best role from roster (biggest deficit)
-  const bestRole = findBestRoleToSpawn(roster, currentCreeps);
+  const bestRole = findBestRoleToSpawn(roster, currentCreeps, roomStatus);
   if (bestRole) {
     const result = trySpawn(spawn, bestRole, roomStatus, room);
     displaySpawningVisual(spawn);
@@ -1039,6 +1045,9 @@ const spawnProcedure = (spawn, roster, roomStatus) => {
   }
 
   displaySpawningVisual(spawn);
+  console.log(
+    `Roster is currently full - no spawn needed - ${roomStatus.roomName}`,
+  );
   return { spawned: false, reason: "roster_full" };
 };
 

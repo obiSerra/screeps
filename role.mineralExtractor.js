@@ -94,14 +94,14 @@ const mineMineral = (creep) => {
     return ERR_INVALID_TARGET;
   }
 
-  console.log(`[MineralExtractor] ${creep.name} - Extractor cooldown: ${extractor.cooldown}`);
-  console.log(`[MineralExtractor] ${creep.name} - Creep pos: ${creep.pos}, Distance to mineral: ${creep.pos.getRangeTo(mineral)}`);
-  console.log(`[MineralExtractor] ${creep.name} - Creep WORK parts: ${creep.getActiveBodyparts(WORK)}`);
-  console.log(`[MineralExtractor] ${creep.name} - Creep carry: ${creep.store.getUsedCapacity()}/${creep.store.getCapacity()}`);
+  // console.log(`[MineralExtractor] ${creep.name} - Extractor cooldown: ${extractor.cooldown}`);
+  // console.log(`[MineralExtractor] ${creep.name} - Creep pos: ${creep.pos}, Distance to mineral: ${creep.pos.getRangeTo(mineral)}`);
+  // console.log(`[MineralExtractor] ${creep.name} - Creep WORK parts: ${creep.getActiveBodyparts(WORK)}`);
+  // console.log(`[MineralExtractor] ${creep.name} - Creep carry: ${creep.store.getUsedCapacity()}/${creep.store.getCapacity()}`);
 
   // Move to mineral if not in range (need to be adjacent, not on top!)
   if (!creep.pos.inRangeTo(mineral, 1)) {
-    console.log(`[MineralExtractor] ${creep.name} - Moving to mineral`);
+    // console.log(`[MineralExtractor] ${creep.name} - Moving to mineral`);
     creep.moveTo(mineral.pos, {
       visualizePathStyle: { stroke: "#ffaa00" },
       reusePath: 50,
@@ -109,12 +109,12 @@ const mineMineral = (creep) => {
     return ERR_NOT_IN_RANGE;
   }
 
-  console.log(`[MineralExtractor] ${creep.name} - In range, attempting to harvest`);
+  // console.log(`[MineralExtractor] ${creep.name} - In range, attempting to harvest`);
 
   // Mine mineral
   const result = creep.harvest(mineral);
   
-  console.log(`[MineralExtractor] ${creep.name} - Harvest result: ${result}`);
+  // console.log(`[MineralExtractor] ${creep.name} - Harvest result: ${result}`);
   
   if (result === OK) {
     creep.say(`⛏️ ${mineral.mineralType}`);
@@ -123,15 +123,113 @@ const mineMineral = (creep) => {
   } else if (result === ERR_TIRED) {
     // Extractor is on cooldown
     creep.say(`⏳ ${extractor.cooldown}`);
-    console.log(`[MineralExtractor] ${creep.name} - Extractor is on cooldown for ${extractor.cooldown} more ticks`);
+    // console.log(`[MineralExtractor] ${creep.name} - Extractor is on cooldown for ${extractor.cooldown} more ticks`);
   } else if (result === ERR_NO_BODYPART) {
-    console.log(`[MineralExtractor] ${creep.name} - ERROR: No WORK body parts!`);
+    // console.log(`[MineralExtractor] ${creep.name} - ERROR: No WORK body parts!`);
     creep.say("❌ no WORK");
   } else if (result === ERR_FULL) {
-    console.log(`[MineralExtractor] ${creep.name} - Creep inventory is full`);
+    // console.log(`[MineralExtractor] ${creep.name} - Creep inventory is full`);
     creep.say("📦 full");
   } else {
     console.log(`[MineralExtractor] ${creep.name} - Harvest failed with error code: ${result}`);
+  }
+
+  return result;
+};
+
+/**
+ * Find a lab to deliver minerals to
+ * @param {Creep} creep - The creep
+ * @returns {StructureLab|null} The lab or null
+ */
+const findLabForDelivery = (creep) => {
+  // Find labs that have space for the mineral type we're carrying
+  const mineralType = Object.keys(creep.store).find(
+    (resourceType) => resourceType !== RESOURCE_ENERGY
+  );
+
+  if (!mineralType) return null;
+
+  const labs = creep.room.find(FIND_STRUCTURES, {
+    filter: (s) =>
+      s.structureType === STRUCTURE_LAB &&
+      s.store.getFreeCapacity(mineralType) > 0,
+  });
+
+  if (labs.length === 0) return null;
+
+  // Find closest lab
+  return creep.pos.findClosestByPath(labs);
+};
+
+/**
+ * Deliver minerals to lab
+ * @param {Creep} creep - The creep
+ * @returns {number} Status code
+ */
+const deliverMinerals = (creep) => {
+  // If creep is empty, switch back to extracting
+  if (creep.store.getUsedCapacity() === 0) {
+    creep.memory.delivering = false;
+    delete creep.memory.deliveryTarget;
+    creep.say("⛏️");
+    return OK;
+  }
+
+  // Find delivery target if not set
+  if (!creep.memory.deliveryTarget) {
+    const lab = findLabForDelivery(creep);
+    if (!lab) {
+      console.log(
+        `[MineralExtractor] ${creep.name} - No lab available for delivery`
+      );
+      creep.say("❌ no lab");
+      return ERR_NOT_FOUND;
+    }
+    creep.memory.deliveryTarget = lab.id;
+  }
+
+  const target = Game.getObjectById(creep.memory.deliveryTarget);
+  if (!target) {
+    delete creep.memory.deliveryTarget;
+    return ERR_INVALID_TARGET;
+  }
+
+  // Get the mineral type we're carrying
+  const mineralType = Object.keys(creep.store).find(
+    (resourceType) => resourceType !== RESOURCE_ENERGY
+  );
+
+  if (!mineralType) {
+    creep.memory.delivering = false;
+    delete creep.memory.deliveryTarget;
+    return OK;
+  }
+
+  const result = creep.transfer(target, mineralType);
+  
+  if (result === ERR_NOT_IN_RANGE) {
+    creep.moveTo(target, {
+      visualizePathStyle: { stroke: "#0004ff" },
+      reusePath: 50,
+    });
+    creep.say("🚚");
+  } else if (result === OK) {
+    console.log(
+      `[MineralExtractor] ${creep.name} - Delivered minerals to lab`
+    );
+    creep.say("📬");
+    // Clear target to potentially find a new one if we still have minerals
+    delete creep.memory.deliveryTarget;
+  } else if (result === ERR_FULL) {
+    console.log(
+      `[MineralExtractor] ${creep.name} - Lab is full, finding new target`
+    );
+    delete creep.memory.deliveryTarget;
+  } else {
+    console.log(
+      `[MineralExtractor] ${creep.name} - Transfer failed with code: ${result}`
+    );
   }
 
   return result;
@@ -144,9 +242,20 @@ const roleMineralExtractor = () => {
   return {
     /** @param {Creep} creep **/
     run: function (creep) {
-      // Mineral extractors focus exclusively on mining minerals
-      // They sit at the mineral and harvest until it's depleted
-      mineMineral(creep);
+      // Switch to delivery mode when full
+      if (!creep.memory.delivering && creep.store.getFreeCapacity() === 0) {
+        creep.memory.delivering = true;
+        delete creep.memory.deliveryTarget;
+        creep.say("📦 full");
+        console.log(`[MineralExtractor] ${creep.name} - Switching to delivery mode`);
+      }
+
+      // Perform appropriate action
+      if (creep.memory.delivering) {
+        deliverMinerals(creep);
+      } else {
+        mineMineral(creep);
+      }
     },
   };
 };

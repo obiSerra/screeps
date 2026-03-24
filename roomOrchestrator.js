@@ -77,6 +77,7 @@ const getRoomStatus = (room) => {
 
   const { roomPlanner } = planner;
   roomPlanner.clearPlannerFlags(room);
+  // console.log(`[STATUS] Cleared planner flags for room ${room.name}. Found ${extensionPlanned} planned extensions from flags.`);
   // Count extension construction sites
   const extensionSites = room.find(FIND_CONSTRUCTION_SITES, {
     filter: (s) => s.structureType === STRUCTURE_EXTENSION,
