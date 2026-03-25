@@ -251,6 +251,27 @@ const findDeconstructTarget = (room) => {
 };
 
 /**
+ * Find construction site at priority_build flag for priority building
+ * Checks all rooms for any flag named 'priority_build'
+ * Pure function
+ * @returns {Object|null} Construction site at priority_build flag or null
+ */
+const findPriorityBuildTarget = () => {
+  const priorityBuildFlag = Game.flags['priority_build'];
+  if (!priorityBuildFlag) {
+    return null;
+  }
+
+  // Find construction site at flag position
+  const constructionSites = priorityBuildFlag.pos.lookFor(LOOK_CONSTRUCTION_SITES);
+  if (constructionSites.length > 0) {
+    return constructionSites[0];
+  }
+
+  return null;
+};
+
+/**
  * Find and prioritize attack targets for fighters
  * Prioritizes enemy creeps first, then targets marked by attack flag
  * Pure function
@@ -480,9 +501,13 @@ const getActionAvailability = (creep) => {
   const deconstructTarget = findDeconstructTarget(room);
   const hasDeconstructTarget = deconstructTarget !== null;
 
+  // Check for priority build target (across all rooms)
+  const priorityBuildTarget = findPriorityBuildTarget();
+  const hasPriorityBuildTarget = priorityBuildTarget !== null;
+
   return {
     repairCritical: criticalRepairs.length > 0 && canPerformAction(creep, "repairing"),
-    building: constructionSites.length > 0 && canPerformAction(creep, "building"),
+    building: (constructionSites.length > 0 || hasPriorityBuildTarget) && canPerformAction(creep, "building"),
     repairing: repairTargets.length > 0 && canPerformAction(creep, "repairing"),
     harvesting: energyAvailable < energyCapacity && canPerformAction(creep, "harvesting"),
     transporting: storage && containersWithEnergy.length > 0 && canPerformAction(creep, "transporting"),
@@ -504,19 +529,27 @@ const getActionAvailability = (creep) => {
       droppedEnergy,
       deliveryTargets,
       deconstructTarget,
+      priorityBuildTarget,
     },
   };
 };
 
 /**
  * Select the best build target from construction sites
- * Prioritizes extensions when multiple types exist, then sorts by contention
+ * Prioritizes priority_build flag first, then extensions when multiple types exist, then sorts by contention
  * Pure function
  * @param {Creep} creep
  * @param {Array} constructionSites
  * @returns {Object} { id, pos } of selected target
  */
 const selectBuildTarget = (creep, constructionSites) => {
+  // Priority 1: Check for priority_build flag
+  const priorityBuildTarget = findPriorityBuildTarget();
+  if (priorityBuildTarget) {
+    return { id: priorityBuildTarget.id, pos: priorityBuildTarget.pos };
+  }
+
+  // Priority 2: Existing prioritization logic
   const prioritizedSites = prioritizeConstructionSites(constructionSites);
   const targets = sortByContention(creep, prioritizedSites, true);
   if (targets.length === 0) {
@@ -709,29 +742,42 @@ const selectGatheringTarget = (creep) => {
     return { id: sorted[0].id, pos: sorted[0].pos };
   }
 
-  // Upgraders preferentially pick energy from controller link, then storage
+  // Upgraders preferentially pick energy from storage or controller link based on distance
   if (creep.memory.role === "upgrader") {
-    // First priority: Check for controller link with energy
     const controller = creep.room.controller;
+    let controllerLink = null;
+    let storage = null;
+
+    // Check for controller link with energy
     if (controller) {
       const links = controller.pos.findInRange(FIND_MY_STRUCTURES, CONFIG.REPAIR.CONTROLLER_LINK_RANGE, {
         filter: (s) =>
           s.structureType === STRUCTURE_LINK && s.store[RESOURCE_ENERGY] > 0,
       });
-
       if (links.length > 0) {
-        return { id: links[0].id, pos: links[0].pos };
+        controllerLink = links[0];
       }
     }
 
-    // Second priority: Storage
-    const storage = creep.room.find(FIND_STRUCTURES, {
+    // Check for storage with energy
+    const storages = creep.room.find(FIND_STRUCTURES, {
       filter: (s) =>
         s.structureType === STRUCTURE_STORAGE && s.store[RESOURCE_ENERGY] > 0,
-    })[0];
+    });
+    if (storages.length > 0) {
+      storage = storages[0];
+    }
 
-    if (storage) {
+    // Choose the closest available option
+    if (controllerLink && storage) {
+      const linkDistance = creep.pos.getRangeTo(controllerLink);
+      const storageDistance = creep.pos.getRangeTo(storage);
+      const closest = storageDistance <= linkDistance ? storage : controllerLink;
+      return { id: closest.id, pos: closest.pos };
+    } else if (storage) {
       return { id: storage.id, pos: storage.pos };
+    } else if (controllerLink) {
+      return { id: controllerLink.id, pos: controllerLink.pos };
     }
   }
 
