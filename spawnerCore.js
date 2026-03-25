@@ -41,7 +41,7 @@ const executeSpawn = (spawn, role, body, gameTime, extraMemory = {}) => {
 
   // Track spawn statistics
   if (result === OK) {
-    stats.trackSpawn(spawn.room.name, role, calculateBodyCost(body));
+    stats.recordSpawn(spawn.room.name, role, body, calculateBodyCost(body));
   } else {
     console.log(`Failed to spawn ${role}: ${result}`);
   }

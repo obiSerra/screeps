@@ -5,7 +5,12 @@
 
 const utils = require("./utils");
 const { displaySpawningVisual, trySpawn } = require("./spawnerCore");
-const { countCreepsByRole, getRequiredFighterCount, findBestRoleToSpawn } = require("./spawnerRoster");
+const {
+  countCreepsByRole,
+  getRequiredFighterCount,
+  findBestRoleToSpawn,
+} = require("./spawnerRoster");
+
 
 /**
  * Main spawn procedure - simplified spawning logic
@@ -32,10 +37,16 @@ const spawnProcedure = (spawn, roster, roomStatus) => {
   // PRIORITY 1: Fighters for combat (hostiles, attack, or prepare_attack flags)
   const requiredFighters = getRequiredFighterCount(hasHostiles);
   if (requiredFighters > 0 && (currentCreeps.fighter || 0) < requiredFighters) {
-    const flagType = Game.flags['attack'] ? 'attack' : 
-                     Object.keys(Game.flags).some(n => n.startsWith('prepare_attack')) ? 'prepare_attack' : 
-                     'defense';
-    console.log(`⚔️ Spawning fighter (${(currentCreeps.fighter || 0) + 1}/${requiredFighters}) for ${flagType}`);
+
+
+    const flagType = Game.flags["attack"]
+      ? "attack"
+      : Object.keys(Game.flags).some((n) => n.startsWith("prepare_attack"))
+        ? "prepare_attack"
+        : "defense";
+    console.log(
+      `⚔️ Spawning fighter (${(currentCreeps.fighter || 0) + 1}/${requiredFighters}) for ${flagType}`,
+    );
     const result = trySpawn(spawn, "fighter", roomStatus, room);
     displaySpawningVisual(spawn);
     return result;
@@ -50,7 +61,7 @@ const spawnProcedure = (spawn, roster, roomStatus) => {
       return result;
     }
   }
-  
+
   // PRIORITY 1.5: Explorer for claiming/exploration flags
   if (Game.flags["claim"] && !currentCreeps.claimer) {
     const role = "claimer";
@@ -65,11 +76,11 @@ const spawnProcedure = (spawn, roster, roomStatus) => {
     displaySpawningVisual(spawn);
     return { spawned: false, reason: "waiting_for_energy" };
   }
-  
+
   console.log(
     `Energy sufficient for spawning - checking roster priorities - ${roomStatus.roomName}`,
   );
-  
+
   // Find best role from roster (biggest deficit)
   const bestRole = findBestRoleToSpawn(roster, currentCreeps, roomStatus);
   if (bestRole) {
