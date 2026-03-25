@@ -38,7 +38,6 @@ const spawnProcedure = (spawn, roster, roomStatus) => {
   const requiredFighters = getRequiredFighterCount(hasHostiles);
   if (requiredFighters > 0 && (currentCreeps.fighter || 0) < requiredFighters) {
 
-
     const flagType = Game.flags["attack"]
       ? "attack"
       : Object.keys(Game.flags).some((n) => n.startsWith("prepare_attack"))
@@ -56,6 +55,7 @@ const spawnProcedure = (spawn, roster, roomStatus) => {
   const minimumFleet = { harvester: 2, builder: 2, upgrader: 1 };
   for (const [role, min] of Object.entries(minimumFleet)) {
     if ((currentCreeps[role] || 0) < min) {
+      console.log(`🚀 Spawning ${role} (${(currentCreeps[role] || 0) + 1}/${min}) to maintain minimum fleet`);
       const result = trySpawn(spawn, role, roomStatus, room);
       displaySpawningVisual(spawn);
       return result;
@@ -74,6 +74,7 @@ const spawnProcedure = (spawn, roster, roomStatus) => {
   const energyRatio = roomStatus.energyAvailable / roomStatus.energyCapacity;
   if (energyRatio < 0.8) {
     displaySpawningVisual(spawn);
+    utils.periodicLogger(`Energy at ${Math.round(energyRatio * 100)}% - waiting to spawn until >= 80% - ${roomStatus.roomName}`, 20);
     return { spawned: false, reason: "waiting_for_energy" };
   }
 

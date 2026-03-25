@@ -185,8 +185,9 @@ const calculateRoster = (roomStatus, efficiencyMetrics = null) => {
     roster.hauler = sourceCount + CONFIG.ROSTERS.RCL_6_7.HAULER_OFFSET;      // More haulers for longer distances
     roster.builder = Math.max(roster.builder, CONFIG.ROSTERS.RCL_6_7.BUILDERS);
     roster.upgrader = CONFIG.ROSTERS.RCL_6_7.UPGRADERS;
-    roster.mineralExtractor = CONFIG.ROSTERS.RCL_6_7.MINERAL_EXTRACTORS;          // Mine minerals
-    roster.chemist = CONFIG.ROSTERS.RCL_6_7.CHEMISTS;                   // Lab logistics
+    // TODO - Optimize later
+    // roster.mineralExtractor = CONFIG.ROSTERS.RCL_6_7.MINERAL_EXTRACTORS;          // Mine minerals
+    // roster.chemist = CONFIG.ROSTERS.RCL_6_7.CHEMISTS;                   // Lab logistics
     return roster;
   }
   
@@ -519,6 +520,7 @@ const handleExecutingMode = (room, roomStatus) => {
   
   // Calculate roster based on room status and efficiency
   const roster = calculateRoster(roomStatus, efficiencyMetrics);
+  utils.periodicLogger(`Roster ${room.name} status: ${JSON.stringify(roster)}`, 20);
 
   // Get spawn and execute spawn procedure
   const spawn = room.find(FIND_MY_SPAWNS)[0];
