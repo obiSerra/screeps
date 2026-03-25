@@ -895,6 +895,28 @@ const findUnassignedSource = (room, existingMiners) => {
       : null;
 };
 
+const findLabs = (room) => {
+  return room
+    .find(FIND_STRUCTURES, {
+      filter: (s) => s.structureType === STRUCTURE_LAB,
+    })
+    .map((lab) => {
+      return {
+        id: lab.id,
+        mineralType: lab.mineralType,
+        mineralAmount: lab.mineralAmount,
+      };
+    });
+};
+
+const findMineralInRoom = (room) => {
+  const minerals = room.find(FIND_MINERALS);
+  if (minerals.length > 0) {
+    return minerals[0].mineralType;
+  }
+  return null;
+};
+
 /**
  * Find the best role to spawn based on roster deficits and priority order
  * @param {Object} roster - Target roster {role: count}
@@ -911,12 +933,27 @@ const findBestRoleToSpawn = (roster, currentCreeps, roomStatus) => {
   if (roomStatus.controllerLevel >= 6) {
     rosterPriority.push("miner");
     rosterPriority.push("hauler");
-    rosterPriority.push("mineralExtractor");
-    rosterPriority.push("chemist");
+
+
+    // TODO - add logic to extract mineral in other room and move it with terminal to the main room
+    const room = Game.rooms[roomStatus.roomName];
+    const mineralType = findMineralInRoom(room);
+    const labs = findLabs(room);
+    const labsForMining = labs.filter((lab) => lab.mineralType === mineralType);
+    if (
+      labsForMining.length > 0 &&
+      labsForMining.some((lab) => lab.mineralAmount < 3000)
+    ) {
+      rosterPriority.push("mineralExtractor");
+    }
+
+    if (labs.length > 1 && labs.every((lab) => lab.mineralAmount > 0)) {
+      rosterPriority.push("chemist");
+    }
   }
 
   rosterPriority.push("upgrader", "builder");
-  console.log(`Roster priority order: ${rosterPriority.join(", ")}`);
+  console.log(`Roster priority order for room ${roomStatus.roomName}: ${rosterPriority.join(", ")}`);
 
   // Check priority roles first (in order)
   for (const role of rosterPriority) {

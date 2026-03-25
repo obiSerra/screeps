@@ -77,7 +77,7 @@ const mineMineral = (creep) => {
     return ERR_NOT_FOUND;
   }
 
-  console.log(`[MineralExtractor] ${creep.name} - Mineral: ${mineral.mineralType}, Amount: ${mineral.mineralAmount}, Pos: ${mineral.pos}`);
+  // console.log(`[MineralExtractor] ${creep.name} - Mineral: ${mineral.mineralType}, Amount: ${mineral.mineralAmount}, Pos: ${mineral.pos}`);
 
   // Check if mineral is depleted
   if (mineral.mineralAmount === 0) {

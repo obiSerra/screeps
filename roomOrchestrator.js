@@ -164,7 +164,7 @@ const calculateRoster = (roomStatus, efficiencyMetrics = null) => {
   if (rcl <= 3) {
     // Adjust based on efficiency tier if available
     if (efficiencyMetrics && efficiencyMetrics.efficiencyTier === 'established') {
-      roster.upgrader = 2;
+      roster.upgrader = 3;
     }
     return roster;
   }
