@@ -17,6 +17,7 @@ const {
   selectBuildTarget,
   getActionAvailability,
 } = require("./creep.actionDecisions");
+const { canPerformAction } = require("./creep.analysis");
 const {
   moveToTarget,
   setCreepAction,
@@ -37,6 +38,12 @@ const {
  * @param {Creep} creep
  */
 const handleGathering = (creep) => {
+  // Validate creep can perform this action
+  if (!canPerformAction(creep, "gathering")) {
+    clearCreepAction(creep);
+    return;
+  }
+  
   const { actionTarget } = creep.memory;
   if (!actionTarget) {
     // No target set, find one and set it
@@ -116,6 +123,12 @@ const handleGathering = (creep) => {
  * @param {Creep} creep
  */
 const handleBuilding = (creep) => {
+  // Validate creep can perform this action
+  if (!canPerformAction(creep, "building")) {
+    clearCreepAction(creep);
+    return;
+  }
+  
   const { actionTarget } = creep.memory;
   if (!actionTarget) {
     clearCreepAction(creep);
@@ -186,6 +199,12 @@ const handleBuilding = (creep) => {
  * @param {Creep} creep
  */
 const handleRepairing = (creep) => {
+  // Validate creep can perform this action
+  if (!canPerformAction(creep, "repairing")) {
+    clearCreepAction(creep);
+    return;
+  }
+  
   const { actionTarget } = creep.memory;
   if (!actionTarget) {
     clearCreepAction(creep);
@@ -228,6 +247,12 @@ const handleRepairing = (creep) => {
  * @param {Creep} creep
  */
 const handleUpgrading = (creep) => {
+  // Validate creep can perform this action
+  if (!canPerformAction(creep, "upgrading")) {
+    clearCreepAction(creep);
+    return;
+  }
+  
   const { controller } = creep.room;
   const result = creep.upgradeController(controller);
   if (result === ERR_NOT_IN_RANGE) {
@@ -246,6 +271,12 @@ const handleUpgrading = (creep) => {
  * @param {Creep} creep
  */
 const handleHarvesting = (creep) => {
+  // Validate creep can perform this action
+  if (!canPerformAction(creep, "harvesting")) {
+    clearCreepAction(creep);
+    return;
+  }
+  
   const { room } = creep;
   const { energyAvailable, energyCapacityAvailable } = room;
 
@@ -293,6 +324,12 @@ const handleHarvesting = (creep) => {
  * @param {Creep} creep
  */
 const handleAttacking = (creep) => {
+  // Validate creep can perform this action
+  if (!canPerformAction(creep, "attacking")) {
+    clearCreepAction(creep);
+    return;
+  }
+  
   const { actionTarget } = creep.memory;
   if (!actionTarget) {
     clearCreepAction(creep);
@@ -345,6 +382,12 @@ const handleAttacking = (creep) => {
  * @param {Creep} creep
  */
 const handleTransporting = (creep) => {
+  // Validate creep can perform this action
+  if (!canPerformAction(creep, "transporting")) {
+    clearCreepAction(creep);
+    return;
+  }
+  
   const { room } = creep;
   const { actionTarget } = creep.memory;
 
@@ -376,6 +419,12 @@ const handleTransporting = (creep) => {
  * @param {Creep} creep
  */
 const handleMining = (creep) => {
+  // Validate creep can perform this action
+  if (!canPerformAction(creep, "mining")) {
+    clearCreepAction(creep);
+    return;
+  }
+  
   const { assignedSource } = creep.memory;
 
   // Get assigned source from memory or find nearest
@@ -455,6 +504,12 @@ const handleMining = (creep) => {
  * @param {Creep} creep
  */
 const handleHauling = (creep) => {
+  // Validate creep can perform this action
+  if (!canPerformAction(creep, "hauling")) {
+    clearCreepAction(creep);
+    return;
+  }
+  
   // If creep is full, switch to delivering
   if (creep.store.getFreeCapacity() === 0) {
     clearCreepAction(creep);
@@ -602,6 +657,12 @@ const handleHauling = (creep) => {
  * @param {Creep} creep
  */
 const handleDeconstructing = (creep) => {
+  // Validate creep can perform this action
+  if (!canPerformAction(creep, "deconstructing")) {
+    clearCreepAction(creep);
+    return;
+  }
+  
   const { actionTarget } = creep.memory;
   if (!actionTarget) {
     clearCreepAction(creep);
@@ -641,6 +702,12 @@ const handleDeconstructing = (creep) => {
  * @param {Creep} creep
  */
 const handleDelivering = (creep) => {
+  // Validate creep can perform this action
+  if (!canPerformAction(creep, "delivering")) {
+    clearCreepAction(creep);
+    return;
+  }
+  
   const { room } = creep;
 
   // If creep is empty, switch back to hauling

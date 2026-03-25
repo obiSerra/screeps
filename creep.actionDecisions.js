@@ -215,6 +215,7 @@ const selectGatheringTarget = (creep) => {
  */
 const selectAction = (creep, priorityList) => {
   const availability = getActionAvailability(creep);
+  // console.log(`Action availability for ${creep.name}:`, JSON.stringify(availability));
   const { targets } = availability;
 
   // Critical repairs always take priority
@@ -229,6 +230,7 @@ const selectAction = (creep, priorityList) => {
   // Check priority list
   for (const action of priorityList) {
     if (availability[action]) {
+      console.log(`Selecting action "${action}" for ${creep.name}`);
       switch (action) {
         case "building":
           return { action: "building", target: selectBuildTarget(creep, targets.constructionSites) };
