@@ -1,8 +1,8 @@
 # Project Spec
 
-> **Last updated:** 2026-03-25 09:47 UTC  
+> **Last updated:** 2026-03-25 14:30 UTC  
 > **Updated by:** maintainer agent  
-> **Revision scope:** full scan (no previous spec found)
+> **Revision scope:** incremental since 2026-03-25 09:47
 
 ---
 
@@ -16,31 +16,67 @@ This is a Screeps AI bot written in JavaScript. Screeps is a programming game wh
 
 | Concern | File(s) | Notes |
 |---|---|---|
-| **Core Loop** | [main.js](main.js) | Entry point, per-room orchestration, garbage collection |
+| **Configuration** | [config.js](config.js) | Centralized tuning parameters, magic number elimination (NEW 2026-03-25) |
+| **Core Loop** | [main.js](main.js) | Entry point, per-room orchestration, garbage collection, single error boundary |
 | **Room Orchestration** | [roomOrchestrator.js](roomOrchestrator.js) | Mode management, roster calculation, tower control, creep routing |
-| **Spawning Logic** | [spawner.js](spawner.js) | Body composition, adaptive sizing, spawn queue management |
-| **Base Planning** | [planner.js](planner.js) | Layout generation, structure placement, road pathfinding |
-| **Creep Behavior** | [baseCreep.js](baseCreep.js) | Action selection, target finding, movement, all action handlers |
+| **Spawning Logic** | [spawner.js](spawner.js) (1309 lines) | Body composition, adaptive sizing, spawn queue management; refactored for CONFIG usage |
+| **Base Planning** | [planner.js](planner.js) (917 lines) | Layout generation, structure placement, road pathfinding |
+| **Creep Behavior** | [baseCreep.js](baseCreep.js) (1669 lines) | Action selection, target finding, movement, all action handlers |
 | **Statistics** | [stats.js](stats.js) | Telemetry tracking, efficiency metrics, performance monitoring |
-| **Infrastructure - Links** | [linkManager.js](linkManager.js) | Energy transfer between sources/storage/controller |
-| **Infrastructure - Labs** | [labManager.js](labManager.js) | Compound production, reaction queues, boosting stations |
-| **Infrastructure - Terminal** | [terminalManager.js](terminalManager.js) | Market trading, buy/sell automation based on thresholds |
-| **Utilities** | [utils.js](utils.js) | Distance transforms, pathfinding helpers, terrain analysis |
+| **Infrastructure - Links** | [linkManager.js](linkManager.js) (183 lines) | Energy transfer between sources/storage/controller |
+| **Infrastructure - Labs** | [labManager.js](labManager.js) (404 lines) | Compound production, reaction queues, boosting stations |
+| **Infrastructure - Terminal** | [terminalManager.js](terminalManager.js) (293 lines) | Market trading, buy/sell automation based on thresholds |
+| **Utilities** | [utils.js](utils.js) (381 lines) | Distance transforms, pathfinding helpers, terrain analysis |
 | **Role: Harvester** | [role.harvester.js](role.harvester.js) | Early-game generalist energy gatherer |
 | **Role: Upgrader** | [role.upgrader.js](role.upgrader.js) | Controller upgrading specialist |
 | **Role: Builder** | [role.builder.js](role.builder.js) | Construction site builder |
 | **Role: Miner** | [role.miner.js](role.miner.js) | Stationary source harvester (RCL 4+) |
 | **Role: Hauler** | [role.hauler.js](role.hauler.js) | Pure transport, no WORK parts (RCL 4+) |
 | **Role: Fighter** | [role.fighter.js](role.fighter.js) | Combat units with ATTACK parts |
-| **Role: Transporter** | [role.transporter.js](role.transporter.js) | Energy distribution to spawn/extensions |
+| **Role: Transporter** | [role.transporter.js](role.transporter.js) (15 lines) | Energy distribution to spawn/extensions |
 | **Role: Claimer** | [role.claimer.js](role.claimer.js) | Remote room claiming |
-| **Role: Explorer** | [role.explorer.js](role.explorer.js) | Scouting and room discovery |
-| **Role: Mineral Extractor** | [role.mineralExtractor.js](role.mineralExtractor.js) | Mineral mining (RCL 6+) |
-| **Role: Chemist** | [role.chemist.js](role.chemist.js) | Lab resource management |
+| **Role: Explorer** | [role.explorer.js](role.explorer.js) (185 lines) | Scouting and room discovery; now uses CONFIG |
+| **Role: Mineral Extractor** | [role.mineralExtractor.js](role.mineralExtractor.js) (263 lines) | Mineral mining (RCL 6+) |
+| **Role: Chemist** | [role.chemist.js](role.chemist.js) (143 lines) | Lab resource management |
 
 ---
 
-## 3. Key Logic & Main Loop
+## 3. Improvements Since Last Update (2026-03-25)
+
+### New: Centralized Configuration
+- **File:** [config.js](config.js) (289 lines, NEW)
+- **Purpose:** Extract all tunable parameters and magic numbers into single config object
+- **Organization:** 
+  - `CONFIG.EFFICIENCY` — Collection efficiency thresholds, spawn capacity percentages, body set counts
+  - `CONFIG.SPAWNING` — RCL multipliers, emergency reserves, body part limits, body set costs
+  - `CONFIG.FIGHTER` — Combat ratios and mechanics
+  - `CONFIG.EXPLORER` — Explorer movement/toughness ratios
+- **Benefit:** Eliminates hardcoded magic numbers across spawner and role files; centralizes tunable parameters
+- **Status:** Reduces 🟡 Medium #15 severity by addressing magic number problem
+
+### Refactored: Spawner Module
+- **File:** [spawner.js](spawner.js) (1309 lines, +193 from previous version)
+- **Changes:**
+  - All `CONFIG.*` references in place of magic numbers (emergency reserves, RCL thresholds, body limits)
+  - Improved documentation of fighter body composition logic
+  - More functional approach to energy reserve calculations
+- **Status:** Complexity remains high (>1200 lines) but magic numbers eliminated
+
+### Updated: Root Explorer Role
+- **File:** [role.explorer.js](role.explorer.js) (185 lines)
+- **Changes:**
+  - Now uses `require("./config")` for consistency
+  - References `CONFIG` for movement and toughness ratios
+- **Status:** Partially addresses 🔴 #7 (module path inconsistency)
+
+### Updated: Infrastructure Managers
+- **Files:** [linkManager.js](linkManager.js), [labManager.js](labManager.js), [terminalManager.js](terminalManager.js)
+- **Changes:** Refactored with improved structure and efficiency logic
+- **Note:** Error handling still single try-catch in main.js only
+
+---
+
+## 4. Key Logic & Main Loop
 
 ### Main Loop ([main.js](main.js#L63))
 1. **Garbage collection** - Clear memory for dead creeps and stale rooms
@@ -75,28 +111,40 @@ This is a Screeps AI bot written in JavaScript. Screeps is a programming game wh
 ### 🔴 High Severity
 
 | # | File(s) | Description |
-|---|---|---|
-| 1 | [main.js](main.js#L68-L96) | **Only one try-catch in entire codebase.** Infrastructure managers (linkManager, labManager, terminalManager), role files, and spawner have no error handling. A single exception in any manager silently halts execution. |
-| 2 | [baseCreep.js](baseCreep.js) | **God object anti-pattern - 1649 lines.** Handles action selection, target finding, movement, repair logic, attack coordination, statistics, path visualization, and all 11 action handlers. Single point of failure. |
-| 3 | [spawner.js](spawner.js) | **Overly complex module - 1220 lines.** Mixes body composition algorithms (15+ functions), spawn execution, roster calculation, emergency logic, and adaptive sizing. Should be decomposed. |
-| 4 | [baseCreep.js](baseCreep.js#L1195-L1316) | **122-line function `handleHauling`.** Cyclomatic complexity likely >10. Four priority levels with nested conditionals, mineral type detection loop. Extract priority checking to separate functions. |
-| 5 | [spawner.js](spawner.js) | **102-line function (likely `calculateRoster`).** Manages roster calculations with RCL-specific branching. Exceeds cognitive limit. |
-| 6 | [planner.js](planner.js#L206-L220) | **Quadruple nested loop.** Four levels deep (x, y, dx, dy) in `findOptimalCenter`. Inefficient O(n^4) complexity. Should use distance transform or precomputed grid. |
-| 7 | All role files | **Inconsistent module paths.** Some use `require("utils")`, others `require("./utils")`. Can cause undefined behavior in CommonJS. Standardize on `./` prefix. |
+|---|---|---|9-L95) | **Only one try-catch in entire codebase.** Infrastructure managers (linkManager, labManager, terminalManager), role files, and spawner have no error handling. A single exception in any manager silently halts execution. **Status:** UNRESOLVED (2026-03-25) |
+| 2 | [baseCreep.js](baseCreep.js) | 
+**Commits since 2026-03-25 09:47:**
+- `a1948e3` — better extractor: Improved role.mineralExtractor.js, updated roomOrchestrator.js, refined spawner.js
+- `b3bbf99` — improvement: Added centralized config.js, refactored spawner.js and infrastructure managers, standardized module paths in role.explorer.js, added maintainer agent definition
+
+**File changes summary:**
+- **Added:** config.js (289 lines), .claude/agents/maintainer.agent.md (163 lines), tmp/maintainer-notes.md (85 lines)
+- **Deleted:** help_script.md, notes.md (documentation cleanup)
+- **Modified:** baseCreep.js (+20 lines), spawner.js (+193 lines), roomOrchestrator.js (+111 lines), labManager.js (-20 lines), linkManager.js (-16 lines), terminalManager.js (+50 lines), stats.js (-26 lines), utils.js, role.explorer.js, role.mineralExtractor.js
+- **Net: +1009 insertions, -249 deletions** (primarily config extraction and documentation cleanup)
+
+---
+
+## 8. Previous: Recent Changes (from first scan)| 3 | [spawner.js](spawner.js) (1309 lines) | **Overly complex module.** Mixes body composition algorithms (15+ functions), spawn execution, roster calculation, emergency logic, and adaptive sizing. Should be decomposed. **Status:** Partially improved with CONFIG extraction (2026-03-25). Magic numbers eliminated but structure unchanged. |
+| 4 | [baseCreep.js](baseCreep.js#L1195-L1316) | **122-line function `handleHauling`.** Cyclomatic complexity likely >10. Four priority levels with nested conditionals, mineral type detection loop. Extract priority checking to separate functions. **Status:** UNRESOLVED (2026-03-25) |
+| 5 | [spawner.js](spawner.js) | **102-line function (likely `calculateRoster`).** Manages roster calculations with RCL-specific branching. Exceeds cognitive limit. **Status:** UNRESOLVED (2026-03-25) |
+| 6 | [planner.js](planner.js#L206-L220) | **Quadruple nested loop.** Four levels deep (x, y, dx, dy) in `findOptimalCenter`. Inefficient O(n^4) complexity. Should use distance transform or precomputed grid. **Status:** UNRESOLVED (2026-03-25) |
+| 7 | Role files | **Inconsistent module paths.** Most use `require("utils")` but role.explorer.js, role.chemist.js, role.mineralExtractor.js use `require("./utils")`. Can cause undefined behavior in CommonJS. **Status:** Partially improved (2026-03-25). role.explorer.js standardized; others unresolved. |
+| 8 | [roomOrchestrator.js](roomOrchestrator.js), [baseCreep.js](baseCreep.js) | **Circular dependency risk.** roomOrchestrator requires all role modules; all role modules require baseCreep; if baseCreep references orchestrator logic, creates cycle. Verify with dependency graph. **Status:** UNRESOLVED (2026-03-25)
 | 8 | [roomOrchestrator.js](roomOrchestrator.js), [baseCreep.js](baseCreep.js) | **Circular dependency risk.** roomOrchestrator requires all role modules; all role modules require baseCreep; if baseCreep references orchestrator logic, creates cycle. Verify with dependency graph. |
 
 ### 🟡 Medium Severity
 
 | # | File(s) | Description |
 |---|---|---|
-| 9 | [planner.js](planner.js) | **917 lines, multiple concerns.** Handles layout generation, structure placement, flag management, road pathfinding, and visualization. Should split into `layout.js`, `placement.js`, `visualization.js`. |
-| 10 | [stats.js](stats.js) | **541 lines of telemetry logic.** Functional but large. Consider extracting interval management, metric recording, and efficiency calculation into separate modules. |
-| 11 | [baseCreep.js](baseCreep.js#L1362-L1445), [baseCreep.js](baseCreep.js#L787-L869) | **Long action handlers.** `handleDelivering` (84 lines), `handleGathering` (83 lines), `handleMining` (73 lines). Extract target selection logic. |
-| 12 | [planner.js](planner.js#L118-L125), [utils.js](utils.js#L25-L27) | **Triple nested loops.** Three levels deep in extension grid generation and distance transform calculation. Consider using functional approaches (flatMap, reduce) to flatten. |
-| 13 | Multiple files | **102 uses of `let` keyword.** Significant mutation, mostly in loops (acceptable) but also in business logic. Prefer `const` and functional transformations where possible. |
-| 14 | Multiple files | **123 console.log statements.** Heavy logging can impact performance. No structured log levels (debug, info, warn, error). Consider log level system or toggle. |
-| 15 | [spawner.js](spawner.js), [baseCreep.js](baseCreep.js) | **Magic numbers scattered throughout.** Examples: 1000000 (wall hits), 0.5 (health percent), 3000 (stat interval ticks). Extract to named constants at module top. |
-| 16 | [roomOrchestrator.js](roomOrchestrator.js#L85) | **Commented code in `getRoomStatus`.** Line clearing planner flags suggests incomplete refactoring. Remove or uncomment. |
+| 9 | [planner.js](planner.js) | **917 lines, multiple concerns.** Handles layout generation, structure placement, flag management, road pathfinding, and visualization. Should split into `layout.js`, `placement.js`, `visualization.js`. **Status:** UNRESOLVED (2026-03-25) |
+| 10 | [config.js](config.js) (289 lines) | **New config module.** Centralized parameter storage eliminates magic numbers. Well-structured by concern (EFFICIENCY, SPAWNING, FIGHTERS, EXPLORERS). **Status:** Completed (2026-03-25) |
+| 11 | [baseCreep.js](baseCreep.js#L1362-L1445), [baseCreep.js](baseCreep.js#L787-L869) | **Long action handlers.** `handleDelivering` (84 lines), `handleGathering` (83 lines), `handleMining` (73 lines). Extract target selection logic. **Status:** UNRESOLVED (2026-03-25) |
+| 12 | [planner.js](planner.js#L118-L125), [utils.js](utils.js#L25-L27) | **Triple nested loops.** Three levels deep in extension grid generation and distance transform calculation. Consider using functional approaches (flatMap, reduce) to flatten. **Status:** UNRESOLVED (2026-03-25) |
+| 13 | Multiple files | **102 uses of `let` keyword.** Significant mutation, mostly in loops (acceptable) but also in business logic. Prefer `const` and functional transformations where possible. **Status:** Unresolved; likely increased with new CONFIG. |
+| 14 | Multiple files | **123 console.log statements.** Heavy logging can impact performance. No structured log levels (debug, info, warn, error). Consider log level system or toggle. **Status:** UNRESOLVED (2026-03-25) |
+| 15 | [spawner.js](spawner.js), [baseCreep.js](baseCreep.js) | **Magic numbers scattered throughout.** Examples: 1000000 (wall hits), 0.5 (health percent), 3000 (stat interval ticks). **Status:** Partially improved (2026-03-25). Many moved to CONFIG.js; others may remain in baseCreep and role files. |
+| 16 | [roomOrchestrator.js](roomOrchestrator.js) | **Commented code and incomplete refactoring.** Some infrastructure manager logic refactored since last scan. **Status:** Check current state (2026-03-25) |
 
 ### 🟢 Low / Informational
 
