@@ -14,7 +14,7 @@ var roleFighter = () => {
     run: function (creep) {
       // baseCreep workerActions() automatically detects fighters and assigns "attacking" action
       // when invaders present. Priority list gives fighters something to do when idle.
-      base.workerActions(creep, ["attacking", "repairing", "upgrading"]);
+      base.workerActions(creep, ["attacking", "hauling"]);
       
       // Safety check: if no action assigned, default to upgrading
       if (!creep.memory.action) {
