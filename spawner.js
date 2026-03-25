@@ -95,9 +95,9 @@ const spawnProcedure = (spawn, roster, roomStatus) => {
   }
 
   displaySpawningVisual(spawn);
-  console.log(
-    `Roster is currently full - no spawn needed - ${roomStatus.roomName}`,
-  );
+  // console.log(
+  //   `Roster is currently full - no spawn needed - ${roomStatus.roomName}`,
+  // );
   return { spawned: false, reason: "roster_full" };
 };
 

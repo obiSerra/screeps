@@ -5,6 +5,7 @@
  */
 
 const { findLabs, findMineralInRoom } = require("./spawnerHelpers");
+const utils = require("./utils");
 
 /**
  * Count current creeps by role
@@ -88,7 +89,7 @@ const findBestRoleToSpawn = (roster, currentCreeps, roomStatus) => {
   }
 
   rosterPriority.push("upgrader", "builder");
-  console.log(`Roster priority order for room ${roomStatus.roomName}: ${rosterPriority.join(", ")}`);
+  utils.periodicLogger(`Roster priority order for room ${roomStatus.roomName}: ${rosterPriority.join(", ")}`, 30);
 
   // Check priority roles first (in order)
   for (const role of rosterPriority) {
