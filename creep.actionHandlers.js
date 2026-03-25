@@ -348,7 +348,7 @@ const handleAttacking = (creep) => {
 
   const target = Game.getObjectById(actionTarget.id);
 
-  console.log(`Creep ${creep.name} is attacking target ${actionTarget.id}`);
+  utils.periodicLogger(`Creep ${creep.name} is attacking target ${actionTarget.id}`, 10);
 
   // Target no longer exists - clear action
   if (!target) {

@@ -74,8 +74,8 @@
         baseSets = CONFIG.EFFICIENCY.BODY_SETS.ESTABLISHED;
         break;
       case "optimized":
-        baseSets = CONFIG.EFFICIENCY.BODY_SETS.OPTIMIZED;
-        break;
+        // When optimized, use all affordable energy
+        return Math.min(maxAffordable, maxSets);
       default:
         baseSets = CONFIG.EFFICIENCY.BODY_SETS.BOOTSTRAPPING;
     }
