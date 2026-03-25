@@ -28,6 +28,38 @@ const isFighter = (creep) =>
  * @returns {boolean} True if creep has required body parts for action
  */
 const canPerformAction = (creep, action) => {
+  const hasBodyPart = (partType) =>
+    creep.body.some((bodyPart) => bodyPart.type === partType);
+  
+  const hasWork = hasBodyPart(WORK);
+  const hasCarry = hasBodyPart(CARRY);
+  
+  // Special cases that require specific part combinations
+  switch (action) {
+    case "harvesting":
+      // Harvesting requires BOTH WORK (to harvest) and CARRY (to store energy)
+      return hasWork && hasCarry;
+    
+    case "hauling":
+      // Hauling is CARRY-only (picking up dropped resources/from containers)
+      return hasCarry && !hasWork;
+    
+    case "mining":
+      // Mining is WORK-only (harvest and drop on ground for others to haul)
+      return hasWork && !hasCarry;
+    
+    case "upgrading":
+      // Upgrading requires BOTH WORK (to upgrade) and CARRY (to hold energy)
+      return hasWork && hasCarry;
+    
+    case "building":
+    case "repairing":
+    case "deconstructing":
+      // These actions require WORK and CARRY (need to hold energy to build/repair)
+      return hasWork && hasCarry;
+  }
+  
+  // For other actions, check if creep has at least ONE of the required parts
   const requiredParts = ACTION_BODY_REQUIREMENTS[action];
   
   // If action has no requirements defined, allow it (permissive default)
@@ -35,10 +67,7 @@ const canPerformAction = (creep, action) => {
     return true;
   }
   
-  // Check if creep has at least ONE of the required parts
-  return requiredParts.some((requiredPart) =>
-    creep.body.some((bodyPart) => bodyPart.type === requiredPart)
-  );
+  return requiredParts.some((requiredPart) => hasBodyPart(requiredPart));
 };
 
 // ============================================================================
