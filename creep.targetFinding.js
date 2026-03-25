@@ -60,12 +60,25 @@ const findStructuresNeedingRepair = (room) =>
  * @returns {Array} Structures that can receive energy
  */
 const findEnergyDepositTargets = (room) => {
+  // Check if room is in energy priority mode
+  const roomMemory = Memory.rooms && Memory.rooms[room.name];
+  const energyPriorityMode = roomMemory && roomMemory.energyPriorityMode;
+  
   const structures = room.find(FIND_STRUCTURES, {
-    filter: (s) =>
-      (s.structureType === STRUCTURE_EXTENSION ||
-        s.structureType === STRUCTURE_SPAWN ||
-        s.structureType === STRUCTURE_TOWER) &&
-      s.store.getFreeCapacity(RESOURCE_ENERGY) > 0,
+    filter: (s) => {
+      // In priority mode, only target spawns and extensions
+      if (energyPriorityMode) {
+        return (s.structureType === STRUCTURE_EXTENSION ||
+                s.structureType === STRUCTURE_SPAWN) &&
+               s.store.getFreeCapacity(RESOURCE_ENERGY) > 0;
+      }
+      
+      // Normal mode: include towers as well
+      return (s.structureType === STRUCTURE_EXTENSION ||
+              s.structureType === STRUCTURE_SPAWN ||
+              s.structureType === STRUCTURE_TOWER) &&
+             s.store.getFreeCapacity(RESOURCE_ENERGY) > 0;
+    },
   });
 
   // Sort by priority: Spawn > Tower > Extension

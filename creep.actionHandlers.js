@@ -720,64 +720,90 @@ const handleDelivering = (creep) => {
 
   // Find target if not set
   if (!actionTarget) {
-    // Priority 0: Nearby link with energy (2-hop optimization: link → hauler → spawn)
-    if (hasActiveLinkNetwork(room)) {
-      const nearbyLink = getLinkNearPosition(room, creep.pos, CONFIG.ENERGY.LINK.STORAGE_RANGE);
-      if (
-        nearbyLink &&
-        nearbyLink.store[RESOURCE_ENERGY] >= CONFIG.ENERGY.LINK.MIN_TRANSFER_AMOUNT &&
-        creep.store.getFreeCapacity(RESOURCE_ENERGY) > 0
-      ) {
-        setCreepAction(creep, "delivering", {
-          id: nearbyLink.id,
-          pos: nearbyLink.pos,
-        });
-        return;
-      }
-    }
-
-    // Priority 1: Spawns
+    // Check if room is in energy priority mode
+    const roomMemory = Memory.rooms && Memory.rooms[room.name];
+    const energyPriorityMode = roomMemory && roomMemory.energyPriorityMode;
+    
     let targets = [];
-    targets = creep.room.find(FIND_STRUCTURES, {
-      filter: (s) =>
-        s.structureType === STRUCTURE_SPAWN &&
-        s.store.getFreeCapacity(RESOURCE_ENERGY) > 0,
-    });
-
-    // Second priority: Towers (only if below 80% capacity)
-    if (targets.length === 0) {
-      targets = creep.room.find(FIND_STRUCTURES, {
-      filter: (s) =>
-        s.structureType === STRUCTURE_TOWER &&
-        s.store.getFreeCapacity(RESOURCE_ENERGY) > 0 &&
-        s.store[RESOURCE_ENERGY] < s.store.getCapacity(RESOURCE_ENERGY) * 0.8,
-      });
-    }
-
-    // Third priority: Extensions
-    if (targets.length === 0) {
+    
+    if (energyPriorityMode) {
+      // PRIORITY MODE: Only deliver to spawns and extensions (critical for spawning)
+      // Priority 1: Spawns
       targets = creep.room.find(FIND_STRUCTURES, {
         filter: (s) =>
-          s.structureType === STRUCTURE_EXTENSION &&
+          s.structureType === STRUCTURE_SPAWN &&
           s.store.getFreeCapacity(RESOURCE_ENERGY) > 0,
       });
-    }
-    if (targets.length === 0) {
-      targets = creep.room.find(FIND_STRUCTURES, {
-      filter: (s) =>
-        s.structureType === STRUCTURE_TOWER &&
-        s.store.getFreeCapacity(RESOURCE_ENERGY) > 0
-      });
-    }
+      
+      // Priority 2: Extensions
+      if (targets.length === 0) {
+        targets = creep.room.find(FIND_STRUCTURES, {
+          filter: (s) =>
+            s.structureType === STRUCTURE_EXTENSION &&
+            s.store.getFreeCapacity(RESOURCE_ENERGY) > 0,
+        });
+      }
+    } else {
+      // NORMAL MODE: Standard priority order
+      // Priority 0: Nearby link with energy (2-hop optimization: link → hauler → spawn)
+      if (hasActiveLinkNetwork(room)) {
+        const nearbyLink = getLinkNearPosition(room, creep.pos, CONFIG.ENERGY.LINK.STORAGE_RANGE);
+        if (
+          nearbyLink &&
+          nearbyLink.store[RESOURCE_ENERGY] >= CONFIG.ENERGY.LINK.MIN_TRANSFER_AMOUNT &&
+          creep.store.getFreeCapacity(RESOURCE_ENERGY) > 0
+        ) {
+          setCreepAction(creep, "delivering", {
+            id: nearbyLink.id,
+            pos: nearbyLink.pos,
+          });
+          return;
+        }
+      }
 
-
-    // Fallback: Storage
-    if (targets.length === 0) {
+      // Priority 1: Spawns
       targets = creep.room.find(FIND_STRUCTURES, {
         filter: (s) =>
-          s.structureType === STRUCTURE_STORAGE &&
+          s.structureType === STRUCTURE_SPAWN &&
           s.store.getFreeCapacity(RESOURCE_ENERGY) > 0,
       });
+
+      // Priority 2: Towers (only if below 80% capacity)
+      if (targets.length === 0) {
+        targets = creep.room.find(FIND_STRUCTURES, {
+        filter: (s) =>
+          s.structureType === STRUCTURE_TOWER &&
+          s.store.getFreeCapacity(RESOURCE_ENERGY) > 0 &&
+          s.store[RESOURCE_ENERGY] < s.store.getCapacity(RESOURCE_ENERGY) * 0.8,
+        });
+      }
+
+      // Priority 3: Extensions
+      if (targets.length === 0) {
+        targets = creep.room.find(FIND_STRUCTURES, {
+          filter: (s) =>
+            s.structureType === STRUCTURE_EXTENSION &&
+            s.store.getFreeCapacity(RESOURCE_ENERGY) > 0,
+        });
+      }
+      
+      // Priority 4: Towers (any capacity)
+      if (targets.length === 0) {
+        targets = creep.room.find(FIND_STRUCTURES, {
+        filter: (s) =>
+          s.structureType === STRUCTURE_TOWER &&
+          s.store.getFreeCapacity(RESOURCE_ENERGY) > 0
+        });
+      }
+
+      // Priority 5: Storage
+      if (targets.length === 0) {
+        targets = creep.room.find(FIND_STRUCTURES, {
+          filter: (s) =>
+            s.structureType === STRUCTURE_STORAGE &&
+            s.store.getFreeCapacity(RESOURCE_ENERGY) > 0,
+        });
+      }
     }
 
     if (targets.length === 0) {
