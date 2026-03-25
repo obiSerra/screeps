@@ -60,6 +60,11 @@ const canPerformAction = (creep, action) => {
     case "deconstructing":
       // These actions require WORK and CARRY (need to hold energy to build/repair)
       return hasWork && hasCarry;
+
+    
+    case "delivering":
+      // Delivering is CARRY-only (moving resources to structures)
+      return hasCarry;
   }
   
   // For other actions, check if creep has at least ONE of the required parts
