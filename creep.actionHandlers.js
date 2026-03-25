@@ -290,24 +290,24 @@ const handleHarvesting = (creep) => {
     return;
   }
 
-  // Priority 1: Check for nearby storage link (faster delivery)
-  if (hasActiveLinkNetwork(room)) {
-    const nearbyLink = getLinkNearPosition(room, creep.pos, CONFIG.ENERGY.LINK.STORAGE_RANGE);
-    if (
-      nearbyLink &&
-      nearbyLink.store.getFreeCapacity(RESOURCE_ENERGY) >= CONFIG.ENERGY.LINK.MIN_TRANSFER_AMOUNT
-    ) {
-      const result = creep.transfer(nearbyLink, RESOURCE_ENERGY);
-      if (result === ERR_NOT_IN_RANGE) {
-        moveToTarget(creep, nearbyLink, PATH_COLORS.harvesting);
-      } else if (result === OK) {
-        console.log(
-          `Creep ${creep.name} using storage link for faster delivery`,
-        );
-      }
-      return;
-    }
-  }
+  // // Priority 1: Check for nearby storage link (faster delivery)
+  // if (hasActiveLinkNetwork(room)) {
+  //   const nearbyLink = getLinkNearPosition(room, creep.pos, CONFIG.ENERGY.LINK.STORAGE_RANGE);
+  //   if (
+  //     nearbyLink &&
+  //     nearbyLink.store.getFreeCapacity(RESOURCE_ENERGY) >= CONFIG.ENERGY.LINK.MIN_TRANSFER_AMOUNT
+  //   ) {
+  //     const result = creep.transfer(nearbyLink, RESOURCE_ENERGY);
+  //     if (result === ERR_NOT_IN_RANGE) {
+  //       moveToTarget(creep, nearbyLink, PATH_COLORS.harvesting);
+  //     } else if (result === OK) {
+  //       console.log(
+  //         `Creep ${creep.name} using storage link for faster delivery`,
+  //       );
+  //     }
+  //     return;
+  //   }
+  // }
 
   // Priority 2: Direct delivery to spawns/extensions
   const targets = findEnergyDepositTargets(room);
@@ -744,12 +744,13 @@ const handleDelivering = (creep) => {
         s.store.getFreeCapacity(RESOURCE_ENERGY) > 0,
     });
 
-    // Second priority: Towers
+    // Second priority: Towers (only if below 80% capacity)
     if (targets.length === 0) {
       targets = creep.room.find(FIND_STRUCTURES, {
-        filter: (s) =>
-          s.structureType === STRUCTURE_TOWER &&
-          s.store.getFreeCapacity(RESOURCE_ENERGY) > 0,
+      filter: (s) =>
+        s.structureType === STRUCTURE_TOWER &&
+        s.store.getFreeCapacity(RESOURCE_ENERGY) > 0 &&
+        s.store[RESOURCE_ENERGY] < s.store.getCapacity(RESOURCE_ENERGY) * 0.8,
       });
     }
 
@@ -761,6 +762,14 @@ const handleDelivering = (creep) => {
           s.store.getFreeCapacity(RESOURCE_ENERGY) > 0,
       });
     }
+    if (targets.length === 0) {
+      targets = creep.room.find(FIND_STRUCTURES, {
+      filter: (s) =>
+        s.structureType === STRUCTURE_TOWER &&
+        s.store.getFreeCapacity(RESOURCE_ENERGY) > 0
+      });
+    }
+
 
     // Fallback: Storage
     if (targets.length === 0) {

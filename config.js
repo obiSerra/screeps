@@ -178,6 +178,12 @@ const CONFIG = {
             HIGH_FILL_THRESHOLD: 0.75,          // High-fill containers
             MIN_DROPPED_RESOURCE: 50,           // Min dropped resource to collect
             MIN_FOR_PICKUP: 100                 // Min container energy for gathering
+        },
+
+        // Energy fill priority mode
+        PRIORITY_MODE: {
+            CRITICAL_TIME_TO_FILL_CAPACITY: 75,  // Activate priority mode if time to fill > this (ticks)
+            HARVESTER_BOOST: 2                   // Additional harvesters to spawn in priority mode
         }
     },
 

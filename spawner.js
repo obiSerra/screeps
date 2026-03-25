@@ -3,6 +3,7 @@
  * Coordinates spawn procedure using modular components
  */
 
+const CONFIG = require("./config");
 const utils = require("./utils");
 const { displaySpawningVisual, trySpawn } = require("./spawnerCore");
 const {
@@ -14,13 +15,15 @@ const {
 /**
  * Main spawn procedure - simplified spawning logic
  * Priority 1: Fighter (if hostiles) or minimum fleet (2 harvesters, 2 builders, 1 upgrader)
+ * Priority 1.5: Energy fill priority mode (if timeToFillCapacity is critical)
  * Priority 2: Spawn from roster only if energy >= 80% capacity
  * @param {StructureSpawn} spawn - The spawn structure
  * @param {Object} roster - Target roster {role: count}
  * @param {Object} roomStatus - Current room status
+ * @param {Object} efficiencyMetrics - Energy collection efficiency metrics
  * @returns {Object} Spawn result info
  */
-const spawnProcedure = (spawn, roster, roomStatus) => {
+const spawnProcedure = (spawn, roster, roomStatus, efficiencyMetrics) => {
   if (!spawn || spawn.spawning) {
     displaySpawningVisual(spawn);
     return {
@@ -53,9 +56,9 @@ const spawnProcedure = (spawn, roster, roomStatus) => {
   const minimumFleet = { harvester: 2, builder: 2, upgrader: 1 };
   for (const [role, min] of Object.entries(minimumFleet)) {
     if ((currentCreeps[role] || 0) < min) {
-      console.log(
-        `Spawning ${role} (${(currentCreeps[role] || 0) + 1}/${min}) to maintain minimum fleet`,
-      );
+      // console.log(
+      //   `Spawning ${role} (${(currentCreeps[role] || 0) + 1}/${min}) to maintain minimum fleet`,
+      // );
       const result = trySpawn(spawn, role, roomStatus, room);
       displaySpawningVisual(spawn);
       return result;
@@ -70,6 +73,47 @@ const spawnProcedure = (spawn, roster, roomStatus) => {
     return result;
   }
 
+  // PRIORITY 1.75: Energy fill priority mode
+  // Manage priority mode flag based on timeToFillCapacity
+  if (!Memory.rooms[roomStatus.roomName]) {
+    Memory.rooms[roomStatus.roomName] = {};
+  }
+
+  if (efficiencyMetrics && efficiencyMetrics.timeToFillCapacity !== undefined) {
+    const threshold = CONFIG.ENERGY.PRIORITY_MODE.CRITICAL_TIME_TO_FILL_CAPACITY;
+    const currentMode = Memory.rooms[roomStatus.roomName].energyPriorityMode || false;
+    
+    if (efficiencyMetrics.timeToFillCapacity > threshold && !currentMode) {
+      Memory.rooms[roomStatus.roomName].energyPriorityMode = true;
+      console.log(
+        `⚡ ENERGY PRIORITY MODE ACTIVATED for ${roomStatus.roomName} - ` +
+        `timeToFillCapacity: ${efficiencyMetrics.timeToFillCapacity.toFixed(0)} > ${threshold} ticks`
+      );
+    } else if (efficiencyMetrics.timeToFillCapacity <= threshold && currentMode) {
+      Memory.rooms[roomStatus.roomName].energyPriorityMode = false;
+      console.log(
+        `✓ Energy priority mode deactivated for ${roomStatus.roomName} - ` +
+        `timeToFillCapacity: ${efficiencyMetrics.timeToFillCapacity.toFixed(0)} <= ${threshold} ticks`
+      );
+    }
+
+    // When priority mode is active, spawn additional harvesters
+    if (Memory.rooms[roomStatus.roomName].energyPriorityMode) {
+      const currentHarvesters = currentCreeps.harvester || 0;
+      const targetHarvesters = (roster.harvester || 2) + CONFIG.ENERGY.PRIORITY_MODE.HARVESTER_BOOST;
+      
+      if (currentHarvesters < targetHarvesters) {
+        console.log(
+          `⚡ [PRIORITY MODE] Spawning harvester (${currentHarvesters + 1}/${targetHarvesters}) ` +
+          `to improve energy filling - ${roomStatus.roomName}`
+        );
+        const result = trySpawn(spawn, "harvester", roomStatus, room);
+        displaySpawningVisual(spawn);
+        return result;
+      }
+    }
+  }
+
   // PRIORITY 2: Only spawn if energy >= 80% capacity
   const energyRatio = roomStatus.energyAvailable / roomStatus.energyCapacity;
   const minEnergyRatio = 0.7;
@@ -82,9 +126,6 @@ const spawnProcedure = (spawn, roster, roomStatus) => {
     return { spawned: false, reason: "waiting_for_energy" };
   }
 
-  console.log(
-    `Energy sufficient for spawning - checking roster priorities - ${roomStatus.roomName}`,
-  );
 
   // Find best role from roster (biggest deficit)
   const bestRole = findBestRoleToSpawn(roster, currentCreeps, roomStatus);
@@ -95,8 +136,9 @@ const spawnProcedure = (spawn, roster, roomStatus) => {
   }
 
   displaySpawningVisual(spawn);
-  // console.log(
+  // utils.periodicLogger(
   //   `Roster is currently full - no spawn needed - ${roomStatus.roomName}`,
+  //   10,
   // );
   return { spawned: false, reason: "roster_full" };
 };

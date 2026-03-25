@@ -5,14 +5,17 @@ var roleBuilder = () => {
   const base = baseCreep.baseCreep;
   return {
     run: function (creep) {
-      base.workerActions(creep, [
-        "deconstructing",
-        "repairCritical",
-        "building",
-        "repairing",
-        "harvesting",
-        "upgrading",
-      ]);
+      // Check if room is in energy priority mode
+      const roomMemory = Memory.rooms && Memory.rooms[creep.room.name];
+      const energyPriorityMode = roomMemory && roomMemory.energyPriorityMode;
+      
+      // In priority mode, act as harvester (prioritize energy delivery)
+      // Otherwise, use normal builder priorities
+      const priorityList = energyPriorityMode
+        ? ["harvesting", "upgrading", "repairing", "building"]
+        : ["deconstructing", "repairCritical", "building", "repairing", "harvesting", "upgrading"];
+      
+      base.workerActions(creep, priorityList);
       base.performAction(creep, creep.memory.action);
     },
   };
