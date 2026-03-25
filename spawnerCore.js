@@ -86,16 +86,17 @@ const displaySpawningVisual = (spawn, efficiencyMetrics = null) => {
  * @param {string} role - Role to spawn
  * @param {Object} roomStatus - Room status
  * @param {Room} room - The room object
+ * @param {Object} efficiencyMetrics - Energy collection efficiency metrics (optional)
  * @returns {Object} Spawn result
  */
-const trySpawn = (spawn, role, roomStatus, room) => {
+const trySpawn = (spawn, role, roomStatus, room, efficiencyMetrics = null) => {
   const rcl = roomStatus.controllerLevel;
   const body = getBodyForRole(
     role,
     rcl,
     roomStatus.energyAvailable,
     room,
-    null,
+    efficiencyMetrics,
   );
 
   if (!body || calculateBodyCost(body) > roomStatus.energyAvailable) {

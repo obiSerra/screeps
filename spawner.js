@@ -47,7 +47,7 @@ const spawnProcedure = (spawn, roster, roomStatus, efficiencyMetrics) => {
     console.log(
       `⚔️ Spawning fighter (${(currentCreeps.fighter || 0) + 1}/${requiredFighters}) for ${flagType}`,
     );
-    const result = trySpawn(spawn, "fighter", roomStatus, room);
+    const result = trySpawn(spawn, "fighter", roomStatus, room, efficiencyMetrics);
     displaySpawningVisual(spawn);
     return result;
   }
@@ -59,7 +59,7 @@ const spawnProcedure = (spawn, roster, roomStatus, efficiencyMetrics) => {
       // console.log(
       //   `Spawning ${role} (${(currentCreeps[role] || 0) + 1}/${min}) to maintain minimum fleet`,
       // );
-      const result = trySpawn(spawn, role, roomStatus, room);
+      const result = trySpawn(spawn, role, roomStatus, room, efficiencyMetrics);
       displaySpawningVisual(spawn);
       return result;
     }
@@ -68,7 +68,7 @@ const spawnProcedure = (spawn, roster, roomStatus, efficiencyMetrics) => {
   // PRIORITY 1.5: Explorer for claiming/exploration flags
   if (Game.flags["claim"] && !currentCreeps.claimer) {
     const role = "claimer";
-    const result = trySpawn(spawn, role, roomStatus, room);
+    const result = trySpawn(spawn, role, roomStatus, room, efficiencyMetrics);
     displaySpawningVisual(spawn);
     return result;
   }
@@ -88,7 +88,7 @@ const spawnProcedure = (spawn, roster, roomStatus, efficiencyMetrics) => {
         `⚡ [PRIORITY MODE] Spawning harvester (${currentHarvesters + 1}/${targetHarvesters}) ` +
         `to improve energy filling - ${roomStatus.roomName}`
       );
-      const result = trySpawn(spawn, "harvester", roomStatus, room);
+      const result = trySpawn(spawn, "harvester", roomStatus, room, efficiencyMetrics);
       displaySpawningVisual(spawn);
       return result;
     }
@@ -110,7 +110,7 @@ const spawnProcedure = (spawn, roster, roomStatus, efficiencyMetrics) => {
   // Find best role from roster (biggest deficit)
   const bestRole = findBestRoleToSpawn(roster, currentCreeps, roomStatus);
   if (bestRole) {
-    const result = trySpawn(spawn, bestRole, roomStatus, room);
+    const result = trySpawn(spawn, bestRole, roomStatus, room, efficiencyMetrics);
     displaySpawningVisual(spawn);
     return result;
   }
