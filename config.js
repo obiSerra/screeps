@@ -183,8 +183,7 @@ const CONFIG = {
         // Energy fill priority mode
         PRIORITY_MODE: {
             CRITICAL_TIME_TO_FILL_CAPACITY: 75,  // Activate priority mode if time to fill > this (ticks)
-            HARVESTER_BOOST: 2,                  // Additional harvesters to spawn in priority mode
-            MIN_TOWER_ENERGY_PERCENT: 0.10       // Minimum tower energy (10%) even in priority mode
+            HARVESTER_BOOST: 2                   // Additional harvesters to spawn in priority mode
         }
     },
 
