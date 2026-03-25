@@ -1,0 +1,322 @@
+/**
+ * Action Decisions Module
+ * Pure functions for determining what actions creeps should take
+ */
+
+const CONFIG = require("../config");
+const utils = require("../utils");
+const {
+  findRepairTargets,
+  filterCriticalRepairs,
+  findDeconstructTarget,
+  findPriorityBuildTarget,
+  prioritizeConstructionSites,
+  sortByContention,
+} = require("./targetFinding");
+const { canPerformAction } = require("./creepAnalysis");
+
+// ============================================================================
+// Pure Functions - Resource State
+// ============================================================================
+
+/**
+ * Check if creep needs to gather resources
+ * Pure function
+ * @param {Creep} creep
+ * @returns {boolean}
+ */
+const needsToGather = (creep) =>
+  creep.store[RESOURCE_ENERGY] === 0 ||
+  (creep.memory.action === undefined && creep.store.getFreeCapacity() > 0);
+
+/**
+ * Check if creep has finished gathering
+ * Pure function
+ * @param {Creep} creep
+ * @returns {boolean}
+ */
+const hasFinishedGathering = (creep) =>
+  (creep.memory.action === "gathering" || creep.memory.action === undefined) &&
+  creep.store.getFreeCapacity() === 0;
+
+// ============================================================================
+// Pure Functions - Action Availability
+// ============================================================================
+
+/**
+ * Determine action availability
+ * Pure function - returns object describing what actions are possible
+ * @param {Creep} creep
+ * @returns {Object} Action availability map
+ */
+const getActionAvailability = (creep) => {
+  const { room } = creep;
+  const repairTargets = findRepairTargets(creep);
+  const criticalRepairs = filterCriticalRepairs(repairTargets);
+  const constructionSites = room.find(FIND_CONSTRUCTION_SITES);
+  const energyAvailable = room.energyAvailable;
+  const energyCapacity = room.energyCapacityAvailable;
+
+  // Check for storage and containers at 50% capacity for transporting
+  const storage = room.find(FIND_STRUCTURES, {
+    filter: (s) => s.structureType === STRUCTURE_STORAGE,
+  })[0];
+  const containersWithEnergy = room.find(FIND_STRUCTURES, {
+    filter: (s) =>
+      s.structureType === STRUCTURE_CONTAINER &&
+      s.store[RESOURCE_ENERGY] >= s.store.getCapacity(RESOURCE_ENERGY) * CONFIG.ENERGY.CONTAINER.TARGET_THRESHOLD,
+  });
+
+  // Check for mining opportunities (sources exist and creep has assigned source)
+  const sources = room.find(FIND_SOURCES_ACTIVE);
+  const hasMiningTarget = creep.memory.assignedSource || sources.length > 0;
+
+  // Check for hauling opportunities (containers with energy or dropped resources)
+  const containersForHauling = room.find(FIND_STRUCTURES, {
+    filter: (s) =>
+      s.structureType === STRUCTURE_CONTAINER && s.store[RESOURCE_ENERGY] > 0,
+  });
+  const droppedEnergy = room.find(FIND_DROPPED_RESOURCES, {
+    filter: (r) => r.resourceType === RESOURCE_ENERGY && r.amount > CONFIG.ENERGY.CONTAINER.MIN_DROPPED_RESOURCE,
+  });
+  const hasHaulingTarget =
+    containersForHauling.length > 0 || droppedEnergy.length > 0;
+
+  // Check for delivery targets (spawns/extensions/towers/storage needing energy)
+  const deliveryTargets = room.find(FIND_STRUCTURES, {
+    filter: (s) =>
+      (s.structureType === STRUCTURE_SPAWN ||
+        s.structureType === STRUCTURE_EXTENSION ||
+        s.structureType === STRUCTURE_TOWER ||
+        s.structureType === STRUCTURE_STORAGE) &&
+      s.store.getFreeCapacity(RESOURCE_ENERGY) > 0,
+  });
+  const hasDeliveryTarget = deliveryTargets.length > 0;
+
+  // Check for deconstruct target
+  const deconstructTarget = findDeconstructTarget(room);
+  const hasDeconstructTarget = deconstructTarget !== null;
+
+  // Check for priority build target (across all rooms)
+  const priorityBuildTarget = findPriorityBuildTarget();
+  const hasPriorityBuildTarget = priorityBuildTarget !== null;
+
+  return {
+    repairCritical: criticalRepairs.length > 0 && canPerformAction(creep, "repairing"),
+    building: (constructionSites.length > 0 || hasPriorityBuildTarget) && canPerformAction(creep, "building"),
+    repairing: repairTargets.length > 0 && canPerformAction(creep, "repairing"),
+    harvesting: energyAvailable < energyCapacity && canPerformAction(creep, "harvesting"),
+    transporting: storage && containersWithEnergy.length > 0 && canPerformAction(creep, "transporting"),
+    mining: hasMiningTarget && canPerformAction(creep, "mining"),
+    hauling:
+      hasHaulingTarget && creep.store.getFreeCapacity(RESOURCE_ENERGY) > 0 && canPerformAction(creep, "hauling"),
+    delivering: hasDeliveryTarget && creep.store[RESOURCE_ENERGY] > 0 && canPerformAction(creep, "delivering"),
+    deconstructing: hasDeconstructTarget && canPerformAction(creep, "deconstructing"),
+    upgrading: canPerformAction(creep, "upgrading"),
+    targets: {
+      criticalRepairs,
+      repairTargets,
+      constructionSites,
+      storage,
+      containersWithEnergy,
+      sources,
+      containersForHauling,
+      droppedEnergy,
+      deliveryTargets,
+      deconstructTarget,
+      priorityBuildTarget,
+    },
+  };
+};
+
+// ============================================================================
+// Pure Functions - Target Selection
+// ============================================================================
+
+/**
+ * Select the best build target from construction sites
+ * Prioritizes priority_build flag first, then extensions when multiple types exist, then sorts by contention
+ * Pure function
+ * @param {Creep} creep
+ * @param {Array} constructionSites
+ * @returns {Object} { id, pos } of selected target
+ */
+const selectBuildTarget = (creep, constructionSites) => {
+  // Priority 1: Check for priority_build flag
+  const priorityBuildTarget = findPriorityBuildTarget();
+  if (priorityBuildTarget) {
+    return { id: priorityBuildTarget.id, pos: priorityBuildTarget.pos };
+  }
+
+  // Priority 2: Existing prioritization logic
+  const prioritizedSites = prioritizeConstructionSites(constructionSites);
+  const targets = sortByContention(creep, prioritizedSites, true);
+  if (targets.length === 0) {
+    return null;
+  }
+  const target = targets[0];
+  return { id: target.id, pos: target.pos };
+};
+
+/**
+ * Select the best source target for gathering
+ * Pure function
+ * @param {Creep} creep
+ * @returns {Object|null} { id, pos } of selected source or null if none available
+ */
+const selectGatheringTarget = (creep) => {
+  // Priority 0: Check for dropped energy first (before it decays)
+  const droppedEnergy = creep.room.find(FIND_DROPPED_RESOURCES, {
+    filter: (r) => r.resourceType === RESOURCE_ENERGY && r.amount > CONFIG.ENERGY.CONTAINER.MIN_DROPPED_RESOURCE,
+  });
+
+  if (droppedEnergy.length > 0) {
+    const closest = creep.pos.findClosestByPath(droppedEnergy);
+    return { id: closest.id, pos: closest.pos };
+  }
+
+  // Upgraders preferentially pick energy from storage or controller link based on distance
+  if (creep.memory.role === "upgrader") {
+    // Find storage
+    const storage = creep.room.find(FIND_STRUCTURES, {
+      filter: (s) =>
+        s.structureType === STRUCTURE_STORAGE &&
+        s.store[RESOURCE_ENERGY] > CONFIG.ENERGY.STORAGE.MIN_FOR_UPGRADERS,
+    })[0];
+
+    // Find controller link with energy
+    const controllerLink = creep.room.find(FIND_STRUCTURES, {
+      filter: (s) =>
+        s.structureType === STRUCTURE_LINK &&
+        s.store[RESOURCE_ENERGY] > 0 &&
+        creep.room.controller &&
+        s.pos.getRangeTo(creep.room.controller) <= 3,
+    })[0];
+
+    // If both exist, pick the closer one
+    if (storage && controllerLink) {
+      const distToStorage = creep.pos.getRangeTo(storage);
+      const distToLink = creep.pos.getRangeTo(controllerLink);
+      const selected = distToLink < distToStorage ? controllerLink : storage;
+      return { id: selected.id, pos: selected.pos };
+    }
+
+    // Return whichever exists
+    if (storage) {
+      return { id: storage.id, pos: storage.pos };
+    }
+    if (controllerLink) {
+      return { id: controllerLink.id, pos: controllerLink.pos };
+    }
+  }
+
+  const source = utils.findBestSourceForCreep(creep);
+  if (!source) {
+    return null;
+  }
+  return { id: source.id, pos: source.pos };
+};
+
+/**
+ * Select the best container for transporter gathering
+ * Pure function - finds dropped resources first, then containers at 50%+ capacity
+ * @param {Creep} creep
+ * @returns {Object|null} { id, pos } of selected resource or container or null
+ */
+const selectTransporterGatheringTarget = (creep) => {
+  // Priority 1: Check for dropped energy first (before it decays)
+  const droppedEnergy = creep.room.find(FIND_DROPPED_RESOURCES, {
+    filter: (r) => r.resourceType === RESOURCE_ENERGY && r.amount > CONFIG.ENERGY.CONTAINER.MIN_DROPPED_RESOURCE,
+  });
+
+  if (droppedEnergy.length > 0) {
+    const closest = creep.pos.findClosestByPath(droppedEnergy);
+    return { id: closest.id, pos: closest.pos };
+  }
+
+  // Priority 2: Containers at 50%+ capacity
+  const containers = creep.room.find(FIND_STRUCTURES, {
+    filter: (s) =>
+      s.structureType === STRUCTURE_CONTAINER &&
+      s.store[RESOURCE_ENERGY] >= s.store.getCapacity(RESOURCE_ENERGY) * CONFIG.ENERGY.CONTAINER.TARGET_THRESHOLD,
+  });
+
+  if (containers.length === 0) {
+    return null;
+  }
+
+  // Sort by energy amount (highest first) and distance
+  const sorted = containers.sort((a, b) => {
+    const energyDiff = b.store[RESOURCE_ENERGY] - a.store[RESOURCE_ENERGY];
+    return energyDiff !== 0 ? energyDiff : creep.pos.getRangeTo(a) - creep.pos.getRangeTo(b);
+  });
+
+  return { id: sorted[0].id, pos: sorted[0].pos };
+};
+
+/**
+ * Select action and target based on priority list
+ * Pure function - returns decision without side effects
+ * @param {Creep} creep
+ * @param {Array} priorityList
+ * @returns {Object} { action, target }
+ */
+const selectAction = (creep, priorityList) => {
+  const availability = getActionAvailability(creep);
+  const { targets } = availability;
+
+  // Critical repairs always take priority
+  if (availability.repairCritical) {
+    const repairTarget = targets.criticalRepairs[0];
+    return {
+      action: "repairing",
+      target: { id: repairTarget.id, pos: repairTarget.pos },
+    };
+  }
+
+  // Check priority list
+  for (const action of priorityList) {
+    if (availability[action]) {
+      switch (action) {
+        case "building":
+          return { action: "building", target: selectBuildTarget(creep, targets.constructionSites) };
+        case "repairing":
+          const repairTarget = targets.repairTargets[0];
+          return { action: "repairing", target: { id: repairTarget.id, pos: repairTarget.pos } };
+        case "harvesting":
+          return { action: "harvesting", target: null };
+        case "transporting":
+          return { action: "transporting", target: { id: targets.storage.id, pos: targets.storage.pos } };
+        case "mining":
+          return { action: "mining", target: null };
+        case "hauling":
+          return { action: "hauling", target: null };
+        case "delivering":
+          return { action: "delivering", target: null };
+        case "upgrading":
+          return { action: "upgrading", target: null };
+        case "deconstructing":
+          return { action: "deconstructing", target: targets.deconstructTarget };
+        case "attacking":
+          return { action: "attacking", target: null };
+      }
+    }
+  }
+
+  // Default fallback
+  return { action: "upgrading", target: null };
+};
+
+// ============================================================================
+// Exports
+// ============================================================================
+
+module.exports = {
+  needsToGather,
+  hasFinishedGathering,
+  getActionAvailability,
+  selectBuildTarget,
+  selectGatheringTarget,
+  selectTransporterGatheringTarget,
+  selectAction,
+};

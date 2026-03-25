@@ -11,7 +11,6 @@ const {
   findBestRoleToSpawn,
 } = require("./spawnerRoster");
 
-
 /**
  * Main spawn procedure - simplified spawning logic
  * Priority 1: Fighter (if hostiles) or minimum fleet (2 harvesters, 2 builders, 1 upgrader)
@@ -37,7 +36,6 @@ const spawnProcedure = (spawn, roster, roomStatus) => {
   // PRIORITY 1: Fighters for combat (hostiles, attack, or prepare_attack flags)
   const requiredFighters = getRequiredFighterCount(hasHostiles);
   if (requiredFighters > 0 && (currentCreeps.fighter || 0) < requiredFighters) {
-
     const flagType = Game.flags["attack"]
       ? "attack"
       : Object.keys(Game.flags).some((n) => n.startsWith("prepare_attack"))
@@ -55,7 +53,9 @@ const spawnProcedure = (spawn, roster, roomStatus) => {
   const minimumFleet = { harvester: 2, builder: 2, upgrader: 1 };
   for (const [role, min] of Object.entries(minimumFleet)) {
     if ((currentCreeps[role] || 0) < min) {
-      console.log(`🚀 Spawning ${role} (${(currentCreeps[role] || 0) + 1}/${min}) to maintain minimum fleet`);
+      console.log(
+        `Spawning ${role} (${(currentCreeps[role] || 0) + 1}/${min}) to maintain minimum fleet`,
+      );
       const result = trySpawn(spawn, role, roomStatus, room);
       displaySpawningVisual(spawn);
       return result;
@@ -72,9 +72,13 @@ const spawnProcedure = (spawn, roster, roomStatus) => {
 
   // PRIORITY 2: Only spawn if energy >= 80% capacity
   const energyRatio = roomStatus.energyAvailable / roomStatus.energyCapacity;
-  if (energyRatio < 0.8) {
+  const minEnergyRatio = 0.7;
+  if (energyRatio < minEnergyRatio) {
     displaySpawningVisual(spawn);
-    utils.periodicLogger(`Energy at ${Math.round(energyRatio * 100)}% - waiting to spawn until >= 80% - ${roomStatus.roomName}`, 20);
+    utils.periodicLogger(
+      `Energy at ${Math.round(energyRatio * 100)}% - waiting to spawn until >= ${minEnergyRatio * 100}% - ${roomStatus.roomName}`,
+      10,
+    );
     return { spawned: false, reason: "waiting_for_energy" };
   }
 
