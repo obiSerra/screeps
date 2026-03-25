@@ -40,9 +40,12 @@ const canPerformAction = (creep, action) => {
       // Harvesting requires BOTH WORK (to harvest) and CARRY (to store energy)
       return hasWork && hasCarry;
     
+    case "transporting":
+      // Transporting is CARRY-only (picking up/dropping off resources)
+      return hasCarry;
     case "hauling":
       // Hauling is CARRY-only (picking up dropped resources/from containers)
-      return hasCarry && !hasWork;
+      return hasCarry;
     
     case "mining":
       // Mining is WORK-only (harvest and drop on ground for others to haul)
