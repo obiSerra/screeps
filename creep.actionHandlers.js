@@ -766,6 +766,9 @@ const handleDelivering = (creep) => {
     
     if (energyPriorityMode) {
       // PRIORITY MODE: Only deliver to spawns and extensions (critical for spawning)
+      // Exception: Also fill towers below minimum energy threshold
+      const minTowerEnergy = CONFIG.ENERGY.PRIORITY_MODE.MIN_TOWER_ENERGY_PERCENT;
+      
       // Priority 1: Spawns
       targets = creep.room.find(FIND_STRUCTURES, {
         filter: (s) =>
@@ -773,7 +776,17 @@ const handleDelivering = (creep) => {
           s.store.getFreeCapacity(RESOURCE_ENERGY) > 0,
       });
       
-      // Priority 2: Extensions
+      // Priority 2: Towers below minimum threshold (critical for defense)
+      if (targets.length === 0) {
+        targets = creep.room.find(FIND_STRUCTURES, {
+          filter: (s) =>
+            s.structureType === STRUCTURE_TOWER &&
+            s.store.getFreeCapacity(RESOURCE_ENERGY) > 0 &&
+            s.store[RESOURCE_ENERGY] < s.store.getCapacity(RESOURCE_ENERGY) * minTowerEnergy,
+        });
+      }
+      
+      // Priority 3: Extensions
       if (targets.length === 0) {
         targets = creep.room.find(FIND_STRUCTURES, {
           filter: (s) =>

@@ -67,10 +67,15 @@ const findEnergyDepositTargets = (room) => {
   const structures = room.find(FIND_STRUCTURES, {
     filter: (s) => {
       // In priority mode, only target spawns and extensions
+      // Exception: Also include towers below minimum energy threshold
       if (energyPriorityMode) {
-        return (s.structureType === STRUCTURE_EXTENSION ||
-                s.structureType === STRUCTURE_SPAWN) &&
-               s.store.getFreeCapacity(RESOURCE_ENERGY) > 0;
+        const minTowerEnergy = CONFIG.ENERGY.PRIORITY_MODE.MIN_TOWER_ENERGY_PERCENT;
+        return ((s.structureType === STRUCTURE_EXTENSION ||
+                 s.structureType === STRUCTURE_SPAWN) &&
+                s.store.getFreeCapacity(RESOURCE_ENERGY) > 0) ||
+               (s.structureType === STRUCTURE_TOWER &&
+                s.store.getFreeCapacity(RESOURCE_ENERGY) > 0 &&
+                s.store[RESOURCE_ENERGY] < s.store.getCapacity(RESOURCE_ENERGY) * minTowerEnergy);
       }
       
       // Normal mode: include towers as well
