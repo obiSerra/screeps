@@ -149,6 +149,7 @@ const calculateRoster = (roomStatus, efficiencyMetrics = null) => {
   const rcl = roomStatus.controllerLevel;
   const sourceCount = getSourceCount(roomStatus.roomName);
   
+  utils.periodicLogger(`Efficiency metrics for room ${roomStatus.roomName}: ${JSON.stringify(efficiencyMetrics)}`, 20);
   // Base roster - minimum creeps always maintained
   const roster = {
     harvester: 2,  // Always keep 2 harvesters as backup

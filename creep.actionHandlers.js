@@ -22,6 +22,10 @@ const {
   setCreepAction,
   clearCreepAction,
 } = require("./creep.effects");
+const {
+  hasActiveLinkNetwork,
+  getLinkNearPosition,
+} = require("./linkManager");
 
 // ============================================================================
 // Action Handlers - Composed Effectful Functions
@@ -255,6 +259,26 @@ const handleHarvesting = (creep) => {
     return;
   }
 
+  // Priority 1: Check for nearby storage link (faster delivery)
+  if (hasActiveLinkNetwork(room)) {
+    const nearbyLink = getLinkNearPosition(room, creep.pos, CONFIG.ENERGY.LINK.STORAGE_RANGE);
+    if (
+      nearbyLink &&
+      nearbyLink.store.getFreeCapacity(RESOURCE_ENERGY) >= CONFIG.ENERGY.LINK.MIN_TRANSFER_AMOUNT
+    ) {
+      const result = creep.transfer(nearbyLink, RESOURCE_ENERGY);
+      if (result === ERR_NOT_IN_RANGE) {
+        moveToTarget(creep, nearbyLink, PATH_COLORS.harvesting);
+      } else if (result === OK) {
+        console.log(
+          `Creep ${creep.name} using storage link for faster delivery`,
+        );
+      }
+      return;
+    }
+  }
+
+  // Priority 2: Direct delivery to spawns/extensions
   const targets = findEnergyDepositTargets(room);
   if (targets.length > 0) {
     if (creep.transfer(targets[0], RESOURCE_ENERGY) === ERR_NOT_IN_RANGE) {
@@ -462,7 +486,7 @@ const handleHauling = (creep) => {
       const storageLink = storage.pos.findInRange(FIND_MY_STRUCTURES, 2, {
         filter: (s) =>
           s.structureType === STRUCTURE_LINK &&
-          s.store[RESOURCE_ENERGY] >= 200, // Only use link if it has decent amount
+          s.store[RESOURCE_ENERGY] >= CONFIG.ENERGY.LINK.MIN_TRANSFER_AMOUNT,
       });
 
       if (storageLink.length > 0) {
@@ -629,10 +653,24 @@ const handleDelivering = (creep) => {
 
   // Find target if not set
   if (!actionTarget) {
-    // Priority: Spawn > Towers > Extensions > Storage
-    let targets = [];
+    // Priority 0: Nearby link with energy (2-hop optimization: link → hauler → spawn)
+    if (hasActiveLinkNetwork(room)) {
+      const nearbyLink = getLinkNearPosition(room, creep.pos, CONFIG.ENERGY.LINK.STORAGE_RANGE);
+      if (
+        nearbyLink &&
+        nearbyLink.store[RESOURCE_ENERGY] >= CONFIG.ENERGY.LINK.MIN_TRANSFER_AMOUNT &&
+        creep.store.getFreeCapacity(RESOURCE_ENERGY) > 0
+      ) {
+        setCreepAction(creep, "delivering", {
+          id: nearbyLink.id,
+          pos: nearbyLink.pos,
+        });
+        return;
+      }
+    }
 
-    // First priority: Spawns
+    // Priority 1: Spawns
+    let targets = [];
     targets = creep.room.find(FIND_STRUCTURES, {
       filter: (s) =>
         s.structureType === STRUCTURE_SPAWN &&
@@ -684,6 +722,22 @@ const handleDelivering = (creep) => {
     return;
   }
 
+  // Handle link withdrawal (2-hop: withdraw from link, then deliver to spawn)
+  if (target.structureType === STRUCTURE_LINK) {
+    const result = creep.withdraw(target, RESOURCE_ENERGY);
+    if (result === ERR_NOT_IN_RANGE) {
+      moveToTarget(creep, target, PATH_COLORS.delivering);
+    } else if (result === OK || result === ERR_FULL) {
+      // Withdrew from link, clear target to find spawn/extension on next tick
+      clearCreepAction(creep);
+    } else if (result === ERR_NOT_ENOUGH_RESOURCES) {
+      // Link is empty now, find new target
+      clearCreepAction(creep);
+    }
+    return;
+  }
+
+  // Handle normal delivery to spawns/extensions/towers/storage
   const result = creep.transfer(target, RESOURCE_ENERGY);
   if (result === ERR_NOT_IN_RANGE) {
     moveToTarget(creep, target, PATH_COLORS.delivering);

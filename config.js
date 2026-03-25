@@ -120,7 +120,7 @@ const CONFIG = {
             // MINERS: sourceCount (dynamic)
             HAULER_OFFSET: 2,                   // sourceCount + 2
             BUILDERS: 2,
-            UPGRADERS: 3,
+            UPGRADERS: 2,
             MINERAL_EXTRACTORS: 1,
             CHEMISTS: 1
         },
