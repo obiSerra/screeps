@@ -244,8 +244,6 @@ const handleUpgrading = (creep) => {
     const workParts = creep.body.filter(p => p.type === WORK).length;
     const upgradeAmount = workParts * 1; // Each WORK part upgrades 1 energy per tick
     stats.recordUpgrade(creep.room.name, upgradeAmount);
-  } else {
-    console.log(`Creep ${creep.name} failed to upgrade controller: error ${result}`);
   }
 };
 
