@@ -334,22 +334,14 @@ const handleHarvesting = (creep) => {
   if (result === ERR_NOT_IN_RANGE) {
     moveToTarget(creep, target, PATH_COLORS.harvesting);
   } else if (result === OK) {
-    // Successfully transferred
-    // If creep still has energy, clear target to find a new one, but keep action
-    if (creep.store[RESOURCE_ENERGY] > 0) {
-      delete creep.memory.actionTarget;
-    } else {
-      // Creep is empty, clear action to go back to gathering
+    // Successfully transferred, check if target is now full
+    if (target.store.getFreeCapacity(RESOURCE_ENERGY) === 0) {
+      // Target is full, find a new one on next tick
       clearCreepAction(creep);
     }
   } else if (result === ERR_FULL) {
-    // Target became full between checks
-    // If creep still has energy, find new target, otherwise go back to gathering
-    if (creep.store[RESOURCE_ENERGY] > 0) {
-      delete creep.memory.actionTarget;
-    } else {
-      clearCreepAction(creep);
-    }
+    // Target became full between checks, find new target
+    clearCreepAction(creep);
   } else {
     // Other error, clear and try again
     clearCreepAction(creep);
