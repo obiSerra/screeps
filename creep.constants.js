@@ -3,7 +3,7 @@
  * Configuration values, icons, colors, and body part requirements
  */
 
-const CONFIG = require("../config");
+const CONFIG = require("./config");
 
 // ============================================================================
 // Repair Thresholds

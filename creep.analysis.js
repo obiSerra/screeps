@@ -3,7 +3,7 @@
  * Pure functions for analyzing creep capabilities and properties
  */
 
-const { ACTION_BODY_REQUIREMENTS } = require("./constants");
+const { ACTION_BODY_REQUIREMENTS } = require("./creep.constants");
 
 // ============================================================================
 // Pure Functions - Creep Analysis

@@ -7,21 +7,21 @@
  */
 
 const utils = require("./utils");
-const { isFighter } = require("./creep/creepAnalysis");
-const { findPrioritizedAttackTarget } = require("./creep/targetFinding");
+const { isFighter } = require("./creep.analysis");
+const { findPrioritizedAttackTarget } = require("./creep.targetFinding");
 const {
   needsToGather,
   hasFinishedGathering,
   selectAction,
   selectGatheringTarget,
   selectTransporterGatheringTarget,
-} = require("./creep/actionDecisions");
+} = require("./creep.actionDecisions");
 const {
   sayAction,
   setCreepAction,
   clearCreepAction,
-} = require("./creep/creepEffects");
-const { ACTION_HANDLERS } = require("./creep/actionHandlers");
+} = require("./creep.effects");
+const { ACTION_HANDLERS } = require("./creep.actionHandlers");
 
 // ============================================================================
 // Main Orchestration Functions

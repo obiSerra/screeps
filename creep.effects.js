@@ -3,9 +3,9 @@
  * Effectful functions that modify creep state and game world
  */
 
-const utils = require("../utils");
-const { isFighter } = require("./creepAnalysis");
-const { ACTION_ICONS, PATH_COLORS } = require("./constants");
+const utils = require("./utils");
+const { isFighter } = require("./creep.analysis");
+const { ACTION_ICONS, PATH_COLORS } = require("./creep.constants");
 
 // ============================================================================
 // Effectful Functions - Game State Modifications

@@ -3,13 +3,13 @@
  * Pure functions for finding, filtering, and prioritizing targets
  */
 
-const CONFIG = require("../config");
+const CONFIG = require("./config");
 const {
   CRITICAL_HITS,
   WALL_MIN_HITS,
   RAMPART_MIN_HEALTH_PERCENT,
   STRUCTURE_MIN_HEALTH_PERCENT,
-} = require("./constants");
+} = require("./creep.constants");
 
 // ============================================================================
 // Pure Functions - Basic Target Finding

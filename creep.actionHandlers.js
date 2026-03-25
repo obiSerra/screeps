@@ -3,26 +3,26 @@
  * Effectful functions that execute specific creep actions
  */
 
-const CONFIG = require("../config");
-const utils = require("../utils");
-const stats = require("../stats");
-const { PATH_COLORS } = require("./constants");
+const CONFIG = require("./config");
+const utils = require("./utils");
+const stats = require("./stats");
+const { PATH_COLORS } = require("./creep.constants");
 const {
   findRepairTargets,
   findEnergyDepositTargets,
   sortByContention,
-} = require("./targetFinding");
+} = require("./creep.targetFinding");
 const {
   selectGatheringTarget,
   selectTransporterGatheringTarget,
   selectBuildTarget,
   getActionAvailability,
-} = require("./actionDecisions");
+} = require("./creep.actionDecisions");
 const {
   moveToTarget,
   setCreepAction,
   clearCreepAction,
-} = require("./creepEffects");
+} = require("./creep.effects");
 
 // ============================================================================
 // Action Handlers - Composed Effectful Functions

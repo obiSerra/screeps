@@ -3,8 +3,8 @@
  * Pure functions for determining what actions creeps should take
  */
 
-const CONFIG = require("../config");
-const utils = require("../utils");
+const CONFIG = require("./config");
+const utils = require("./utils");
 const {
   findRepairTargets,
   filterCriticalRepairs,
@@ -12,8 +12,8 @@ const {
   findPriorityBuildTarget,
   prioritizeConstructionSites,
   sortByContention,
-} = require("./targetFinding");
-const { canPerformAction } = require("./creepAnalysis");
+} = require("./creep.targetFinding");
+const { canPerformAction } = require("./creep.analysis");
 
 // ============================================================================
 // Pure Functions - Resource State
