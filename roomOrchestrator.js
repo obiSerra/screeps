@@ -519,6 +519,18 @@ const handleExecutingMode = (room, roomStatus) => {
   // Get efficiency metrics from stats for adaptive spawning
   const efficiencyMetrics = stats.getCollectionMetrics(room.name);
   
+  // Log if room is in energy priority mode
+  const roomMemory = Memory.rooms && Memory.rooms[room.name];
+  const energyPriorityMode = roomMemory && roomMemory.energyPriorityMode;
+  if (energyPriorityMode && efficiencyMetrics) {
+    utils.periodicLogger(
+      `⚡ PRIORITY MODE ACTIVE in ${room.name} - ` +
+      `timeToFillCapacity: ${efficiencyMetrics.timeToFillCapacity.toFixed(0)} ticks - ` +
+      `Builders & Upgraders acting as Harvesters`,
+      5
+    );
+  }
+  
   // Calculate roster based on room status and efficiency
   const roster = calculateRoster(roomStatus, efficiencyMetrics);
   utils.periodicLogger(`Roster ${room.name} status: ${JSON.stringify(roster)}`, 20);
