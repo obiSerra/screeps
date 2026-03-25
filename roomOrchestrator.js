@@ -519,9 +519,32 @@ const handleExecutingMode = (room, roomStatus) => {
   // Get efficiency metrics from stats for adaptive spawning
   const efficiencyMetrics = stats.getCollectionMetrics(room.name);
   
+  // Manage energy fill priority mode based on timeToFillCapacity
+  if (!Memory.rooms[room.name]) {
+    Memory.rooms[room.name] = {};
+  }
+  
+  if (efficiencyMetrics && efficiencyMetrics.timeToFillCapacity !== undefined) {
+    const threshold = CONFIG.ENERGY.PRIORITY_MODE.CRITICAL_TIME_TO_FILL_CAPACITY;
+    const currentMode = Memory.rooms[room.name].energyPriorityMode || false;
+    
+    if (efficiencyMetrics.timeToFillCapacity > threshold && !currentMode) {
+      Memory.rooms[room.name].energyPriorityMode = true;
+      console.log(
+        `⚡ ENERGY PRIORITY MODE ACTIVATED for ${room.name} - ` +
+        `timeToFillCapacity: ${efficiencyMetrics.timeToFillCapacity.toFixed(0)} > ${threshold} ticks`
+      );
+    } else if (efficiencyMetrics.timeToFillCapacity <= threshold && currentMode) {
+      Memory.rooms[room.name].energyPriorityMode = false;
+      console.log(
+        `✓ Energy priority mode deactivated for ${room.name} - ` +
+        `timeToFillCapacity: ${efficiencyMetrics.timeToFillCapacity.toFixed(0)} <= ${threshold} ticks`
+      );
+    }
+  }
+  
   // Log if room is in energy priority mode
-  const roomMemory = Memory.rooms && Memory.rooms[room.name];
-  const energyPriorityMode = roomMemory && roomMemory.energyPriorityMode;
+  const energyPriorityMode = Memory.rooms[room.name].energyPriorityMode;
   if (energyPriorityMode && efficiencyMetrics) {
     utils.periodicLogger(
       `⚡ PRIORITY MODE ACTIVE in ${room.name} - ` +

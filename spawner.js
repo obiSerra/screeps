@@ -74,43 +74,23 @@ const spawnProcedure = (spawn, roster, roomStatus, efficiencyMetrics) => {
   }
 
   // PRIORITY 1.75: Energy fill priority mode
-  // Manage priority mode flag based on timeToFillCapacity
-  if (!Memory.rooms[roomStatus.roomName]) {
-    Memory.rooms[roomStatus.roomName] = {};
-  }
-
-  if (efficiencyMetrics && efficiencyMetrics.timeToFillCapacity !== undefined) {
-    const threshold = CONFIG.ENERGY.PRIORITY_MODE.CRITICAL_TIME_TO_FILL_CAPACITY;
-    const currentMode = Memory.rooms[roomStatus.roomName].energyPriorityMode || false;
-    
-    if (efficiencyMetrics.timeToFillCapacity > threshold && !currentMode) {
-      Memory.rooms[roomStatus.roomName].energyPriorityMode = true;
-      console.log(
-        `⚡ ENERGY PRIORITY MODE ACTIVATED for ${roomStatus.roomName} - ` +
-        `timeToFillCapacity: ${efficiencyMetrics.timeToFillCapacity.toFixed(0)} > ${threshold} ticks`
-      );
-    } else if (efficiencyMetrics.timeToFillCapacity <= threshold && currentMode) {
-      Memory.rooms[roomStatus.roomName].energyPriorityMode = false;
-      console.log(
-        `✓ Energy priority mode deactivated for ${roomStatus.roomName} - ` +
-        `timeToFillCapacity: ${efficiencyMetrics.timeToFillCapacity.toFixed(0)} <= ${threshold} ticks`
-      );
-    }
-
+  // Check if priority mode is active (flag managed by roomOrchestrator)
+  const roomMemory = Memory.rooms && Memory.rooms[roomStatus.roomName];
+  const energyPriorityMode = roomMemory && roomMemory.energyPriorityMode;
+  
+  if (energyPriorityMode) {
     // When priority mode is active, spawn additional harvesters
-    if (Memory.rooms[roomStatus.roomName].energyPriorityMode) {
-      const currentHarvesters = currentCreeps.harvester || 0;
-      const targetHarvesters = (roster.harvester || 2) + CONFIG.ENERGY.PRIORITY_MODE.HARVESTER_BOOST;
-      
-      if (currentHarvesters < targetHarvesters) {
-        console.log(
-          `⚡ [PRIORITY MODE] Spawning harvester (${currentHarvesters + 1}/${targetHarvesters}) ` +
-          `to improve energy filling - ${roomStatus.roomName}`
-        );
-        const result = trySpawn(spawn, "harvester", roomStatus, room);
-        displaySpawningVisual(spawn);
-        return result;
-      }
+    const currentHarvesters = currentCreeps.harvester || 0;
+    const targetHarvesters = (roster.harvester || 2) + CONFIG.ENERGY.PRIORITY_MODE.HARVESTER_BOOST;
+    
+    if (currentHarvesters < targetHarvesters) {
+      console.log(
+        `⚡ [PRIORITY MODE] Spawning harvester (${currentHarvesters + 1}/${targetHarvesters}) ` +
+        `to improve energy filling - ${roomStatus.roomName}`
+      );
+      const result = trySpawn(spawn, "harvester", roomStatus, room);
+      displaySpawningVisual(spawn);
+      return result;
     }
   }
 
