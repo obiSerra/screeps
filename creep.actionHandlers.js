@@ -290,61 +290,41 @@ const handleHarvesting = (creep) => {
     return;
   }
 
-  const { actionTarget } = creep.memory;
+  // // Priority 1: Check for nearby storage link (faster delivery)
+  // if (hasActiveLinkNetwork(room)) {
+  //   const nearbyLink = getLinkNearPosition(room, creep.pos, CONFIG.ENERGY.LINK.STORAGE_RANGE);
+  //   if (
+  //     nearbyLink &&
+  //     nearbyLink.store.getFreeCapacity(RESOURCE_ENERGY) >= CONFIG.ENERGY.LINK.MIN_TRANSFER_AMOUNT
+  //   ) {
+  //     const result = creep.transfer(nearbyLink, RESOURCE_ENERGY);
+  //     if (result === ERR_NOT_IN_RANGE) {
+  //       moveToTarget(creep, nearbyLink, PATH_COLORS.harvesting);
+  //     } else if (result === OK) {
+  //       console.log(
+  //         `Creep ${creep.name} using storage link for faster delivery`,
+  //       );
+  //     }
+  //     return;
+  //   }
+  // }
 
-  // Find target if not set
-  if (!actionTarget) {
-    const targets = findEnergyDepositTargets(room);
-    if (targets.length === 0) {
-      // No targets available
-      clearCreepAction(creep);
-      return;
-    }
-
-    // Find closest target by path
-    const closestTarget = creep.pos.findClosestByPath(targets);
-    if (closestTarget) {
-      setCreepAction(creep, "harvesting", {
-        id: closestTarget.id,
-        pos: closestTarget.pos,
-      });
-    } else {
-      // Fallback to range if path not found
-      const closestByRange = creep.pos.findClosestByRange(targets);
-      if (closestByRange) {
-        setCreepAction(creep, "harvesting", {
-          id: closestByRange.id,
-          pos: closestByRange.pos,
-        });
+  // Priority 2: Direct delivery to spawns/extensions
+  const targets = findEnergyDepositTargets(room);
+  if (targets.length > 0) {
+    const result = creep.transfer(targets[0], RESOURCE_ENERGY);
+    if (result === ERR_NOT_IN_RANGE) {
+      moveToTarget(creep, targets[0], PATH_COLORS.harvesting);
+    } else if (result === ERR_FULL) {
+      // Target is full, find closest unfilled extension
+      const closestTarget = creep.pos.findClosestByRange(targets);
+      if (closestTarget && closestTarget.id !== targets[0].id) {
+        const retryResult = creep.transfer(closestTarget, RESOURCE_ENERGY);
+        if (retryResult === ERR_NOT_IN_RANGE) {
+          moveToTarget(creep, closestTarget, PATH_COLORS.harvesting);
+        }
       }
     }
-    return;
-  }
-
-  const target = Game.getObjectById(actionTarget.id);
-  
-  // Target no longer exists or is no longer valid
-  if (!target || target.store.getFreeCapacity(RESOURCE_ENERGY) === 0) {
-    clearCreepAction(creep);
-    return;
-  }
-
-  // Transfer to target
-  const result = creep.transfer(target, RESOURCE_ENERGY);
-  if (result === ERR_NOT_IN_RANGE) {
-    moveToTarget(creep, target, PATH_COLORS.harvesting);
-  } else if (result === OK) {
-    // Successfully transferred, check if target is now full
-    if (target.store.getFreeCapacity(RESOURCE_ENERGY) === 0) {
-      // Target is full, find a new one on next tick
-      clearCreepAction(creep);
-    }
-  } else if (result === ERR_FULL) {
-    // Target became full between checks, find new target
-    clearCreepAction(creep);
-  } else {
-    // Other error, clear and try again
-    clearCreepAction(creep);
   }
 };
 

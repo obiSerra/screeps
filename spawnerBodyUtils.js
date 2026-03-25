@@ -255,8 +255,8 @@
     }
 
     if (tier === "late") {
-      // RCL 8: Heavy upgrader - [WORK×4, CARRYx2, MOVE×3] sets
-      const bodySet = [WORK, WORK, WORK, WORK, CARRY, CARRY, MOVE, MOVE, MOVE]; // 750 per set
+      // RCL 8: Heavy upgrader - [WORK×5, CARRY, MOVE×3] sets
+      const bodySet = [WORK, WORK, WORK, WORK, WORK, CARRY, MOVE, MOVE, MOVE]; // 750 per set
       const setCost = calculateBodyCost(bodySet);
       const maxSets = CONFIG.SPAWNING.BODY_LIMITS.MAX_UPGRADER_SETS_LATE;
 
@@ -274,15 +274,15 @@
       }
 
       const body = [];
-      for (let i = 0; i < sets * 4; i++) body.push(WORK);
-      for (let i = 0; i < sets * 2; i++) body.push(CARRY);
+      for (let i = 0; i < sets * 5; i++) body.push(WORK);
+      for (let i = 0; i < sets; i++) body.push(CARRY);
       for (let i = 0; i < sets * 3; i++) body.push(MOVE);
 
       return body;
     }
 
-    // RCL 4-7: Medium upgrader - [WORK, CARRY, MOVE×2] sets
-    const bodySet = [WORK, CARRY, MOVE, MOVE]; // 500 per set
+    // RCL 4-7: Medium upgrader - [WORK×2, CARRY, MOVE×2] sets
+    const bodySet = [WORK, WORK, CARRY, MOVE, MOVE]; // 500 per set
     const setCost = calculateBodyCost(bodySet);
     const maxSets = CONFIG.SPAWNING.BODY_LIMITS.MAX_UPGRADER_SETS_MID;
 
@@ -300,7 +300,7 @@
     }
 
     const body = [];
-    for (let i = 0; i < sets; i++) body.push(WORK);
+    for (let i = 0; i < sets * 2; i++) body.push(WORK);
     for (let i = 0; i < sets; i++) body.push(CARRY);
     for (let i = 0; i < sets * 2; i++) body.push(MOVE);
 
@@ -323,8 +323,8 @@
       return getGeneralistBody(rcl, energyAvailable, efficiencyMetrics);
     }
 
-    // RCL 4+: Builder - [WORK, CARRY, MOVE] sets
-    const bodySet = [WORK, CARRY, MOVE]; // 350 per set
+    // RCL 4+: Builder - [WORK, CARRY, CARRY, MOVE, MOVE] sets
+    const bodySet = [WORK, CARRY, CARRY, MOVE, MOVE]; // 350 per set
     const setCost = calculateBodyCost(bodySet);
     const maxSets = CONFIG.SPAWNING.BODY_LIMITS.MAX_BUILDER_SETS;
 
@@ -343,7 +343,7 @@
 
     const body = [];
     for (let i = 0; i < sets; i++) body.push(WORK);
-    for (let i = 0; i < sets; i++) body.push(CARRY);
+    for (let i = 0; i < sets * 2; i++) body.push(CARRY);
     for (let i = 0; i < sets * 2; i++) body.push(MOVE);
 
     return body;
