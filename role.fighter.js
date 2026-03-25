@@ -14,7 +14,7 @@
       run: function (creep) {
         // baseCreep workerActions() automatically detects fighters and assigns "attacking" action
         // when invaders present. Priority list gives fighters something to do when idle.
-        base.workerActions(creep, ["attacking", "transporting", "hauling"]);
+        base.workerActions(creep, ["attacking", "delivering", "transporting", "hauling"]);
         // console.log(`Fighter ${creep.name} performing action: ${creep.memory.action}`);
         // Safety check: if no action assigned, default to hauling
         if (!creep.memory.action) {
