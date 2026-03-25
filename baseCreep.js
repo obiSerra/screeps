@@ -44,8 +44,6 @@ const workerActions = (creep, priorityList) => {
       setCreepAction(creep, "attacking", { id: target.id, pos: target.pos });
       sayAction(creep, "attacking");
       return;
-    } else {
-      console.log(`Fighter ${creep.name} has no attack targets`);
     }
   }
 

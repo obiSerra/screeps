@@ -230,11 +230,7 @@ const selectAction = (creep, priorityList) => {
   // Check priority list
   for (const action of priorityList) {
 
-    if (creep.memory.role == "fighter") {
-      console.log(`Fighter ${creep.name} checking action "${action}" - availability: ${availability[action]}`);
-    }
     if (availability[action]) {
-      console.log(`Selecting action "${action}" for ${creep.name}`);
       switch (action) {
         case "building":
           return { action: "building", target: selectBuildTarget(creep, targets.constructionSites) };
