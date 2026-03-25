@@ -1,3 +1,4 @@
+const CONFIG = require("./config");
 const utils = require("./utils");
 const spawner = require("./spawner");
 const planner = require("./planner");
@@ -156,15 +157,15 @@ const calculateRoster = (roomStatus, efficiencyMetrics = null) => {
   };
   
   // Scale builders based on construction sites
-  if (roomStatus.constructionSiteCount > 10) {
-    roster.builder = Math.min(4, 1 + Math.floor(roomStatus.constructionSiteCount / 10));
+  if (roomStatus.constructionSiteCount > CONFIG.ROSTERS.SCALING.CONSTRUCTION_SITES_PER_BUILDER) {
+    roster.builder = Math.min(CONFIG.ROSTERS.SCALING.MAX_BUILDERS, 1 + Math.floor(roomStatus.constructionSiteCount / CONFIG.ROSTERS.SCALING.CONSTRUCTION_SITES_PER_BUILDER));
   }
   
   // RCL 1-3: Early game - generalist harvesters only
   if (rcl <= 3) {
     // Adjust based on efficiency tier if available
     if (efficiencyMetrics && efficiencyMetrics.efficiencyTier === 'established') {
-      roster.upgrader = 3;
+      roster.upgrader = CONFIG.ROSTERS.RCL_1_3.UPGRADERS_ESTABLISHED;
     }
     return roster;
   }
@@ -172,30 +173,30 @@ const calculateRoster = (roomStatus, efficiencyMetrics = null) => {
   // RCL 4-5: Mid-early game - introduce miners and haulers
   if (rcl <= 5) {
     roster.miner = sourceCount;           // 1 miner per source
-    roster.hauler = sourceCount + 1;      // 1 extra hauler for flexibility
-    roster.builder = Math.max(roster.builder, 2);
-    roster.upgrader = 2;
+    roster.hauler = sourceCount + CONFIG.ROSTERS.RCL_4_5.HAULER_OFFSET;      // 1 extra hauler for flexibility
+    roster.builder = Math.max(roster.builder, CONFIG.ROSTERS.RCL_4_5.BUILDERS);
+    roster.upgrader = CONFIG.ROSTERS.RCL_4_5.UPGRADERS;
     return roster;
   }
   
   // RCL 6-7: Mid-late game - add specialized roles
   if (rcl <= 7) {
     roster.miner = sourceCount;
-    roster.hauler = sourceCount + 2;      // More haulers for longer distances
-    roster.builder = Math.max(roster.builder, 2);
-    roster.upgrader = 3;
-    roster.mineralExtractor = 1;          // Mine minerals
-    roster.chemist = 1;                   // Lab logistics
+    roster.hauler = sourceCount + CONFIG.ROSTERS.RCL_6_7.HAULER_OFFSET;      // More haulers for longer distances
+    roster.builder = Math.max(roster.builder, CONFIG.ROSTERS.RCL_6_7.BUILDERS);
+    roster.upgrader = CONFIG.ROSTERS.RCL_6_7.UPGRADERS;
+    roster.mineralExtractor = CONFIG.ROSTERS.RCL_6_7.MINERAL_EXTRACTORS;          // Mine minerals
+    roster.chemist = CONFIG.ROSTERS.RCL_6_7.CHEMISTS;                   // Lab logistics
     return roster;
   }
   
   // RCL 8: Late game - maximum efficiency
   roster.miner = sourceCount;
-  roster.hauler = sourceCount + 4;        // Large hauler fleet
-  roster.builder = Math.max(roster.builder, 2);
-  roster.upgrader = 4;
-  roster.mineralExtractor = 1;
-  roster.chemist = 1;
+  roster.hauler = sourceCount + CONFIG.ROSTERS.RCL_8.HAULER_OFFSET;        // Large hauler fleet
+  roster.builder = Math.max(roster.builder, CONFIG.ROSTERS.RCL_8.BUILDERS);
+  roster.upgrader = CONFIG.ROSTERS.RCL_8.UPGRADERS;
+  roster.mineralExtractor = CONFIG.ROSTERS.RCL_8.MINERAL_EXTRACTORS;
+  roster.chemist = CONFIG.ROSTERS.RCL_8.CHEMISTS;
   
   console.log(`[ROSTER] Calculated roster for room ${roomStatus.roomName} at RCL ${rcl}:`, roster);
   return roster;
@@ -251,7 +252,7 @@ const handleTowers = (room) => {
     const damagedStructures = room.find(FIND_STRUCTURES, {
       filter: (structure) => {
         const healthPercent = structure.hits / structure.hitsMax;
-        return healthPercent < 0.2 &&
+        return healthPercent < CONFIG.ROSTERS.TOWER.REPAIR_THRESHOLD &&
                structure.structureType !== STRUCTURE_WALL &&
                structure.structureType !== STRUCTURE_RAMPART;
       }
@@ -295,6 +296,69 @@ const roleHandlers = {
   explorer: roleExplorer.run,
   mineralExtractor: roleMineralExtractor.run,
   chemist: roleChemist.run,
+};
+
+/**
+ * Handle prepare_attack flag coordination
+ * Moves fighters to the prepare_attack flag position and holds them there
+ * @returns {boolean} True if prepare_attack flag exists and was handled
+ */
+const handlePrepareAttackFlag = () => {
+  // Find any prepare_attack flag (with or without number suffix)
+  const prepareAttackFlags = Object.keys(Game.flags).filter(name => 
+    name.startsWith('prepare_attack')
+  );
+  
+  if (prepareAttackFlags.length === 0) {
+    return false;
+  }
+  
+  const flagName = prepareAttackFlags[0];
+  const prepareFlag = Game.flags[flagName];
+  
+  if (!prepareFlag) {
+    return false;
+  }
+
+  // Find all creeps with ATTACK parts
+  const fighters = Object.values(Game.creeps).filter(creep => 
+    baseCreep.isFighter(creep)
+  );
+
+  if (fighters.length === 0) {
+    console.log(`[PREPARE ATTACK] Flag '${flagName}' detected but no fighters available`);
+    return true;
+  }
+
+  console.log(`[PREPARE ATTACK] Moving ${fighters.length} fighters to staging position at ${prepareFlag.pos}`);
+
+  fighters.forEach(creep => {
+    // Move to flag and hold position (within range 2)
+    if (creep.pos.getRangeTo(prepareFlag.pos) > 2) {
+      creep.moveTo(prepareFlag.pos, {
+        visualizePathStyle: { stroke: '#ffaa00' },  // Orange for staging
+        reusePath: 10
+      });
+      creep.say('🛡️ Stage');
+    } else {
+      // Fighters are in position - just stay close to flag
+      creep.say('🛡️ Ready');
+      
+      // Optional: defend the staging area if hostiles approach
+      const nearbyHostile = creep.pos.findInRange(FIND_HOSTILE_CREEPS, 3)[0];
+      if (nearbyHostile) {
+        if (creep.pos.getRangeTo(nearbyHostile) > 1) {
+          creep.moveTo(nearbyHostile, {
+            visualizePathStyle: { stroke: '#ff0000' }
+          });
+        } else {
+          creep.attack(nearbyHostile);
+        }
+      }
+    }
+  });
+
+  return true;
 };
 
 /**
@@ -366,15 +430,20 @@ const handleAttackFlag = () => {
  * @param {Room} room - The room (currently unused, handles all creeps)
  */
 const handleCreeps = (room) => {
-  // Check for attack flag first - if present, attacking creeps follow it
+  // Check for attack flags - priority: attack > prepare_attack
+  // Attack flag takes priority - if present, fighters attack immediately
   const attackFlagActive = handleAttackFlag();
+  
+  // If no attack flag, check for prepare_attack flag (staging/positioning)
+  const prepareAttackFlagActive = !attackFlagActive && handlePrepareAttackFlag();
 
   // Logic for rebalancing workers tasks
 
   Object.values(Game.creeps).forEach((creep) => {
-    // Skip creeps already handled by attack flag
-    if (attackFlagActive && creep.body.some(part => part.type === ATTACK)) {
-      return; // Skip normal role handling for attacking creeps
+    // Skip fighters when attack flags are active (they're handled by flag coordinators)
+    const isFighterCreep = baseCreep.isFighter(creep);
+    if ((attackFlagActive || prepareAttackFlagActive) && isFighterCreep) {
+      return; // Skip normal role handling - fighters are following flags
     }
 
     const handler = roleHandlers[creep.memory.role];

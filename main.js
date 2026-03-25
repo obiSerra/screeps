@@ -3,6 +3,7 @@
  * Thin orchestration layer - delegates all logic to specialized modules
  */
 
+const CONFIG = require("./config");
 const roomOrchestrator = require("roomOrchestrator");
 const linkManager = require("./linkManager");
 const labManager = require("./labManager");

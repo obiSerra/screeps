@@ -3,13 +3,15 @@
  * Tracks spawning, resource collection, work output, and system health.
  */
 
+const CONFIG = require("./config");
+
 const stats = {
     /**
      * Configuration for statistics tracking
      */
     config: {
-        intervalTicks: 3000,  // ~75 minutes per interval
-        maxIntervals: 10,     // Keep 10 intervals = ~30 hours of history
+        intervalTicks: CONFIG.STATS.INTERVAL_LENGTH,  // ~75 minutes per interval
+        maxIntervals: CONFIG.STATS.MAX_INTERVALS,     // Keep 10 intervals = ~30 hours of history
     },
 
     /**
@@ -48,7 +50,7 @@ const stats = {
                 energyEnd: 0,
                 // Rolling energy collection tracking (last 100 ticks)
                 rollingHarvest: [],
-                rollingWindow: 100
+                rollingWindow: CONFIG.STATS.ROLLING_HARVEST_WINDOW
             },
             work: {
                 controllerProgress: 0,
@@ -182,7 +184,7 @@ const stats = {
         // Initialize rolling harvest array if not present
         if (!resources.rollingHarvest) {
             resources.rollingHarvest = [];
-            resources.rollingWindow = 100;
+            resources.rollingWindow = CONFIG.STATS.ROLLING_HARVEST_WINDOW;
             resources.lastTickHarvested = 0;
         }
         
@@ -503,7 +505,7 @@ const stats = {
         if (resources.rollingHarvest && resources.rollingHarvest.length > 0) {
             const sum = resources.rollingHarvest.reduce((a, b) => a + b, 0);
             energyCollectionRate = sum / resources.rollingHarvest.length;
-        } else if (current.creeps.ticksCounted > 10) {
+        } else if (current.creeps.ticksCounted > CONFIG.EFFICIENCY.OPTIMIZED_THRESHOLD) {
             // Fallback: use overall average if rolling data not available
             energyCollectionRate = resources.totalHarvested / current.creeps.ticksCounted;
         }
@@ -515,17 +517,17 @@ const stats = {
         
         // Determine efficiency tier based on collection rate
         let efficiencyTier = 'bootstrapping';
-        let spawnThreshold = 0.3;
+        let spawnThreshold = CONFIG.EFFICIENCY.SPAWN_CAPACITY.BOOTSTRAPPING;
         
-        if (energyCollectionRate >= 10) {
+        if (energyCollectionRate >= CONFIG.EFFICIENCY.OPTIMIZED_THRESHOLD) {
             efficiencyTier = 'optimized';
-            spawnThreshold = 0.85;
-        } else if (energyCollectionRate >= 5) {
+            spawnThreshold = CONFIG.EFFICIENCY.SPAWN_CAPACITY.OPTIMIZED;
+        } else if (energyCollectionRate >= CONFIG.EFFICIENCY.ESTABLISHED_THRESHOLD) {
             efficiencyTier = 'established';
-            spawnThreshold = 0.7;
-        } else if (energyCollectionRate >= 2) {
+            spawnThreshold = CONFIG.EFFICIENCY.SPAWN_CAPACITY.ESTABLISHED;
+        } else if (energyCollectionRate >= CONFIG.EFFICIENCY.DEVELOPING_THRESHOLD) {
             efficiencyTier = 'developing';
-            spawnThreshold = 0.5;
+            spawnThreshold = CONFIG.EFFICIENCY.SPAWN_CAPACITY.DEVELOPING;
         }
         
         return {

@@ -8,6 +8,7 @@
  * - Composable action handlers
  */
 
+const CONFIG = require("./config");
 const utils = require("./utils");
 const stats = require("./stats");
 
@@ -15,10 +16,10 @@ const stats = require("./stats");
 // Constants
 // ============================================================================
 
-const CRITICAL_HITS = 1000;
-const WALL_MIN_HITS = 1000000;
-const RAMPART_MIN_HEALTH_PERCENT = 0.5;
-const STRUCTURE_MIN_HEALTH_PERCENT = 0.5;
+const CRITICAL_HITS = CONFIG.REPAIR.CRITICAL_HITS;
+const WALL_MIN_HITS = CONFIG.REPAIR.WALL_MIN_HITS;
+const RAMPART_MIN_HEALTH_PERCENT = CONFIG.REPAIR.RAMPART_MIN_HEALTH_PERCENT;
+const STRUCTURE_MIN_HEALTH_PERCENT = CONFIG.REPAIR.STRUCTURE_MIN_HEALTH_PERCENT;
 
 const ACTION_ICONS = {
   gathering: "🔄",
@@ -151,8 +152,8 @@ const findStructuresNeedingRepair = (room) =>
  */
 const calculateRepairScore = (creep, target) => {
   const distance = creep.pos.getRangeTo(target);
-  const isCritical = target.hits < CRITICAL_HITS ? -1000000 : 0;
-  return target.hits * (1 + distance / 50) + isCritical;
+  const isCritical = target.hits < CRITICAL_HITS ? CONFIG.REPAIR.CRITICAL_PRIORITY_BONUS : 0;
+  return target.hits * (1 + distance / CONFIG.REPAIR.DISTANCE_DIVISOR) + isCritical;
 };
 
 /**
@@ -446,7 +447,7 @@ const getActionAvailability = (creep) => {
   const containersWithEnergy = room.find(FIND_STRUCTURES, {
     filter: (s) =>
       s.structureType === STRUCTURE_CONTAINER &&
-      s.store[RESOURCE_ENERGY] >= s.store.getCapacity(RESOURCE_ENERGY) * 0.5,
+      s.store[RESOURCE_ENERGY] >= s.store.getCapacity(RESOURCE_ENERGY) * CONFIG.ENERGY.CONTAINER.TARGET_THRESHOLD,
   });
 
   // Check for mining opportunities (sources exist and creep has assigned source)
@@ -459,7 +460,7 @@ const getActionAvailability = (creep) => {
       s.structureType === STRUCTURE_CONTAINER && s.store[RESOURCE_ENERGY] > 0,
   });
   const droppedEnergy = room.find(FIND_DROPPED_RESOURCES, {
-    filter: (r) => r.resourceType === RESOURCE_ENERGY && r.amount > 50,
+    filter: (r) => r.resourceType === RESOURCE_ENERGY && r.amount > CONFIG.ENERGY.CONTAINER.MIN_DROPPED_RESOURCE,
   });
   const hasHaulingTarget =
     containersForHauling.length > 0 || droppedEnergy.length > 0;
@@ -700,7 +701,7 @@ const clearCreepAction = (creep) => {
 const selectGatheringTarget = (creep) => {
   // Priority 0: Check for dropped energy first (before it decays)
   const droppedEnergy = creep.room.find(FIND_DROPPED_RESOURCES, {
-    filter: (r) => r.resourceType === RESOURCE_ENERGY && r.amount > 50,
+    filter: (r) => r.resourceType === RESOURCE_ENERGY && r.amount > CONFIG.ENERGY.CONTAINER.MIN_DROPPED_RESOURCE,
   });
 
   if (droppedEnergy.length > 0) {
@@ -713,7 +714,7 @@ const selectGatheringTarget = (creep) => {
     // First priority: Check for controller link with energy
     const controller = creep.room.controller;
     if (controller) {
-      const links = controller.pos.findInRange(FIND_MY_STRUCTURES, 3, {
+      const links = controller.pos.findInRange(FIND_MY_STRUCTURES, CONFIG.REPAIR.CONTROLLER_LINK_RANGE, {
         filter: (s) =>
           s.structureType === STRUCTURE_LINK && s.store[RESOURCE_ENERGY] > 0,
       });
@@ -750,7 +751,7 @@ const selectGatheringTarget = (creep) => {
 const selectTransporterGatheringTarget = (creep) => {
   // Priority 1: Check for dropped energy first (before it decays)
   const droppedEnergy = creep.room.find(FIND_DROPPED_RESOURCES, {
-    filter: (r) => r.resourceType === RESOURCE_ENERGY && r.amount > 50,
+    filter: (r) => r.resourceType === RESOURCE_ENERGY && r.amount > CONFIG.ENERGY.CONTAINER.MIN_DROPPED_RESOURCE,
   });
 
   if (droppedEnergy.length > 0) {
@@ -762,7 +763,7 @@ const selectTransporterGatheringTarget = (creep) => {
   const containers = creep.room.find(FIND_STRUCTURES, {
     filter: (s) =>
       s.structureType === STRUCTURE_CONTAINER &&
-      s.store[RESOURCE_ENERGY] >= s.store.getCapacity(RESOURCE_ENERGY) * 0.5,
+      s.store[RESOURCE_ENERGY] >= s.store.getCapacity(RESOURCE_ENERGY) * CONFIG.ENERGY.CONTAINER.TARGET_THRESHOLD,
   });
 
   if (containers.length === 0) {
@@ -1205,7 +1206,7 @@ const handleHauling = (creep) => {
   if (!actionTarget) {
     // Priority 1: Dropped energy (before it decays)
     const droppedEnergy = creep.room.find(FIND_DROPPED_RESOURCES, {
-      filter: (r) => r.resourceType === RESOURCE_ENERGY && r.amount > 50,
+      filter: (r) => r.resourceType === RESOURCE_ENERGY && r.amount > CONFIG.ENERGY.CONTAINER.MIN_DROPPED_RESOURCE,
     });
 
     if (droppedEnergy.length > 0) {
@@ -1218,7 +1219,26 @@ const handleHauling = (creep) => {
       return;
     }
 
-    // Priority 2: Containers with energy (for spawns/extensions)
+    // Priority 2: Storage link with energy (fast energy near spawn area)
+    const storage = creep.room.storage;
+    if (storage) {
+      const storageLink = storage.pos.findInRange(FIND_MY_STRUCTURES, 2, {
+        filter: (s) =>
+          s.structureType === STRUCTURE_LINK &&
+          s.store[RESOURCE_ENERGY] >= 200, // Only use link if it has decent amount
+      });
+
+      if (storageLink.length > 0) {
+        setCreepAction(creep, "hauling", {
+          id: storageLink[0].id,
+          pos: storageLink[0].pos,
+          resourceType: RESOURCE_ENERGY,
+        });
+        return;
+      }
+    }
+
+    // Priority 3: Containers with energy (for spawns/extensions)
     const energyContainers = creep.room.find(FIND_STRUCTURES, {
       filter: (s) =>
         s.structureType === STRUCTURE_CONTAINER && s.store[RESOURCE_ENERGY] > 0,
@@ -1234,9 +1254,9 @@ const handleHauling = (creep) => {
       return;
     }
 
-    // Priority 3: Dropped minerals (RCL 6+)
+    // Priority 4: Dropped minerals (RCL 6+)
     const droppedMinerals = creep.room.find(FIND_DROPPED_RESOURCES, {
-      filter: (r) => r.resourceType !== RESOURCE_ENERGY && r.amount > 50,
+      filter: (r) => r.resourceType !== RESOURCE_ENERGY && r.amount > CONFIG.ENERGY.CONTAINER.MIN_DROPPED_RESOURCE,
     });
 
     if (droppedMinerals.length > 0) {
@@ -1249,7 +1269,7 @@ const handleHauling = (creep) => {
       return;
     }
 
-    // Priority 4: Containers with minerals (RCL 6+)
+    // Priority 5: Containers with minerals (RCL 6+)
     const mineralContainers = creep.room.find(FIND_STRUCTURES, {
       filter: (s) => {
         if (s.structureType !== STRUCTURE_CONTAINER) return false;

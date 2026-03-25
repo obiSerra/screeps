@@ -3,6 +3,8 @@ function getDistanceTransform(roomName, options = {}) {
   const mergedOptions = { ...defaultOptions, ...options };
   const { innerPositions, visual } = mergedOptions;
 
+  const CONFIG = require("./config");
+
   const BOTTOM_LEFT = [
     { x: -1, y: 0 },
     { x: 0, y: -1 },
@@ -32,19 +34,19 @@ function getDistanceTransform(roomName, options = {}) {
           costs.set(x, y, 0);
           continue;
         }
-        costs.set(x, y, 1 << 8);
+        costs.set(x, y, CONFIG.UTILITY.DISTANCE_TRANSFORM_INITIAL);
       }
     }
   } else {
     for (const pos of innerPositions) {
-      costs.set(pos.x, pos.y, 1 << 8);
+      costs.set(pos.x, pos.y, CONFIG.UTILITY.DISTANCE_TRANSFORM_INITIAL);
     }
   }
 
   for (let x = 0; x <= 49; x++) {
     for (let y = 0; y <= 49; y++) {
       const nearDistances = BOTTOM_LEFT.map(
-        (vector) => costs.get(x + vector.x, y + vector.y) + 1 || 100,
+        (vector) => costs.get(x + vector.x, y + vector.y) + 1 || CONFIG.UTILITY.DISTANCE_FALLBACK,
       );
       nearDistances.push(costs.get(x, y));
       costs.set(x, y, Math.min(...nearDistances));

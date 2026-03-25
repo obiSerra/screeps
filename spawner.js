@@ -3,6 +3,7 @@
  * Handles all creep spawning logic with functional composition
  */
 
+const CONFIG = require("./config");
 const utils = require("./utils");
 const stats = require("./stats");
 
@@ -17,12 +18,12 @@ const calculateBodyCost = (body) =>
  */
 const getEmergencyReserve = (energyCapacity) => {
   // Can't reserve if capacity is too low
-  if (energyCapacity < 500) return 0;
+  if (energyCapacity < CONFIG.SPAWNING.RESERVES.MIN_CAPACITY_FOR_RESERVE) return 0;
 
   // Scale reserve based on capacity tiers
-  if (energyCapacity < 1500) return 300; // Basic fighter (1 set)
-  if (energyCapacity < 2500) return 500; // Medium fighter (2 sets)
-  return 800; // Full fighter (3+ sets)
+  if (energyCapacity < CONFIG.SPAWNING.RESERVES.BASIC_FIGHTER_THRESHOLD) return CONFIG.SPAWNING.RESERVES.BASIC_RESERVE_AMOUNT; // Basic fighter (1 set)
+  if (energyCapacity < CONFIG.SPAWNING.RESERVES.MEDIUM_FIGHTER_THRESHOLD) return CONFIG.SPAWNING.RESERVES.MEDIUM_RESERVE_AMOUNT; // Medium fighter (2 sets)
+  return CONFIG.SPAWNING.RESERVES.LARGE_RESERVE_AMOUNT; // Full fighter (3+ sets)
 };
 
 /**
@@ -57,10 +58,7 @@ const getAdaptiveSetCount = (
 
   // Calculate RCL multiplier: higher RCL = bigger creeps
   // RCL 1-3: 1x, RCL 4-5: 1.5x, RCL 6-7: 2x, RCL 8: 2.5x
-  let rclMultiplier = 1;
-  if (rcl >= 8) rclMultiplier = 2.5;
-  else if (rcl >= 6) rclMultiplier = 2;
-  else if (rcl >= 4) rclMultiplier = 1.5;
+  const rclMultiplier = CONFIG.SPAWNING.RCL_MULTIPLIERS[rcl] || 1;
 
   // If no metrics provided, use conservative sizing with RCL factor
   if (!efficiencyMetrics) {
@@ -79,22 +77,22 @@ const getAdaptiveSetCount = (
   switch (tier) {
     case "bootstrapping":
       // Start small: 1-2 sets
-      baseSets = 2;
+      baseSets = CONFIG.EFFICIENCY.BODY_SETS.BOOTSTRAPPING;
       break;
     case "developing":
       // Medium: 2-4 sets
-      baseSets = 4;
+      baseSets = CONFIG.EFFICIENCY.BODY_SETS.DEVELOPING;
       break;
     case "established":
       // Large: 4-8 sets
-      baseSets = 8;
+      baseSets = CONFIG.EFFICIENCY.BODY_SETS.ESTABLISHED;
       break;
     case "optimized":
       // Maximum affordable
       baseSets = maxAffordable;
       break;
     default:
-      baseSets = 2;
+      baseSets = CONFIG.EFFICIENCY.BODY_SETS.BOOTSTRAPPING;
   }
 
   // Apply RCL multiplier and cap at maximum
@@ -196,7 +194,7 @@ const getTransporterBody = (energyAvailable) => {
   }
 
   // Cap at 16 sets to stay under 50 body parts limit (16 * 3 = 48)
-  const sets = Math.min(maxSets, 16);
+  const sets = Math.min(maxSets, CONFIG.SPAWNING.BODY_LIMITS.MAX_GENERALIST_SETS);
 
   const body = [];
   for (let i = 0; i < sets; i++) {
@@ -215,51 +213,105 @@ const getTransporterBody = (energyAvailable) => {
 /**
  * Get fighter creep body based on available energy
  * Pure function - no side effects
- * Ratio: 3 TOUGH : 1 RANGED_ATTACK : 1 MOVE, plus 1 CARRY for utility
+ * Design: Max 2 ATTACK parts, 1 CARRY for utility, TOUGH for armor, and appropriate MOVE for speed
+ * Target: 1 MOVE per 2 body parts for full speed on roads
  * @param {number} energyAvailable - Current energy available
  * @returns {Array} Body parts array
  */
 const getFighterCreepBody = (energyAvailable) => {
+  const toughCost = BODYPART_COST[TOUGH]; // 10
+  const attackCost = BODYPART_COST[ATTACK]; // 80
   const carryCost = BODYPART_COST[CARRY]; // 50
+  const moveCost = BODYPART_COST[MOVE]; // 50
 
-  // Reserve energy for 1 CARRY part
-  let remainingEnergy = energyAvailable - carryCost;
-
-  if (remainingEnergy < 0) {
-    return undefined; // Not enough energy
+  // Minimum viable fighter: 1 ATTACK + 1 CARRY + 1 MOVE = 180
+  const minCost = attackCost + carryCost + moveCost;
+  if (energyAvailable < minCost) {
+    return undefined;
   }
 
-  // Fighter set: [TOUGH×3, RANGED_ATTACK, MOVE]
-  // Cost: 3*10 + 150 + 50 = 230 per set
-  const bodySet = [TOUGH, TOUGH, TOUGH, RANGED_ATTACK, MOVE];
-  const setCost = calculateBodyCost(bodySet);
-  const maxSets = Math.floor(remainingEnergy / setCost);
+  let remainingEnergy = energyAvailable;
 
-  if (maxSets < 1) {
-    return undefined; // Not enough energy for combat parts
+  // Determine how many ATTACK we can afford (max 2)
+  let attackCount = 0;
+  if (remainingEnergy >= attackCost * 2) {
+    attackCount = 2;
+    remainingEnergy -= attackCost * 2;
+  } else if (remainingEnergy >= attackCost) {
+    attackCount = 1;
+    remainingEnergy -= attackCost;
+  } else {
+    return undefined;
   }
 
-  // Cap at 9 sets to stay under 50 body parts (9 * 5 + 1 CARRY = 46)
-  const sets = Math.min(maxSets, 9);
+  // Reserve 1 CARRY for utility
+  const carryCount = 1;
+  remainingEnergy -= carryCost;
 
-  // Build the body array: TOUGH parts first, then RANGED_ATTACK, then CARRY, then MOVE
+  // Calculate TOUGH and MOVE parts with remaining energy
+  // Strategy: Add sets of [TOUGH, TOUGH, MOVE] = 70 energy
+  // This gives 1 MOVE per 2 non-MOVE parts (full speed on roads)
+  const toughMoveSetCost = toughCost * 2 + moveCost; // 70
+  let toughCount = 0;
+  let moveCount = 0;
+
+  // Add as many [TOUGH×2, MOVE] sets as we can afford
+  while (remainingEnergy >= toughMoveSetCost && (attackCount + carryCount + toughCount + moveCount) < CONFIG.SPAWNING.BODY_LIMITS.SOFT_LIMIT) {
+    toughCount += 2;
+    moveCount += 1;
+    remainingEnergy -= toughMoveSetCost;
+  }
+
+  // Add any remaining TOUGH parts we can afford
+  while (remainingEnergy >= toughCost && (attackCount + carryCount + toughCount + moveCount) < CONFIG.SPAWNING.BODY_LIMITS.HARD_LIMIT) {
+    toughCount += 1;
+    remainingEnergy -= toughCost;
+  }
+
+  // Ensure at least 1 MOVE for minimum mobility
+  if (moveCount === 0) {
+    if (remainingEnergy >= moveCost) {
+      moveCount = 1;
+      remainingEnergy -= moveCost;
+    } else {
+      // Not enough energy for even 1 MOVE, reduce TOUGH
+      if (toughCount > 0) {
+        toughCount -= 1;
+        remainingEnergy += toughCost;
+        moveCount = 1;
+        remainingEnergy -= moveCost;
+      } else {
+        moveCount = 1; // Force at least 1 MOVE even if we go slightly over budget
+      }
+    }
+  }
+
+  // Final check: ensure proper MOVE ratio (add more MOVE if needed for heavy fighters)
+  const nonMovePartsCount = attackCount + carryCount + toughCount;
+  const idealMoveCount = Math.ceil(nonMovePartsCount / 2); // 1 MOVE per 2 parts
+  
+  // Add more MOVE if we're under the ideal and have budget
+  while (moveCount < idealMoveCount && remainingEnergy >= moveCost && (nonMovePartsCount + moveCount) < CONFIG.SPAWNING.BODY_LIMITS.HARD_LIMIT) {
+    moveCount++;
+    remainingEnergy -= moveCost;
+  }
+
+  // Build the body array: TOUGH first (absorbs damage), then ATTACK, then CARRY, then MOVE
   const body = [];
 
-  // Add all TOUGH parts (3 per set) - absorbs damage first
-  for (let i = 0; i < sets * 3; i++) {
+  for (let i = 0; i < toughCount; i++) {
     body.push(TOUGH);
   }
 
-  // Add all RANGED_ATTACK parts (1 per set)
-  for (let i = 0; i < sets; i++) {
-    body.push(RANGED_ATTACK);
+  for (let i = 0; i < attackCount; i++) {
+    body.push(ATTACK);
   }
 
-  // Add 1 CARRY part for utility (can haul energy when not fighting)
-  body.push(CARRY);
+  for (let i = 0; i < carryCount; i++) {
+    body.push(CARRY);
+  }
 
-  // Add all MOVE parts (1 per set)
-  for (let i = 0; i < sets; i++) {
+  for (let i = 0; i < moveCount; i++) {
     body.push(MOVE);
   }
 
@@ -280,11 +332,11 @@ const getExplorerBody = (rcl, energyAvailable) => {
   const toughCost = BODYPART_COST[TOUGH]; // 10
 
   // Minimum: 1 CLAIM + 1 RANGED_ATTACK + 1 MOVE = 800 energy
-  const minEnergy = claimCost + rangedCost + moveCost;
-
-  if (energyAvailable < minEnergy) {
+  if (energyAvailable < CONFIG.SPAWNING.BODY_COSTS.EXPLORER_MIN_ENERGY) {
     return undefined; // Not enough energy for explorer
   }
+
+  const minEnergy = claimCost + rangedCost + moveCost;
 
   // Start with required parts
   let remainingEnergy = energyAvailable - minEnergy;
@@ -351,7 +403,7 @@ const getGeneralistBody = (rcl, energyAvailable, efficiencyMetrics = null) => {
   // Balanced generalist: [WORK, CARRY, MOVE] sets
   const bodySet = [WORK, CARRY, MOVE]; // 200 per set
   const setCost = calculateBodyCost(bodySet);
-  const maxSets = 16; // Cap at 16 sets to stay under 50 body parts limit (16 * 3 = 48)
+  const maxSets = CONFIG.SPAWNING.BODY_LIMITS.MAX_GENERALIST_SETS; // Cap at 16 sets to stay under 50 body parts limit (16 * 3 = 48)
 
   const sets = getAdaptiveSetCount(
     efficiencyMetrics,
@@ -394,7 +446,7 @@ const getMinerBody = (rcl, energyAvailable, efficiencyMetrics = null) => {
   // Max source output is 10 energy/tick with 5 WORK parts (5 * 2 = 10)
   const bodySet = [WORK, WORK, MOVE]; // 250 per set
   const setCost = calculateBodyCost(bodySet);
-  const maxSets = 2; // Cap at 2 sets = 4 WORK (with potential for 5th WORK)
+  const maxSets = CONFIG.SPAWNING.BODY_LIMITS.MINER_SETS_BEFORE_EXTRA_WORK; // Cap at 2 sets = 4 WORK (with potential for 5th WORK)
 
   const sets = getAdaptiveSetCount(
     efficiencyMetrics,
@@ -418,7 +470,7 @@ const getMinerBody = (rcl, energyAvailable, efficiencyMetrics = null) => {
   const currentCost = calculateBodyCost(body);
   const remainingEnergy = energyAvailable - currentCost;
   if (
-    sets === 2 &&
+    sets === CONFIG.SPAWNING.BODY_LIMITS.MINER_SETS_BEFORE_EXTRA_WORK &&
     remainingEnergy >= BODYPART_COST[WORK] + BODYPART_COST[MOVE]
   ) {
     body.unshift(WORK); // Add WORK at front
@@ -449,9 +501,9 @@ const getHaulerBody = (rcl, energyAvailable, efficiencyMetrics = null) => {
   const setCost = BODYPART_COST[CARRY] * 2 + BODYPART_COST[MOVE]; // 150 per set
 
   // Cap based on tier
-  let maxSets = 16; // 48 parts max (just under 50 limit)
+  let maxSets = CONFIG.SPAWNING.BODY_LIMITS.MAX_HAULER_SETS_LATE; // 48 parts max (just under 50 limit)
   if (tier === "mid") {
-    maxSets = 8; // Medium haulers for RCL 4-7
+    maxSets = CONFIG.SPAWNING.BODY_LIMITS.MAX_HAULER_SETS_MID; // Medium haulers for RCL 4-7
   }
 
   const sets = getAdaptiveSetCount(
@@ -500,7 +552,7 @@ const getUpgraderBody = (rcl, energyAvailable, efficiencyMetrics = null) => {
     // RCL 8+: Giant upgrader - [WORK×3, CARRY, MOVE, MOVE] sets
     const bodySet = [WORK, WORK, WORK, CARRY, MOVE, MOVE]; // 700 per set
     const setCost = calculateBodyCost(bodySet);
-    const maxSets = 8; // Cap at 8 sets to stay under 50 body parts (8 * 6 = 48)
+    const maxSets = CONFIG.SPAWNING.BODY_LIMITS.MAX_UPGRADER_SETS_LATE; // Cap at 8 sets to stay under 50 body parts (8 * 6 = 48)
 
     const sets = getAdaptiveSetCount(
       efficiencyMetrics,
@@ -526,7 +578,7 @@ const getUpgraderBody = (rcl, energyAvailable, efficiencyMetrics = null) => {
   // RCL 4-7: Medium upgrader - [WORK×2, CARRY, MOVE, MOVE] sets
   const bodySet = [WORK, CARRY, MOVE]; // 500 per set
   const setCost = calculateBodyCost(bodySet);
-  const maxSets = 10; // Cap at 10 sets to stay under 50 body parts (10 * 5 = 50)
+  const maxSets = CONFIG.SPAWNING.BODY_LIMITS.MAX_UPGRADER_SETS_MID; // Cap at 10 sets to stay under 50 body parts (10 * 5 = 50)
 
   const sets = getAdaptiveSetCount(
     efficiencyMetrics,
@@ -568,7 +620,7 @@ const getBuilderBody = (rcl, energyAvailable, efficiencyMetrics = null) => {
   // RCL 4+: Builder - [WORK, CARRY, CARRY, MOVE, MOVE] sets
   const bodySet = [WORK, CARRY, CARRY, MOVE, MOVE]; // 350 per set
   const setCost = calculateBodyCost(bodySet);
-  const maxSets = 10; // Cap at 10 sets to stay under 50 body parts (10 * 5 = 50)
+  const maxSets = CONFIG.SPAWNING.BODY_LIMITS.MAX_BUILDER_SETS; // Cap at 10 sets to stay under 50 body parts (10 * 5 = 50)
 
   const sets = getAdaptiveSetCount(
     efficiencyMetrics,
@@ -612,7 +664,7 @@ const getDefenderBody = (rcl, energyAvailable) => {
       return undefined;
     }
 
-    const sets = Math.min(maxSets, 3); // Cap at 3 sets for early game
+    const sets = Math.min(maxSets, CONFIG.SPAWNING.BODY_LIMITS.MAX_DEFENDER_SETS_EARLY); // Cap at 3 sets for early game
     const body = [];
 
     for (let i = 0; i < sets; i++) body.push(TOUGH);
@@ -987,6 +1039,39 @@ const findBestRoleToSpawn = (roster, currentCreeps, roomStatus) => {
  * @param {Room} room - The room object
  * @returns {Object} Spawn result
  */
+/**
+ * Get required number of fighters based on active flags
+ * Pure function - no side effects
+ * @param {boolean} hasHostiles - Whether hostile creeps are present
+ * @returns {number} Number of fighters needed
+ */
+const getRequiredFighterCount = (hasHostiles) => {
+  // Attack flag: 2 fighters for immediate combat
+  if (Game.flags['attack']) {
+    return 2;
+  }
+  
+  // Prepare attack flag: configurable fighter count (default 4)
+  // Can be configured by naming flag: prepare_attack_3, prepare_attack_5, etc.
+  const prepareAttackFlags = Object.keys(Game.flags).filter(name => 
+    name.startsWith('prepare_attack')
+  );
+  
+  if (prepareAttackFlags.length > 0) {
+    // Check if flag has a number suffix (e.g., prepare_attack_5)
+    const flagName = prepareAttackFlags[0];
+    const match = flagName.match(/prepare_attack_(\d+)/);
+    return match ? parseInt(match[1], 10) : 4; // Default to 4 if no number specified
+  }
+  
+  // Hostiles present: 2 defenders
+  if (hasHostiles) {
+    return 2;
+  }
+  
+  return 0; // No fighters needed
+};
+
 const trySpawn = (spawn, role, roomStatus, room) => {
   const rcl = roomStatus.controllerLevel;
   const body = getBodyForRole(
@@ -1039,9 +1124,13 @@ const spawnProcedure = (spawn, roster, roomStatus) => {
   const room = Game.rooms[roomStatus.roomName];
   const hasHostiles = room && utils.areThereInvaders(room);
 
-  // PRIORITY 1: Emergency fighter if hostiles
-  if (hasHostiles && (currentCreeps.fighter || 0) < 2) {
-    console.log(`⚔️ ALERT: Hostiles detected! Spawning emergency fighter`);
+  // PRIORITY 1: Fighters for combat (hostiles, attack, or prepare_attack flags)
+  const requiredFighters = getRequiredFighterCount(hasHostiles);
+  if (requiredFighters > 0 && (currentCreeps.fighter || 0) < requiredFighters) {
+    const flagType = Game.flags['attack'] ? 'attack' : 
+                     Object.keys(Game.flags).some(n => n.startsWith('prepare_attack')) ? 'prepare_attack' : 
+                     'defense';
+    console.log(`⚔️ Spawning fighter (${(currentCreeps.fighter || 0) + 1}/${requiredFighters}) for ${flagType}`);
     const result = trySpawn(spawn, "fighter", roomStatus, room);
     displaySpawningVisual(spawn);
     return result;

@@ -4,6 +4,8 @@
  * Architecture: Source links → Storage link → Controller link
  */
 
+const CONFIG = require("./config");
+
 /**
  * Identify link types by position
  * @param {Room} room - The room to analyze
@@ -28,19 +30,19 @@ const categorizeLinksByType = (room) => {
 
   for (const link of links) {
     // Storage link: within range 2 of storage
-    if (storage && link.pos.inRangeTo(storage, 2)) {
+    if (storage && link.pos.inRangeTo(storage, CONFIG.ENERGY.LINK.STORAGE_RANGE)) {
       storageLink = link;
       continue;
     }
 
     // Controller link: within range 3 of controller
-    if (controller && link.pos.inRangeTo(controller, 3)) {
+    if (controller && link.pos.inRangeTo(controller, CONFIG.ENERGY.LINK.CONTROLLER_RANGE)) {
       controllerLink = link;
       continue;
     }
 
     // Source link: within range 2 of any source
-    const nearSource = sources.find((source) => link.pos.inRangeTo(source, 2));
+    const nearSource = sources.find((source) => link.pos.inRangeTo(source, CONFIG.ENERGY.LINK.SOURCE_RANGE));
     if (nearSource) {
       sourceLinks.push({ link, source: nearSource });
       continue;
@@ -63,12 +65,12 @@ const transferFromSourcesToStorage = (sourceLinks, storageLink) => {
 
   for (const { link } of sourceLinks) {
     // Skip if link on cooldown or insufficient energy
-    if (link.cooldown > 0 || link.store[RESOURCE_ENERGY] < 400) {
+    if (link.cooldown > 0 || link.store[RESOURCE_ENERGY] < CONFIG.ENERGY.LINK.MIN_TRANSFER_AMOUNT) {
       continue;
     }
 
     // Skip if storage link is nearly full
-    if (storageLink.store.getFreeCapacity(RESOURCE_ENERGY) < 100) {
+    if (storageLink.store.getFreeCapacity(RESOURCE_ENERGY) < CONFIG.ENERGY.LINK.MIN_STORAGE_FREE_CAPACITY) {
       continue;
     }
 
@@ -92,10 +94,10 @@ const transferToControllerLink = (storageLink, controllerLink) => {
   if (!storageLink || !controllerLink) return false;
 
   // Only transfer if storage link has enough energy
-  if (storageLink.store[RESOURCE_ENERGY] < 400) return false;
+  if (storageLink.store[RESOURCE_ENERGY] < CONFIG.ENERGY.LINK.STORAGE_TO_CONTROLLER_THRESHOLD) return false;
 
   // Only transfer if controller link needs energy
-  if (controllerLink.store[RESOURCE_ENERGY] > 400) return false;
+  if (controllerLink.store[RESOURCE_ENERGY] > CONFIG.ENERGY.LINK.STORAGE_TO_CONTROLLER_THRESHOLD) return false;
 
   // Check cooldown
   if (storageLink.cooldown > 0) return false;

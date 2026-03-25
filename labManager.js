@@ -4,6 +4,8 @@
  * Manages lab assignment, reaction queues, and boost stations
  */
 
+const CONFIG = require("./config");
+
 /**
  * Compound recipes - defines how to produce each compound
  * Format: { output: { input1: mineralType, input2: mineralType } }
@@ -63,9 +65,9 @@ const PRODUCTION_PRIORITIES = [
  * Resource thresholds for compound production
  */
 const COMPOUND_THRESHOLDS = {
-  MIN_STOCK: 1000,   // Produce if below this amount
-  TARGET_STOCK: 5000, // Stop producing at this amount
-  MIN_INPUT: 1000,    // Minimum input minerals needed to start reaction
+  MIN_STOCK: CONFIG.COMPOUNDS.MIN_STOCK,   // Produce if below this amount
+  TARGET_STOCK: CONFIG.COMPOUNDS.TARGET_STOCK, // Stop producing at this amount
+  MIN_INPUT: CONFIG.COMPOUNDS.MIN_INPUT,    // Minimum input minerals needed to start reaction
 };
 
 /**
@@ -83,13 +85,13 @@ const categorizeLabs = (room) => {
   }
 
   // Reserve last 2 labs for boosting
-  const boostLabs = labs.slice(-2);
-  const reactionLabs = labs.slice(0, -2);
+  const boostLabs = labs.slice(-CONFIG.COMPOUNDS.LABS.RESERVED_BOOST_LABS);
+  const reactionLabs = labs.slice(0, -CONFIG.COMPOUNDS.LABS.RESERVED_BOOST_LABS);
 
   // Input labs are first 2 available labs
-  const inputLabs = reactionLabs.slice(0, 2);
+  const inputLabs = reactionLabs.slice(0, CONFIG.COMPOUNDS.LABS.INPUT_LABS);
   // Output labs are remaining labs (can run multiple reactions)
-  const outputLabs = reactionLabs.slice(2);
+  const outputLabs = reactionLabs.slice(CONFIG.COMPOUNDS.LABS.INPUT_LABS);
 
   return { inputLabs, outputLabs, boostLabs, allLabs: labs };
 };
@@ -150,7 +152,7 @@ const getNextCompoundToProduce = (room) => {
 const assignLabsForReaction = (room, compound) => {
   const { inputLabs, outputLabs } = categorizeLabs(room);
 
-  if (inputLabs.length < 2 || outputLabs.length < 1) {
+  if (inputLabs.length < CONFIG.COMPOUNDS.LABS.INPUT_LABS || outputLabs.length < 1) {
     return null;
   }
 
@@ -261,7 +263,7 @@ const handleBoosting = (room) => {
     for (const boostType of boostTypes) {
       // Find boost lab with this compound
       const boostLab = boostLabs.find(
-        (lab) => (lab.store[boostType] || 0) >= 30 * creep.body.length
+        (lab) => (lab.store[boostType] || 0) >= CONFIG.COMPOUNDS.BOOST_MULTIPLIER * creep.body.length
       );
 
       if (!boostLab) continue;

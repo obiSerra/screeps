@@ -9,6 +9,7 @@
  * 4. Navigate toward 'explore' flag
  */
 
+const CONFIG = require("./config");
 const utils = require("./utils");
 const baseCreep = require("./baseCreep");
 
