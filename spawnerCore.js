@@ -43,7 +43,7 @@ const executeSpawn = (spawn, role, body, gameTime, extraMemory = {}) => {
   if (result === OK) {
     stats.recordSpawn(spawn.room.name, role, body, calculateBodyCost(body));
   } else {
-    console.log(`Failed to spawn ${role}: ${result}`);
+    console.log(`Room ${spawn.room.name} failed to spawn ${role}: ${result} - Body: ${body} (Cost: ${calculateBodyCost(body)}) - Available Energy: ${spawn.room.energyAvailable} `);
   }
 
   return result;

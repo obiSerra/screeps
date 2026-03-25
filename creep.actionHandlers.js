@@ -312,8 +312,18 @@ const handleHarvesting = (creep) => {
   // Priority 2: Direct delivery to spawns/extensions
   const targets = findEnergyDepositTargets(room);
   if (targets.length > 0) {
-    if (creep.transfer(targets[0], RESOURCE_ENERGY) === ERR_NOT_IN_RANGE) {
+    const result = creep.transfer(targets[0], RESOURCE_ENERGY);
+    if (result === ERR_NOT_IN_RANGE) {
       moveToTarget(creep, targets[0], PATH_COLORS.harvesting);
+    } else if (result === ERR_FULL) {
+      // Target is full, find closest unfilled extension
+      const closestTarget = creep.pos.findClosestByRange(targets);
+      if (closestTarget && closestTarget.id !== targets[0].id) {
+        const retryResult = creep.transfer(closestTarget, RESOURCE_ENERGY);
+        if (retryResult === ERR_NOT_IN_RANGE) {
+          moveToTarget(creep, closestTarget, PATH_COLORS.harvesting);
+        }
+      }
     }
   }
 };

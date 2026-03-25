@@ -119,7 +119,7 @@
       false,
       rcl,
     );
-
+    console.log(`Generalist body calculation: energy=${energyAvailable}, setCost=${setCost}, maxAffordable=${Math.floor(energyAvailable / setCost)}, targetSets=${sets}, rcl=${rcl}, efficiencyTier=${efficiencyMetrics ? efficiencyMetrics.efficiencyTier : "N/A"}`);
     if (sets < 1) {
       return undefined;
     }
