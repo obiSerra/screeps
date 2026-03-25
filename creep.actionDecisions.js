@@ -12,6 +12,7 @@ const {
   findPriorityBuildTarget,
   prioritizeConstructionSites,
   sortByContention,
+  countCreepsTargeting,
 } = require("./creep.targetFinding");
 const { canPerformAction } = require("./creep.analysis");
 
@@ -165,93 +166,44 @@ const selectBuildTarget = (creep, constructionSites) => {
  * @returns {Object|null} { id, pos } of selected source or null if none available
  */
 const selectGatheringTarget = (creep) => {
-  // Priority 0: Check for dropped energy first (before it decays)
+  // Priority 1: Check for dropped energy NOT targeted by other creeps
   const droppedEnergy = creep.room.find(FIND_DROPPED_RESOURCES, {
-    filter: (r) => r.resourceType === RESOURCE_ENERGY && r.amount > CONFIG.ENERGY.CONTAINER.MIN_DROPPED_RESOURCE,
+    filter: (r) => 
+      r.resourceType === RESOURCE_ENERGY && 
+      r.amount > CONFIG.ENERGY.CONTAINER.MIN_DROPPED_RESOURCE &&
+      countCreepsTargeting(r.id) === 0,
   });
 
   if (droppedEnergy.length > 0) {
     const closest = creep.pos.findClosestByPath(droppedEnergy);
-    return { id: closest.id, pos: closest.pos };
-  }
-
-  // Upgraders preferentially pick energy from storage or controller link based on distance
-  if (creep.memory.role === "upgrader") {
-    // Find storage
-    const storage = creep.room.find(FIND_STRUCTURES, {
-      filter: (s) =>
-        s.structureType === STRUCTURE_STORAGE &&
-        s.store[RESOURCE_ENERGY] > CONFIG.ENERGY.STORAGE.MIN_FOR_UPGRADERS,
-    })[0];
-
-    // Find controller link with energy
-    const controllerLink = creep.room.find(FIND_STRUCTURES, {
-      filter: (s) =>
-        s.structureType === STRUCTURE_LINK &&
-        s.store[RESOURCE_ENERGY] > 0 &&
-        creep.room.controller &&
-        s.pos.getRangeTo(creep.room.controller) <= 3,
-    })[0];
-
-    // If both exist, pick the closer one
-    if (storage && controllerLink) {
-      const distToStorage = creep.pos.getRangeTo(storage);
-      const distToLink = creep.pos.getRangeTo(controllerLink);
-      const selected = distToLink < distToStorage ? controllerLink : storage;
-      return { id: selected.id, pos: selected.pos };
-    }
-
-    // Return whichever exists
-    if (storage) {
-      return { id: storage.id, pos: storage.pos };
-    }
-    if (controllerLink) {
-      return { id: controllerLink.id, pos: controllerLink.pos };
+    if (closest) {
+      return { id: closest.id, pos: closest.pos };
     }
   }
 
-  const source = utils.findBestSourceForCreep(creep);
-  if (!source) {
-    return null;
-  }
-  return { id: source.id, pos: source.pos };
-};
-
-/**
- * Select the best container for transporter gathering
- * Pure function - finds dropped resources first, then containers at 50%+ capacity
- * @param {Creep} creep
- * @returns {Object|null} { id, pos } of selected resource or container or null
- */
-const selectTransporterGatheringTarget = (creep) => {
-  // Priority 1: Check for dropped energy first (before it decays)
-  const droppedEnergy = creep.room.find(FIND_DROPPED_RESOURCES, {
-    filter: (r) => r.resourceType === RESOURCE_ENERGY && r.amount > CONFIG.ENERGY.CONTAINER.MIN_DROPPED_RESOURCE,
+  // Priority 2: Find nearest between non-empty sources and containers/storage with sufficient energy
+  const sources = creep.room.find(FIND_SOURCES_ACTIVE, {
+    filter: (s) => s.energy > 0,
   });
 
-  if (droppedEnergy.length > 0) {
-    const closest = creep.pos.findClosestByPath(droppedEnergy);
-    return { id: closest.id, pos: closest.pos };
-  }
-
-  // Priority 2: Containers at 50%+ capacity
   const containers = creep.room.find(FIND_STRUCTURES, {
     filter: (s) =>
-      s.structureType === STRUCTURE_CONTAINER &&
-      s.store[RESOURCE_ENERGY] >= s.store.getCapacity(RESOURCE_ENERGY) * CONFIG.ENERGY.CONTAINER.TARGET_THRESHOLD,
+      (s.structureType === STRUCTURE_CONTAINER || s.structureType === STRUCTURE_STORAGE) &&
+      s.store[RESOURCE_ENERGY] > CONFIG.ENERGY.CONTAINER.MIN_FOR_PICKUP,
   });
 
-  if (containers.length === 0) {
+  // Combine both lists and find the closest
+  const allTargets = [...sources, ...containers];
+  if (allTargets.length === 0) {
     return null;
   }
 
-  // Sort by energy amount (highest first) and distance
-  const sorted = containers.sort((a, b) => {
-    const energyDiff = b.store[RESOURCE_ENERGY] - a.store[RESOURCE_ENERGY];
-    return energyDiff !== 0 ? energyDiff : creep.pos.getRangeTo(a) - creep.pos.getRangeTo(b);
-  });
+  const closest = creep.pos.findClosestByPath(allTargets);
+  if (!closest) {
+    return null;
+  }
 
-  return { id: sorted[0].id, pos: sorted[0].pos };
+  return { id: closest.id, pos: closest.pos };
 };
 
 /**
@@ -317,6 +269,5 @@ module.exports = {
   getActionAvailability,
   selectBuildTarget,
   selectGatheringTarget,
-  selectTransporterGatheringTarget,
   selectAction,
 };

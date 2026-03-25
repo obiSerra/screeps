@@ -14,7 +14,6 @@ const {
   hasFinishedGathering,
   selectAction,
   selectGatheringTarget,
-  selectTransporterGatheringTarget,
 } = require("./creep.actionDecisions");
 const {
   sayAction,

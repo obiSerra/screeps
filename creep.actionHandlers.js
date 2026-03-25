@@ -14,7 +14,6 @@ const {
 } = require("./creep.targetFinding");
 const {
   selectGatheringTarget,
-  selectTransporterGatheringTarget,
   selectBuildTarget,
   getActionAvailability,
 } = require("./creep.actionDecisions");
@@ -61,8 +60,7 @@ const handleGathering = (creep) => {
   // Check if the target is a container or storage
   const isContainer =
     source.structureType === STRUCTURE_CONTAINER ||
-    source.structureType === STRUCTURE_STORAGE ||
-    source.structureType === STRUCTURE_LINK;
+    source.structureType === STRUCTURE_STORAGE;
 
   if (isDroppedResource) {
     // Pickup dropped resource
@@ -84,17 +82,8 @@ const handleGathering = (creep) => {
     : source.energy === 0;
 
   if (isEmpty) {
-    // Source is empty, find a new target
-    const newTarget = isContainer
-      ? selectTransporterGatheringTarget(creep)
-      : selectGatheringTarget(creep);
-
-    if (newTarget) {
-      setCreepAction(creep, "gathering", newTarget);
-    } else {
-      // No alternative targets available, clear action
-      clearCreepAction(creep);
-    }
+    // Source is empty, clear action to find a new target on next tick
+    clearCreepAction(creep);
     return;
   }
 

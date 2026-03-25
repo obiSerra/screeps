@@ -158,7 +158,7 @@ const CONFIG = {
 
         // Storage thresholds
         STORAGE: {
-            MIN_FOR_UPGRADERS: 50000            // Min storage energy before upgraders pull from it
+            MIN_FOR_PICKUP: 50000            // Min storage energy before upgraders pull from it
         },
 
         // Link transfers
@@ -176,7 +176,8 @@ const CONFIG = {
         CONTAINER: {
             TARGET_THRESHOLD: 0.5,              // Target containers > 50% full
             HIGH_FILL_THRESHOLD: 0.75,          // High-fill containers
-            MIN_DROPPED_RESOURCE: 50            // Min dropped resource to collect
+            MIN_DROPPED_RESOURCE: 50,           // Min dropped resource to collect
+            MIN_FOR_PICKUP: 100                 // Min container energy for gathering
         }
     },
 

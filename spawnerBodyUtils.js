@@ -379,23 +379,38 @@ const getDefenderBody = (rcl, energyAvailable) => {
     // RCL 8: Heavy defender with ranged support
     const bodyList = [
       [
-        TOUGH, TOUGH, TOUGH, TOUGH,
-        ATTACK, ATTACK, ATTACK,
-        RANGED_ATTACK, RANGED_ATTACK,
-        MOVE, MOVE, MOVE, MOVE, MOVE, MOVE, MOVE,
+        TOUGH,
+        TOUGH,
+        TOUGH,
+        TOUGH,
+        ATTACK,
+        ATTACK,
+        ATTACK,
+        RANGED_ATTACK,
+        RANGED_ATTACK,
+        MOVE,
+        MOVE,
+        MOVE,
+        MOVE,
+        MOVE,
+        MOVE,
+        MOVE,
       ],
       [
-        TOUGH, TOUGH, TOUGH,
-        ATTACK, ATTACK, ATTACK,
+        TOUGH,
+        TOUGH,
+        TOUGH,
+        ATTACK,
+        ATTACK,
+        ATTACK,
         RANGED_ATTACK,
-        MOVE, MOVE, MOVE, MOVE, MOVE,
+        MOVE,
+        MOVE,
+        MOVE,
+        MOVE,
+        MOVE,
       ],
-      [
-        TOUGH, TOUGH,
-        ATTACK, ATTACK,
-        RANGED_ATTACK,
-        MOVE, MOVE, MOVE, MOVE,
-      ],
+      [TOUGH, TOUGH, ATTACK, ATTACK, RANGED_ATTACK, MOVE, MOVE, MOVE, MOVE],
       [TOUGH, ATTACK, ATTACK, MOVE, MOVE, MOVE],
       [TOUGH, ATTACK, MOVE],
     ];
@@ -472,14 +487,22 @@ const getFighterCreepBody = (energyAvailable) => {
   let moveCount = 0;
 
   // Add as many [TOUGH×2, MOVE] sets as we can afford
-  while (remainingEnergy >= toughMoveSetCost && (attackCount + carryCount + toughCount + moveCount) < CONFIG.SPAWNING.BODY_LIMITS.SOFT_LIMIT) {
+  while (
+    remainingEnergy >= toughMoveSetCost &&
+    attackCount + carryCount + toughCount + moveCount <
+      CONFIG.SPAWNING.BODY_LIMITS.SOFT_LIMIT
+  ) {
     toughCount += 2;
     moveCount += 1;
     remainingEnergy -= toughMoveSetCost;
   }
 
   // Add any remaining TOUGH parts we can afford
-  while (remainingEnergy >= toughCost && (attackCount + carryCount + toughCount + moveCount) < CONFIG.SPAWNING.BODY_LIMITS.HARD_LIMIT) {
+  while (
+    remainingEnergy >= toughCost &&
+    attackCount + carryCount + toughCount + moveCount <
+      CONFIG.SPAWNING.BODY_LIMITS.HARD_LIMIT
+  ) {
     toughCount += 1;
     remainingEnergy -= toughCost;
   }
@@ -504,9 +527,13 @@ const getFighterCreepBody = (energyAvailable) => {
   // Final check: ensure proper MOVE ratio (add more MOVE if needed for heavy fighters)
   const nonMovePartsCount = attackCount + carryCount + toughCount;
   const idealMoveCount = Math.ceil(nonMovePartsCount / 2); // 1 MOVE per 2 parts
-  
+
   // Add more MOVE if we're under the ideal and have budget
-  while (moveCount < idealMoveCount && remainingEnergy >= moveCost && (nonMovePartsCount + moveCount) < CONFIG.SPAWNING.BODY_LIMITS.HARD_LIMIT) {
+  while (
+    moveCount < idealMoveCount &&
+    remainingEnergy >= moveCost &&
+    nonMovePartsCount + moveCount < CONFIG.SPAWNING.BODY_LIMITS.HARD_LIMIT
+  ) {
     moveCount++;
     remainingEnergy -= moveCost;
   }
@@ -606,7 +633,10 @@ const getTransporterBody = (energyAvailable) => {
   }
 
   // Cap at 16 sets to stay under 50 body parts limit (16 * 3 = 48)
-  const sets = Math.min(maxSets, CONFIG.SPAWNING.BODY_LIMITS.MAX_GENERALIST_SETS);
+  const sets = Math.min(
+    maxSets,
+    CONFIG.SPAWNING.BODY_LIMITS.MAX_GENERALIST_SETS,
+  );
 
   const body = [];
   for (let i = 0; i < sets; i++) {
@@ -746,10 +776,7 @@ const getBodyForRole = (
 
   switch (role) {
     case "harvester":
-      if (tier === "early") {
-        return getGeneralistBody(rcl, energyAvailable, efficiencyMetrics);
-      }
-      return getMinerBody(rcl, energyAvailable, efficiencyMetrics);
+      return getGeneralistBody(rcl, energyAvailable, efficiencyMetrics);
 
     case "hauler":
       return getHaulerBody(rcl, energyAvailable, efficiencyMetrics);
