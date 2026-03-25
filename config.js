@@ -156,6 +156,11 @@ const CONFIG = {
             MAX_ENERGY: 200000
         },
 
+        // Storage thresholds
+        STORAGE: {
+            MIN_FOR_UPGRADERS: 50000            // Min storage energy before upgraders pull from it
+        },
+
         // Link transfers
         LINK: {
             MIN_TRANSFER_AMOUNT: 400,           // Min energy to transfer from source
