@@ -183,20 +183,67 @@ const findPrioritizedAttackTarget = (creep) => {
 
   // Find the structure at the flag's position
   const flagPos = attackFlag.pos;
-  const structuresAtFlag = flagPos.lookFor(LOOK_STRUCTURES);
+  
+  // Check if we have vision of the flag's room before calling lookFor
+  const flagRoom = Game.rooms[flagPos.roomName];
+  if (flagRoom) {
+    const structuresAtFlag = flagPos.lookFor(LOOK_STRUCTURES);
 
-  // If there's a structure at the flag position, target it specifically
-  // Filter out allied structures to never target them
-  if (structuresAtFlag.length > 0) {
-    const validTarget = structuresAtFlag.find(
-      (s) => !s.my && (!s.owner || s.owner.username !== creep.owner.username)
-    );
-    if (validTarget) {
-      return validTarget;
+    // If there's a structure at the flag position, target it specifically
+    // Filter out allied structures to never target them
+    if (structuresAtFlag.length > 0) {
+      const validTarget = structuresAtFlag.find(
+        (s) => !s.my && (!s.owner || s.owner.username !== creep.owner.username)
+      );
+      if (validTarget) {
+        return validTarget;
+      }
+    }
+
+    // If no structure at flag, find all potential targets in the flag's room
+    const hostileStructures = flagRoom.find(FIND_HOSTILE_STRUCTURES);
+
+    // Also include walls and ramparts as valid targets when attack flag is present
+    // Only include hostile or neutral walls/ramparts, never allied ones
+    const walls = flagRoom.find(FIND_STRUCTURES, {
+      filter: (s) =>
+        (s.structureType === STRUCTURE_WALL || s.structureType === STRUCTURE_RAMPART) &&
+        !s.my && (!s.owner || s.owner.username !== creep.owner.username),
+    });
+
+    const allStructureTargets = [...hostileStructures, ...walls];
+
+    if (allStructureTargets.length > 0) {
+      // Structure priority mapping (lower = higher priority)
+      const structurePriority = {
+        [STRUCTURE_SPAWN]: 1,
+        [STRUCTURE_TOWER]: 2,
+        [STRUCTURE_EXTENSION]: 3,
+        [STRUCTURE_WALL]: 5,
+        [STRUCTURE_RAMPART]: 4,
+      };
+
+      // Find closest high-priority structure
+      const priorityTargets = allStructureTargets
+        .map((s) => ({
+          structure: s,
+          priority: structurePriority[s.structureType] || 10,
+          distance: creep.pos.getRangeTo(s),
+        }))
+        .sort((a, b) => {
+          // Sort by priority first, then distance
+          if (a.priority !== b.priority) {
+            return a.priority - b.priority;
+          }
+          return a.distance - b.distance;
+        });
+
+      return priorityTargets[0].structure;
     }
   }
 
-  // If no structure at flag, find all potential targets in the room
+  // If we don't have vision of the flag's room, or no targets found,
+  // check for targets in the creep's current room
   const hostileStructures = creep.room.find(FIND_HOSTILE_STRUCTURES);
 
   // Also include walls and ramparts as valid targets when attack flag is present
@@ -439,35 +486,42 @@ const findRangedAttackTarget = (creep) => {
 
   // Find the structure at the flag's position
   const flagPos = attackFlag.pos;
-  const structuresAtFlag = flagPos.lookFor(LOOK_STRUCTURES);
+  
+  // Check if we have vision of the flag's room before calling lookFor
+  const flagRoom = Game.rooms[flagPos.roomName];
+  if (flagRoom) {
+    const structuresAtFlag = flagPos.lookFor(LOOK_STRUCTURES);
 
-  // If there's a structure at the flag position, target it specifically
-  if (structuresAtFlag.length > 0) {
-    const validTarget = structuresAtFlag.find(
-      (s) => !s.my && (!s.owner || s.owner.username !== creep.owner.username)
-    );
-    if (validTarget) {
-      return validTarget;
+    // If there's a structure at the flag position, target it specifically
+    if (structuresAtFlag.length > 0) {
+      const validTarget = structuresAtFlag.find(
+        (s) => !s.my && (!s.owner || s.owner.username !== creep.owner.username)
+      );
+      if (validTarget) {
+        return validTarget;
+      }
+    }
+
+    // If no structure at flag, find all potential targets in the flag's room
+    const hostileStructures = flagRoom.find(FIND_HOSTILE_STRUCTURES);
+    const walls = flagRoom.find(FIND_STRUCTURES, {
+      filter: (s) =>
+        (s.structureType === STRUCTURE_WALL || s.structureType === STRUCTURE_RAMPART) &&
+        !s.my && (!s.owner || s.owner.username !== creep.owner.username),
+    });
+
+    const allStructureTargets = [...hostileStructures, ...walls];
+
+    if (allStructureTargets.length > 0) {
+      // Find closest target (shooters can hit from range)
+      const closest = creep.pos.findClosestByPath(allStructureTargets);
+      return closest || allStructureTargets[0];
     }
   }
 
-  // If no structure at flag, find all potential targets in the room
-  const hostileStructures = creep.room.find(FIND_HOSTILE_STRUCTURES);
-  const walls = creep.room.find(FIND_STRUCTURES, {
-    filter: (s) =>
-      (s.structureType === STRUCTURE_WALL || s.structureType === STRUCTURE_RAMPART) &&
-      !s.my && (!s.owner || s.owner.username !== creep.owner.username),
-  });
-
-  const allStructureTargets = [...hostileStructures, ...walls];
-
-  if (allStructureTargets.length === 0) {
-    return null;
-  }
-
-  // Find closest target (shooters can hit from range)
-  const closest = creep.pos.findClosestByPath(allStructureTargets);
-  return closest || allStructureTargets[0];
+  // If we don't have vision of the flag's room or no targets found, return null
+  // The fighter will move toward the flag until it gains vision
+  return null;
 };
 
 /**
