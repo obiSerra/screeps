@@ -20,6 +20,7 @@ const roleFighterShooter = require("./role.fighterShooter");
 const roleExplorer = require("./role.explorer");
 const roleMineralExtractor = require("./role.mineralExtractor");
 const roleChemist = require("./role.chemist");
+const roleDefender = require("./role.defender");
 
 // ============================================================================
 // Room Mode Management
@@ -322,6 +323,7 @@ const getCreepRoleHandler = (creep) => {
     miner: roleMiner.run,
     hauler: roleHauler.run,
     fighter: roleFighterInvader.run, // Fallback (shouldn't reach here)
+    defender: roleDefender.run,
     explorer: roleExplorer.run,
     mineralExtractor: roleMineralExtractor.run,
     chemist: roleChemist.run,

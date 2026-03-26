@@ -13,39 +13,29 @@
     return {
       /** @param {Creep} creep **/
       run: function (creep) {
+        // Priority 1: Check for attack flags first (before economic tasks)
+        const attackFlag = findNearestAttackFlag(creep);
+        
+        // Priority 2: If attack flag exists and we're not close to it, move there
+        if (attackFlag && creep.pos.getRangeTo(attackFlag) > 3) {
+          creep.moveTo(attackFlag, {
+            visualizePathStyle: { stroke: "#ff0000", opacity: 0.5 }
+          });
+          return; // Skip economic tasks while moving to attack position
+        }
+        
+        // Priority 3: If at attack flag or no flag, handle combat via baseCreep
         // baseCreep workerActions() automatically detects fighters and assigns "attacking" action
-        // when invaders present. Priority list gives fighters something to do when idle.
+        // when targets are present. Priority list gives fighters something to do when idle.
         base.workerActions(creep, ["attacking", "delivering", "transporting", "hauling"]);
-        // console.log(`Fighter ${creep.name} performing action: ${creep.memory.action}`);
-        // Safety check: if no action assigned, default to hauling
+        
+        // Safety check: if no action assigned, default to transporting
         if (!creep.memory.action) {
           creep.memory.action = "transporting";
         }
         
         // Perform the assigned action
         base.performAction(creep, creep.memory.action);
-        
-        // If no action assigned and no invaders, check for attack flags first
-        if (!creep.memory.action && !utils.areThereInvaders(creep.room)) {
-          // Check for attack flags to rally at
-          const attackFlag = findNearestAttackFlag(creep);
-          if (attackFlag) {
-            // Move to attack flag position
-            if (creep.pos.getRangeTo(attackFlag) > 2) {
-              creep.moveTo(attackFlag, {
-                visualizePathStyle: { stroke: "#ff0000", opacity: 0.5 }
-              });
-            }
-          } else {
-            // No attack flags, patrol near controller/spawn
-            const controller = creep.room.controller;
-            if (controller && creep.pos.getRangeTo(controller) > 5) {
-              creep.moveTo(controller, {
-                visualizePathStyle: { stroke: "#ff0000", opacity: 0.5 }
-              });
-            }
-          }
-        }
       },
     };
   };
