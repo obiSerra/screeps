@@ -5,6 +5,7 @@
  */
 
 const baseCreep = require("./baseCreep");
+const { findNearestAttackFlag } = require("./creep.targetFinding");
 
 var roleFighterFodder = () => {
   const base = baseCreep.baseCreep;
@@ -16,8 +17,15 @@ var roleFighterFodder = () => {
       // Priority: attacking > delivering (if wounded and can't fight)
       base.workerActions(creep, ["attacking", "delivering"]);
       
-      // Safety check: if no action assigned, default to delivering
+      // Safety check: if no action assigned, check for attack flags
       if (!creep.memory.action) {
+        const attackFlag = findNearestAttackFlag(creep);
+        if (attackFlag && creep.pos.getRangeTo(attackFlag) > 2) {
+          creep.moveTo(attackFlag, {
+            visualizePathStyle: { stroke: "#ff0000", opacity: 0.5 }
+          });
+          return;
+        }
         creep.memory.action = "delivering";
       }
       
