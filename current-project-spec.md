@@ -1,8 +1,8 @@
 # Project Spec
 
-> **Last updated:** 2026-03-26 07:57 UTC  
+> **Last updated:** 2026-03-26 09:00 UTC  
 > **Updated by:** maintainer agent  
-> **Revision scope:** incremental since 2026-03-25 14:30
+> **Revision scope:** incremental since 2026-03-26 07:57
 
 ---
 
@@ -17,14 +17,15 @@ This is a Screeps AI bot written in JavaScript. Screeps is a programming game wh
 | Concern | File(s) | Notes |
 |---|---|---|
 | **Configuration** | [config.js](config.js) (302 lines) | Centralized tuning parameters, priority mode settings, magic numbers eliminated |
-| **Core Loop** | [main.js](main.js) (227 lines) | Entry point, per-room orchestration, garbage collection, single error boundary |
-| **Room Orchestration** | [roomOrchestrator.js](roomOrchestrator.js) (744 lines) | Mode management, priority mode activation, tower control, creep routing |
-| **Spawning - Orchestrator** | [spawner.js](spawner.js) (129 lines) | Main spawn procedure, priority logic (REFACTORED 2026-03-25) |
+| **Core Loop** | [main.js](main.js) (368 lines) | Entry point, per-room orchestration, garbage collection, console debug functions |
+| **Error Tracking** | [errorTracker.js](errorTracker.js) (289 lines) | Centralized error logging with rate limiting, Memory persistence, statistics (NEW 2026-03-26) |
+| **Room Orchestration** | [roomOrchestrator.js](roomOrchestrator.js) (768 lines) | Mode management, priority mode activation, tower control, creep routing |
+| **Spawning - Orchestrator** | [spawner.js](spawner.js) (140 lines) | Main spawn procedure, priority logic (REFACTORED 2026-03-25) |
 | **Spawning - Body Utils** | [spawnerBodyUtils.js](spawnerBodyUtils.js) (834 lines) | Pure functions for body composition, adaptive sizing (NEW 2026-03-25) |
 | **Spawning - Core** | [spawnerCore.js](spawnerCore.js) (125 lines) | Spawn execution, visual display (NEW 2026-03-25) |
 | **Spawning - Helpers** | [spawnerHelpers.js](spawnerHelpers.js) (86 lines) | Helper utilities for spawning (NEW 2026-03-25) |
 | **Spawning - Roster** | [spawnerRoster.js](spawnerRoster.js) (120 lines) | Roster calculations, role counts (NEW 2026-03-25) |
-| **Creep - Orchestrator** | [baseCreep.js](baseCreep.js) (159 lines) | Main creep behavior coordination (REFACTORED 2026-03-25) |
+| **Creep - Orchestrator** | [baseCreep.js](baseCreep.js) (173 lines) | Main creep behavior coordination (REFACTORED 2026-03-25) |
 | **Creep - Action Handlers** | [creep.actionHandlers.js](creep.actionHandlers.js) (917 lines) | All action execution logic (NEW 2026-03-25) |
 | **Creep - Action Decisions** | [creep.actionDecisions.js](creep.actionDecisions.js) (274 lines) | Action selection, priority logic (NEW 2026-03-25) |
 | **Creep - Target Finding** | [creep.targetFinding.js](creep.targetFinding.js) (363 lines) | Target selection algorithms (NEW 2026-03-25) |
@@ -51,7 +52,55 @@ This is a Screeps AI bot written in JavaScript. Screeps is a programming game wh
 
 ---
 
-## 3. Major Improvements Since Last Update (2026-03-25 → 2026-03-26)
+## 3. Major Improvements Since Last Update (2026-03-26 07:57 → 2026-03-26 09:00)
+
+### 🆕 NEW FEATURE: Centralized Error Tracking System (Addresses 🔴 Criticality #1)
+
+**Purpose:** Replace single global try-catch with distributed, context-aware error handling and logging.
+
+#### New Module: errorTracker.js (289 lines)
+
+**Core Features:**
+- **Rate-limited logging** — Max 5 errors per type per 50-tick window; prevents console spam
+- **Memory persistence** — Stores last 10 errors with full context and stack traces
+- **Statistics tracking** — Counts errors by type and severity (CRITICAL, ERROR, WARNING, INFO)
+- **Critical threshold monitoring** — Alerts when error rate exceeds 10 errors per 100 ticks
+- **Context-aware** — Captures module, function, room, creep info for each error
+
+**API:**
+```javascript
+errorTracker.logError(error, {
+  module: 'linkManager',
+  function: 'manageLinkNetwork',
+  room: 'W1N1'
+}, 'ERROR');
+```
+
+#### Integration Across Modules
+
+**Files Modified:**
+- [main.js](main.js#L85-L122) — Wrapped linkManager, labManager, terminalManager in try-catch blocks
+- [spawner.js](spawner.js#L127-L132) — Error tracking for spawn execution failures
+- [roomOrchestrator.js](roomOrchestrator.js#L462-L467) — Error tracking for tower control (2 locations)
+- [baseCreep.js](baseCreep.js#L132-L137) — Error tracking for creep action failures
+
+**Console Debug Functions (main.js):**
+- `global.errorSummary()` — Overview of error state, top error types
+- `global.errorRecent(n)` — Display last N errors with full context
+- `global.errorStats()` — Detailed statistics by error type
+- `global.errorClear()` — Reset error tracking data
+
+**Impact:**
+- ✅ **PARTIALLY RESOLVES** Criticality #1 — Infrastructure managers now have error boundaries
+- ⚠️ **REMAINING WORK** — Role files and other modules still lack error handling
+- 🎯 **IMPROVEMENT** — Rate limiting prevents console spam from repetitive errors
+- 📊 **OBSERVABILITY** — Error statistics provide debugging visibility without log noise
+
+**Status:** ✅ Functional and integrated; addresses major modules but not yet comprehensive
+
+---
+
+## 4. Historical Improvements (2026-03-25 → 2026-03-26 07:57)
 
 ### 🎯 CRITICAL: Two God-Object Modules Decomposed
 
@@ -155,15 +204,15 @@ This is a Screeps AI bot written in JavaScript. Screeps is a programming game wh
 
 ---
 
-## 4. Key Logic & Main Loop
+## 5. Key Logic & Main Loop
 
 ### Main Loop ([main.js](main.js#L69-L95))
 1. **Garbage collection** - Clear memory for dead creeps and stale rooms
 2. **Per-room processing** - Filter owned rooms, iterate each with try-catch wrapper
 3. **Statistics updates** - System stats, creep stats, energy collection metrics
 4. **Room orchestration** - Priority mode management, spawn coordination, creep execution
-5. **Infrastructure managers** - Links (RCL 5+), Labs (RCL 6+), Terminal (RCL 6+)
-6. **Error boundary** - Single try-catch wraps room processing (logs errors, continues)
+5. **Infrastructure managers** - Links (RCL 5+), Labs (RCL 6+), Terminal (RCL 6+) — **now with error tracking**
+6. **Error boundary** - Try-catch wraps room processing; errors logged via errorTracker
 
 ### Room Orchestration Workflow ([roomOrchestrator.js](roomOrchestrator.js))
 1. **Priority Mode Check** - Activate/deactivate energy priority mode based on `timeToFillCapacity`
@@ -230,17 +279,17 @@ This is a Screeps AI bot written in JavaScript. Screeps is a programming game wh
 
 ---
 
-## 5. Criticalities & Potential Issues
+## 6. Criticalities & Potential Issues
 
 ### 🔴 High Severity
 
 | # | File(s) | Description | Status |
 |---|---|---|---|
-| 1 | [main.js](main.js#L69-L95) | **Only one try-catch in entire codebase.** Infrastructure managers (linkManager, labManager, terminalManager), role files, spawner modules, and creep modules have no error handling. A single exception in any module silently halts room execution. | **UNRESOLVED** |
+| 1 | Multiple modules | **Incomplete error handling coverage.** errorTracker.js (289 lines) added with rate-limited logging and statistics. Infrastructure managers (linkManager, labManager, terminalManager) now wrapped in try-catch. spawner.js, roomOrchestrator.js, baseCreep.js have error tracking. **STILL MISSING:** Role files (15+ files) and supporting modules (planner, utils, etc.) have no error handling. | **PARTIALLY RESOLVED (2026-03-26)** — Major modules protected; role files remain |
 | 2 | ~~[baseCreep.js](baseCreep.js)~~ | ~~**God-object with 1669 lines.**~~ | ✅ **RESOLVED (2026-03-25)** — Decomposed into 7 modules with clear boundaries |
-| 3 | ~~[spawner.js](spawner.js)~~ | ~~**Overly complex module (1309 lines).**~~ | ✅ **RESOLVED (2026-03-25)** — Decomposed into 5 modules; main orchestrator now 129 lines |
-| 4 | [creep.actionHandlers.js](creep.actionHandlers.js) (917 lines) | **New largest module after refactoring.** Contains all action handlers. Long functions still present: `handleDelivering` (~84 lines), `handleGathering` (~83 lines), `handleHauling` (likely >100 lines). Should extract sub-functions for complex handlers. | **NEW ISSUE** — Created during refactoring |
-| 5 | [spawnerBodyUtils.js](spawnerBodyUtils.js) (834 lines) | **Second-largest module.** Pure body composition functions. While logically cohesive, contains 15+ role-specific body functions. Consider grouping by category (workers, specialists, combat). | **NEW ISSUE** — Created during refactoring |
+| 3 | ~~[spawner.js](spawner.js)~~ | ~~**Overly complex module (1309 lines).**~~ | ✅ **RESOLVED (2026-03-25)** — Decomposed into 5 modules; main orchestrator now 140 lines |
+| 4 | [creep.actionHandlers.js](creep.actionHandlers.js) (917 lines) | **New largest module after refactoring.** Contains all action handlers. Long functions still present: `handleDelivering` (~84 lines), `handleGathering` (~83 lines), `handleHauling` (likely >100 lines). Should extract sub-functions for complex handlers. | **UNRESOLVED** |
+| 5 | [spawnerBodyUtils.js](spawnerBodyUtils.js) (834 lines) | **Second-largest module.** Pure body composition functions. While logically cohesive, contains 15+ role-specific body functions. Consider grouping by category (workers, specialists, combat). | **UNRESOLVED** |
 | 6 | [planner.js](planner.js#L206-L220) | **Quadruple nested loop.** Four levels deep (x, y, dx, dy) in `findOptimalCenter`. Inefficient O(n^4) complexity. Should use distance transform or precomputed grid. | **UNRESOLVED** |
 | 7 | Multiple role files | **Inconsistent module paths.** Some use `require("baseCreep")` (role.builder, role.claimer) while others use `require("./baseCreep")` (role.explorer). Can cause undefined behavior in CommonJS. **Updated issue:** Directory refactoring fixed some paths but inconsistency remains. | **PARTIALLY IMPROVED** — role.explorer fixed; others still inconsistent |
 | 8 | [roomOrchestrator.js](roomOrchestrator.js) + creep modules | **Circular dependency risk with new structure.** roomOrchestrator requires spawner → spawner requires spawnerRoster → spawnerRoster requires creep counting. Verify with `madge` or similar tool. New creep.* modules create additional dependency chains. | **NEEDS VERIFICATION** |
@@ -269,10 +318,46 @@ This is a Screeps AI bot written in JavaScript. Screeps is a programming game wh
 | 21 | [stats.js](stats.js) (543 lines) | **Interval-based statistics tracking.** Well-designed system with rolling windows and automatic interval rollover. Good observability foundation. | **UNCHANGED** — Still excellent |
 | 22 | [spawnerCore.js](spawnerCore.js#L89) | **Spawn tick tracking in memory.** Good practice for lifetime tracking and debugging. Preserved during refactoring. | **UNCHANGED** — Migrated to spawnerCore |
 | 23 | creep.* modules | **Clear functional hierarchy with no circular dependencies.** baseCreep → actionHandlers → actionDecisions/targetFinding → analysis. Clean separation of concerns. | **NEW STRENGTH** — Result of refactoring |
+| 24 | [errorTracker.js](errorTracker.js) | **Rate-limited error logging with statistics.** Prevents console spam while maintaining observability. Memory-based persistence, context-aware logging, critical threshold alerts. | **NEW STRENGTH (2026-03-26)** |
+| 25 | [main.js](main.js#L260-L368) | **Console debug functions for error tracking.** Four global functions (errorSummary, errorRecent, errorStats, errorClear) provide runtime debugging without code changes. | **NEW FEATURE (2026-03-26)** |
 
 ---
 
-## 6. Recent Changes Since Last Run (2026-03-25 14:30 → 2026-03-26 07:57)
+## 7. Recent Changes Since Last Run (2026-03-26 07:57 → 2026-03-26 09:00)
+
+### Summary Statistics
+- **Commits:** 1 commit by Roberto Serra
+- **Files changed:** 5 files modified, 1 new module created
+- **Net changes:** ~604 lines added (289 new + 315 modifications/refactoring)
+- **Major theme:** Error tracking infrastructure
+
+### Git Log (Most Recent First)
+
+**New Feature:**
+- `bcbf9f5` — better error tracking: New errorTracker.js module with rate-limited logging, Memory persistence, statistics tracking
+
+**Files Modified:**
+- errorTracker.js: NEW (289 lines) — Centralized error logging module
+- main.js: 227 → 368 lines (+141 lines) — Added error tracking for infrastructure managers, 4 new console debug functions
+- spawner.js: 129 → 140 lines (+11 lines) — Integrated error tracking
+- roomOrchestrator.js: 744 → 768 lines (+24 lines) — Added error tracking to tower control
+- baseCreep.js: 159 → 173 lines (+14 lines) — Added error tracking to creep actions
+
+**Integration Points:**
+- main.js: linkManager, labManager, terminalManager wrapped in try-catch with errorTracker
+- spawner.js: Error tracking for spawn execution failures
+- roomOrchestrator.js: Error tracking for tower control (2 locations)
+- baseCreep.js: Error tracking for creep action failures
+
+**Console Functions Added:**
+- `global.errorSummary()` — Display error overview and top error types
+- `global.errorRecent(n)` — Show last N errors with context
+- `global.errorStats()` — Detailed statistics by error type
+- `global.errorClear()` — Reset error tracking data
+
+---
+
+## 8. Historical Changes (2026-03-25 14:30 → 2026-03-26 07:57)
 
 ### Summary Statistics
 - **Commits:** 35 commits by 2 authors (Roberto Serra: 12, obione: 23)
@@ -346,27 +431,29 @@ This is a Screeps AI bot written in JavaScript. Screeps is a programming game wh
 
 ---
 
-## 7. Recommendations for Next Sprint
+## 9. Recommendations for Next Sprint
 
 ### Priority 1: Critical Issues
-1. **Add error boundaries** ⚠️ — Wrap infrastructure managers and spawner modules in try-catch blocks
+1. **Complete error handling coverage** ⚠️ — Add errorTracker integration to role files (15+ modules) and supporting modules (planner, utils, etc.)
 2. **Verify no circular dependencies** 🔍 — Run `madge --circular .` to confirm module graph is acyclic
 3. **Standardize module paths** 🔧 — Convert all `require("module")` to `require("./module")` for consistency
+4. **Test error tracking in production** 🧪 — Monitor error rates, verify rate limiting works, test critical threshold alerts
 
 ### Priority 2: Code Quality
-4. **Extract long action handlers** — Break down `handleDelivering`, `handleGathering`, `handleHauling` (80-100+ lines each)
-5. **Group body composition functions** — Organize spawnerBodyUtils.js by category (workers, specialists, combat)
-6. **Remove commented code** — Clean up unused logic in roomOrchestrator.js and other modules
-7. **Add JSDoc comments** — Document public APIs in new creep.* and spawner* modules
+5. **Extract long action handlers** — Break down `handleDelivering`, `handleGathering`, `handleHauling` (80-100+ lines each)
+6. **Group body composition functions** — Organize spawnerBodyUtils.js by category (workers, specialists, combat)
+7. **Remove commented code** — Clean up unused logic in roomOrchestrator.js and other modules
+8. **Add JSDoc comments** — Document public APIs in new creep.* and spawner* modules
 
 ### Priority 3: Performance
-8. **Optimize planner.js nested loops** — Replace O(n^4) algorithm with distance transform
-9. **Implement log levels** — Add debug/info/warn/error levels to reduce production logging overhead
-10. **Profile CPU usage** — Measure impact of new modular architecture vs. previous monolithic structure
+9. **Optimize planner.js nested loops** — Replace O(n^4) algorithm with distance transform
+10. **Implement log levels** — Add debug/info/warn/error levels to reduce production logging overhead (partially addressed by errorTracker)
+11. **Profile CPU usage** — Measure impact of new modular architecture vs. previous monolithic structure
 
 ### Priority 4: Testing & Validation
-11. **Test priority mode** — Verify behavior under low energy conditions
-12. **Test fighter secondary jobs** — Ensure instant combat response when threats appear
-13. **Verify link integration** — Confirm energy flow through link network is efficient
+12. **Test priority mode** — Verify behavior under low energy conditions
+13. **Test fighter secondary jobs** — Ensure instant combat response when threats appear
+14. **Verify link integration** — Confirm energy flow through link network is efficient
+15. **Monitor error tracking statistics** — Use `errorSummary()` and `errorStats()` to identify recurring issues
 
 ---

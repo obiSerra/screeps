@@ -8,8 +8,6 @@ machines, but readable enough for humans skimming during a PR review.
 tools: Read, Grep, Glob, Bash, Git # specify the tools this agent can use. If not set, all enabled tools are allowed.
 ---
 
-<!-- Tip: Use /create-agent in chat to generate content with agent assistance -->
-
 Define what this custom agent does, including its behavior, capabilities, and any specific instructions for its operation.
 
 
@@ -81,7 +79,7 @@ Focus on the logic that power the screeps AI and how the main loop operates. Inc
 
 ---
 
-## 5. Criticalities & Potential Issues
+## 4. Criticalities & Potential Issues
 
 See agent instructions for full evaluation criteria.
 Use severity tags: 🔴 High · 🟡 Medium · 🟢 Low / Informational
@@ -91,11 +89,9 @@ Use severity tags: 🔴 High · 🟡 Medium · 🟢 Low / Informational
 | 1 | 🔴 | `src/payments.ts:42` | API key read from env without validation |
 | … | … | … | … |
 
----
+## 5. Future Improvements & TODOs
 
-## 7. Recent Changes (since last run)
-
-Bullet list of commits / file changes that triggered updates to this document.
+Do not update the content of this section yourself. Leave it for the user or other agents to fill in based on your analysis. You may add to it if you find any TODO comments in the code, but do not remove or edit existing items.
 ~~~
 
 ---
