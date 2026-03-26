@@ -7,6 +7,7 @@
  */
 
 const utils = require("./utils");
+const errorTracker = require("./errorTracker");
 const { isFighter } = require("./creep.analysis");
 const { findPrioritizedAttackTarget } = require("./creep.targetFinding");
 const {
@@ -119,11 +120,24 @@ const workerActions = (creep, priorityList) => {
 const performAction = (creep, action) => {
   sayAction(creep, action);
 
-  const handler = ACTION_HANDLERS[action];
-  if (handler) {
-    handler(creep);
-  } else {
-    console.log(`Unknown action ${action} for creep ${creep.name}`);
+  try {
+    const handler = ACTION_HANDLERS[action];
+    if (handler) {
+      handler(creep);
+    } else {
+      console.log(`Unknown action ${action} for creep ${creep.name}`);
+      clearCreepAction(creep);
+    }
+  } catch (error) {
+    errorTracker.logError(error, {
+      module: 'baseCreep',
+      function: 'performAction',
+      action: action,
+      creep: creep.name,
+      room: creep.room.name,
+      role: creep.memory.role
+    }, 'ERROR');
+    // Clear action to prevent stuck state
     clearCreepAction(creep);
   }
 };

@@ -3,6 +3,7 @@ const utils = require("./utils");
 const spawner = require("./spawner");
 const planner = require("./planner");
 const stats = require("./stats");
+const errorTracker = require("./errorTracker");
 const roleHarvester = require("./role.harvester");
 const roleUpgrader = require("./role.upgrader");
 const roleBuilder = require("./role.builder");
@@ -448,13 +449,27 @@ const handleCreeps = (room) => {
       return; // Skip normal role handling - fighters are following flags
     }
 
-    const handler = roleHandlers[creep.memory.role];
-    if (handler) {
-      handler(creep);
-    } else {
-      console.log(
-        `No role function found for creep ${creep.name} with role ${creep.memory.role}`
-      );
+    try {
+      const handler = roleHandlers[creep.memory.role];
+      if (handler) {
+        handler(creep);
+      } else {
+        console.log(
+          `No role function found for creep ${creep.name} with role ${creep.memory.role}`
+        );
+      }
+    } catch (error) {
+      errorTracker.logError(error, {
+        module: 'roomOrchestrator',
+        function: 'handleCreeps',
+        room: creep.room.name,
+        creep: creep.name,
+        role: creep.memory.role
+      }, 'ERROR');
+      // Clear creep action to prevent stuck state
+      if (creep.memory.action) {
+        creep.memory.action = null;
+      }
     }
   });
 };
@@ -475,38 +490,47 @@ const handlePlanningMode = (room, roomStatus) => {
     `Set Memory.rooms['${room.name}'].mode = 'executing' to start operations.`
   );
 
-  // Get or create the plan
-  const { roomPlanner } = planner;
-  const plannedStructures = roomPlanner.getPlannedStructures(room);
-  const lastPlannedRCL = Memory.rooms[room.name].lastPlannedRCL || 0;
-  const currentRCL = roomStatus.controllerLevel;
+  try {
+    // Get or create the plan
+    const { roomPlanner } = planner;
+    const plannedStructures = roomPlanner.getPlannedStructures(room);
+    const lastPlannedRCL = Memory.rooms[room.name].lastPlannedRCL || 0;
+    const currentRCL = roomStatus.controllerLevel;
 
-  if (plannedStructures.length === 0 || currentRCL > lastPlannedRCL) {
-    // Create or update plan for current RCL
-    const action = plannedStructures.length === 0 ? "Creating" : "Updating";
-    console.log(`[PLANNING] ${action} base layout plan for room ${room.name} at RCL ${currentRCL}...`);
-    roomPlanner.planBaseLayout(room, {
-      clearExisting: false,
-      visualize: true,
-      currentControllerLevel: currentRCL,
-    });
-    Memory.rooms[room.name].lastPlannedRCL = currentRCL;
-  } else {
-    // Visualize existing plan
-    const center = roomPlanner.findOptimalCenter(room);
-    if (center) {
-      roomPlanner.visualizePlan(room, plannedStructures, center);
+    if (plannedStructures.length === 0 || currentRCL > lastPlannedRCL) {
+      // Create or update plan for current RCL
+      const action = plannedStructures.length === 0 ? "Creating" : "Updating";
+      console.log(`[PLANNING] ${action} base layout plan for room ${room.name} at RCL ${currentRCL}...`);
+      roomPlanner.planBaseLayout(room, {
+        clearExisting: false,
+        visualize: true,
+        currentControllerLevel: currentRCL,
+      });
+      Memory.rooms[room.name].lastPlannedRCL = currentRCL;
+    } else {
+      // Visualize existing plan
+      const center = roomPlanner.findOptimalCenter(room);
+      if (center) {
+        roomPlanner.visualizePlan(room, plannedStructures, center);
+      }
     }
-  }
 
-  // Show RCL-appropriate structures count
-  const rclStructures = plannedStructures.filter(
-    (s) => s.stage <= roomStatus.controllerLevel
-  );
-  console.log(
-    `[PLANNING] Planned structures: ${plannedStructures.length} total, ` +
-    `${rclStructures.length} available at RCL ${roomStatus.controllerLevel}`
-  );
+    // Show RCL-appropriate structures count
+    const rclStructures = plannedStructures.filter(
+      (s) => s.stage <= roomStatus.controllerLevel
+    );
+    console.log(
+      `[PLANNING] Planned structures: ${plannedStructures.length} total, ` +
+      `${rclStructures.length} available at RCL ${roomStatus.controllerLevel}`
+    );
+  } catch (error) {
+    errorTracker.logError(error, {
+      module: 'roomOrchestrator',
+      function: 'handlePlanningMode',
+      room: room.name
+    }, 'ERROR');
+    console.log(`[PLANNING] Error during planning for room ${room.name} - see error log`);
+  }
 };
 
 /**

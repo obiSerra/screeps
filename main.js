@@ -10,6 +10,7 @@ const labManager = require("./labManager");
 const terminalManager = require("./terminalManager");
 const stats = require("./stats");
 const spawner = require("./spawner");
+const errorTracker = require("./errorTracker");
 
 // ============================================================================
 // Memory Management
@@ -80,17 +81,41 @@ module.exports.loop = function () {
 
         // Link network management (RCL 5+)
         if (rcl >= 5) {
-          linkManager.manageLinkNetwork(room);
+          try {
+            linkManager.manageLinkNetwork(room);
+          } catch (error) {
+            errorTracker.logError(error, {
+              module: 'linkManager',
+              function: 'manageLinkNetwork',
+              room: room.name
+            }, 'ERROR');
+          }
         }
 
         // Lab system management (RCL 6+)
         if (rcl >= 6) {
-          labManager.manageLabsystem(room);
+          try {
+            labManager.manageLabsystem(room);
+          } catch (error) {
+            errorTracker.logError(error, {
+              module: 'labManager',
+              function: 'manageLabsystem',
+              room: room.name
+            }, 'ERROR');
+          }
         }
 
         // Terminal trading management (RCL 6+)
         if (rcl >= 6) {
-          terminalManager.manageTerminal(room);
+          try {
+            terminalManager.manageTerminal(room);
+          } catch (error) {
+            errorTracker.logError(error, {
+              module: 'terminalManager',
+              function: 'manageTerminal',
+              room: room.name
+            }, 'ERROR');
+          }
         }
       } catch (error) {
         console.log(`Error in room ${room.name}: ${error.message}`);
@@ -224,4 +249,120 @@ global.spawnMetrics = function(roomName) {
     });
     console.log(`═══════════════════════════════════════════\n`);
   }
+};
+
+/**
+ * Display error tracking summary
+ * Usage: errorSummary()
+ */
+global.errorSummary = function() {
+  const summary = errorTracker.getSummary();
+  
+  console.log(`\n═══════════════════════════════════════════`);
+  console.log(`  ERROR TRACKING SUMMARY`);
+  console.log(`═══════════════════════════════════════════`);
+  console.log(`📊 OVERVIEW:`);
+  console.log(`  • Total Error Types: ${summary.totalErrorTypes}`);
+  console.log(`  • Total Errors (All Time): ${summary.totalErrorsAllTime}`);
+  console.log(`  • Errors (Last 100 Ticks): ${summary.errorsLast100Ticks}`);
+  
+  if (summary.mostRecentError) {
+    const err = summary.mostRecentError;
+    console.log(`\n⚠️ MOST RECENT ERROR:`);
+    console.log(`  • Tick: ${err.tick} (${Game.time - err.tick} ticks ago)`);
+    console.log(`  • Severity: ${err.severity}`);
+    console.log(`  • Message: ${err.message}`);
+    console.log(`  • Type: ${err.type}`);
+  }
+  
+  if (summary.topErrorTypes.length > 0) {
+    console.log(`\n🔝 TOP ERROR TYPES:`);
+    summary.topErrorTypes.forEach((item, idx) => {
+      console.log(`  ${idx + 1}. ${item.type}: ${item.count} errors`);
+    });
+  }
+  
+  console.log(`═══════════════════════════════════════════\n`);
+};
+
+/**
+ * Display recent errors
+ * Usage: errorRecent(5)
+ */
+global.errorRecent = function(count = 10) {
+  const errors = errorTracker.getRecentErrors(count);
+  
+  if (errors.length === 0) {
+    console.log('✅ No errors recorded');
+    return;
+  }
+  
+  console.log(`\n═══════════════════════════════════════════`);
+  console.log(`  RECENT ERRORS (Last ${count})`);
+  console.log(`═══════════════════════════════════════════`);
+  
+  errors.forEach((err, idx) => {
+    const icon = err.severity === 'CRITICAL' ? '🔴' : 
+                 err.severity === 'ERROR' ? '❌' : 
+                 err.severity === 'WARNING' ? '⚠️' : 'ℹ️';
+    console.log(`\n${idx + 1}. ${icon} [${err.severity}] Tick ${err.tick}`);
+    console.log(`   Message: ${err.message}`);
+    console.log(`   Type: ${err.type}`);
+    if (err.context && Object.keys(err.context).length > 0) {
+      const ctx = [];
+      if (err.context.module) ctx.push(`module=${err.context.module}`);
+      if (err.context.function) ctx.push(`fn=${err.context.function}`);
+      if (err.context.room) ctx.push(`room=${err.context.room}`);
+      if (err.context.creep) ctx.push(`creep=${err.context.creep}`);
+      if (ctx.length > 0) {
+        console.log(`   Context: ${ctx.join(', ')}`);
+      }
+    }
+  });
+  
+  console.log(`═══════════════════════════════════════════\n`);
+};
+
+/**
+ * Display detailed error statistics
+ * Usage: errorStats()
+ */
+global.errorStats = function() {
+  const stats = errorTracker.getStatistics();
+  
+  if (Object.keys(stats).length === 0) {
+    console.log('✅ No error statistics available');
+    return;
+  }
+  
+  console.log(`\n═══════════════════════════════════════════`);
+  console.log(`  ERROR STATISTICS`);
+  console.log(`═══════════════════════════════════════════`);
+  
+  const sortedTypes = Object.entries(stats)
+    .sort((a, b) => b[1].total - a[1].total);
+  
+  sortedTypes.forEach(([type, stat]) => {
+    console.log(`\n📍 ${type}:`);
+    console.log(`   Total: ${stat.total}`);
+    console.log(`   First Seen: Tick ${stat.firstSeen}`);
+    console.log(`   Last Seen: Tick ${stat.lastSeen} (${Game.time - stat.lastSeen} ticks ago)`);
+    
+    if (stat.bySeverity && Object.keys(stat.bySeverity).length > 0) {
+      const severities = Object.entries(stat.bySeverity)
+        .map(([sev, count]) => `${sev}:${count}`)
+        .join(', ');
+      console.log(`   By Severity: ${severities}`);
+    }
+  });
+  
+  console.log(`═══════════════════════════════════════════\n`);
+};
+
+/**
+ * Clear all error tracking data
+ * Usage: errorClear()
+ */
+global.errorClear = function() {
+  errorTracker.clear();
 };
