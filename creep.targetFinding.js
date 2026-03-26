@@ -11,6 +11,8 @@ const {
   STRUCTURE_MIN_HEALTH_PERCENT,
 } = require("./creep.constants");
 
+const { moveToTarget } = require("./creep.effects");
+
 // ============================================================================
 // Pure Functions - Basic Target Finding
 // ============================================================================
@@ -63,26 +65,32 @@ const findEnergyDepositTargets = (room) => {
   // Check if room is in energy priority mode
   const roomMemory = Memory.rooms && Memory.rooms[room.name];
   const energyPriorityMode = roomMemory && roomMemory.energyPriorityMode;
-  
+
   const structures = room.find(FIND_STRUCTURES, {
     filter: (s) => {
       // In priority mode, only target spawns and extensions
       // Exception: Also include towers below minimum energy threshold
       if (energyPriorityMode) {
-        const minTowerEnergy = CONFIG.ENERGY.PRIORITY_MODE.MIN_TOWER_ENERGY_PERCENT;
-        return ((s.structureType === STRUCTURE_EXTENSION ||
-                 s.structureType === STRUCTURE_SPAWN) &&
-                s.store.getFreeCapacity(RESOURCE_ENERGY) > 0) ||
-               (s.structureType === STRUCTURE_TOWER &&
-                s.store.getFreeCapacity(RESOURCE_ENERGY) > 0 &&
-                s.store[RESOURCE_ENERGY] < s.store.getCapacity(RESOURCE_ENERGY) * minTowerEnergy);
+        const minTowerEnergy =
+          CONFIG.ENERGY.PRIORITY_MODE.MIN_TOWER_ENERGY_PERCENT;
+        return (
+          ((s.structureType === STRUCTURE_EXTENSION ||
+            s.structureType === STRUCTURE_SPAWN) &&
+            s.store.getFreeCapacity(RESOURCE_ENERGY) > 0) ||
+          (s.structureType === STRUCTURE_TOWER &&
+            s.store.getFreeCapacity(RESOURCE_ENERGY) > 0 &&
+            s.store[RESOURCE_ENERGY] <
+              s.store.getCapacity(RESOURCE_ENERGY) * minTowerEnergy)
+        );
       }
-      
+
       // Normal mode: include towers as well
-      return (s.structureType === STRUCTURE_EXTENSION ||
-              s.structureType === STRUCTURE_SPAWN ||
-              s.structureType === STRUCTURE_TOWER) &&
-             s.store.getFreeCapacity(RESOURCE_ENERGY) > 0;
+      return (
+        (s.structureType === STRUCTURE_EXTENSION ||
+          s.structureType === STRUCTURE_SPAWN ||
+          s.structureType === STRUCTURE_TOWER) &&
+        s.store.getFreeCapacity(RESOURCE_ENERGY) > 0
+      );
     },
   });
 
@@ -105,7 +113,7 @@ const findEnergyDepositTargets = (room) => {
  * @returns {Object|null} Structure at deconstruct flag or null
  */
 const findDeconstructTarget = (room) => {
-  const deconstructFlag = Game.flags['deconstruct'];
+  const deconstructFlag = Game.flags["deconstruct"];
   if (!deconstructFlag) {
     return null;
   }
@@ -135,13 +143,15 @@ const findDeconstructTarget = (room) => {
  * @returns {Object|null} Construction site at priority_build flag or null
  */
 const findPriorityBuildTarget = () => {
-  const priorityBuildFlag = Game.flags['priority_build'];
+  const priorityBuildFlag = Game.flags["priority_build"];
   if (!priorityBuildFlag) {
     return null;
   }
 
   // Find construction site at flag position
-  const constructionSites = priorityBuildFlag.pos.lookFor(LOOK_CONSTRUCTION_SITES);
+  const constructionSites = priorityBuildFlag.pos.lookFor(
+    LOOK_CONSTRUCTION_SITES,
+  );
   if (constructionSites.length > 0) {
     return constructionSites[0];
   }
@@ -165,16 +175,18 @@ const findPrioritizedAttackTarget = (creep) => {
   }
 
   // Priority 2: Check for attack flags to target structures (attack or attack_X pattern)
-  const attackFlags = Object.entries(Game.flags).filter(([name, flag]) => 
-    name === 'attack' || name.startsWith('attack_')
+  const attackFlags = Object.entries(Game.flags).filter(
+    ([name, flag]) => name === "attack" || name.startsWith("attack_"),
   );
-  
+
   if (attackFlags.length === 0) {
     return null;
   }
 
   // Find the closest attack flag
-  const closestFlagEntry = creep.pos.findClosestByPath(attackFlags.map(([name, flag]) => flag));
+  const closestFlagEntry = creep.pos.findClosestByPath(
+    attackFlags.map(([name, flag]) => flag),
+  );
   const attackFlag = closestFlagEntry || attackFlags[0][1];
 
   if (!attackFlag) {
@@ -183,7 +195,7 @@ const findPrioritizedAttackTarget = (creep) => {
 
   // Find the structure at the flag's position
   const flagPos = attackFlag.pos;
-  
+
   // Check if we have vision of the flag's room before calling lookFor
   const flagRoom = Game.rooms[flagPos.roomName];
   if (flagRoom) {
@@ -193,7 +205,7 @@ const findPrioritizedAttackTarget = (creep) => {
     // Filter out allied structures to never target them
     if (structuresAtFlag.length > 0) {
       const validTarget = structuresAtFlag.find(
-        (s) => !s.my && (!s.owner || s.owner.username !== creep.owner.username)
+        (s) => !s.my && (!s.owner || s.owner.username !== creep.owner.username),
       );
       if (validTarget) {
         return validTarget;
@@ -207,8 +219,10 @@ const findPrioritizedAttackTarget = (creep) => {
     // Only include hostile or neutral walls/ramparts, never allied ones
     const walls = flagRoom.find(FIND_STRUCTURES, {
       filter: (s) =>
-        (s.structureType === STRUCTURE_WALL || s.structureType === STRUCTURE_RAMPART) &&
-        !s.my && (!s.owner || s.owner.username !== creep.owner.username),
+        (s.structureType === STRUCTURE_WALL ||
+          s.structureType === STRUCTURE_RAMPART) &&
+        !s.my &&
+        (!s.owner || s.owner.username !== creep.owner.username),
     });
 
     const allStructureTargets = [...hostileStructures, ...walls];
@@ -240,6 +254,17 @@ const findPrioritizedAttackTarget = (creep) => {
 
       return priorityTargets[0].structure;
     }
+    moveToTarget(creep, attackFlag.pos, {
+      visualizePathStyle: { stroke: "#ff0000", opacity: 0.5 },
+    });
+    return flagPos; // If no structures, return flag position as target for fighters to move towards
+  }
+
+  if (flagRoom !== creep.room.name) {
+    moveToTarget(creep, attackFlag.pos, {
+      visualizePathStyle: { stroke: "#ff0000", opacity: 0.5 },
+    });
+    return flagPos; // If no structures, return flag position as target for fighters to move towards
   }
 
   // If we don't have vision of the flag's room, or no targets found,
@@ -250,8 +275,10 @@ const findPrioritizedAttackTarget = (creep) => {
   // Only include hostile or neutral walls/ramparts, never allied ones
   const walls = creep.room.find(FIND_STRUCTURES, {
     filter: (s) =>
-      (s.structureType === STRUCTURE_WALL || s.structureType === STRUCTURE_RAMPART) &&
-      !s.my && (!s.owner || s.owner.username !== creep.owner.username),
+      (s.structureType === STRUCTURE_WALL ||
+        s.structureType === STRUCTURE_RAMPART) &&
+      !s.my &&
+      (!s.owner || s.owner.username !== creep.owner.username),
   });
 
   const allStructureTargets = [...hostileStructures, ...walls];
@@ -301,8 +328,11 @@ const findPrioritizedAttackTarget = (creep) => {
  */
 const calculateRepairScore = (creep, target) => {
   const distance = creep.pos.getRangeTo(target);
-  const isCritical = target.hits < CRITICAL_HITS ? CONFIG.REPAIR.CRITICAL_PRIORITY_BONUS : 0;
-  return target.hits * (1 + distance / CONFIG.REPAIR.DISTANCE_DIVISOR) + isCritical;
+  const isCritical =
+    target.hits < CRITICAL_HITS ? CONFIG.REPAIR.CRITICAL_PRIORITY_BONUS : 0;
+  return (
+    target.hits * (1 + distance / CONFIG.REPAIR.DISTANCE_DIVISOR) + isCritical
+  );
 };
 
 /**
@@ -399,8 +429,16 @@ const prioritizeConstructionSites = (constructionSites) => {
 
   // Sort with extensions first
   return [...constructionSites].sort((a, b) => {
-    if (a.structureType === STRUCTURE_EXTENSION && b.structureType !== STRUCTURE_EXTENSION) return -1;
-    if (a.structureType !== STRUCTURE_EXTENSION && b.structureType === STRUCTURE_EXTENSION) return 1;
+    if (
+      a.structureType === STRUCTURE_EXTENSION &&
+      b.structureType !== STRUCTURE_EXTENSION
+    )
+      return -1;
+    if (
+      a.structureType !== STRUCTURE_EXTENSION &&
+      b.structureType === STRUCTURE_EXTENSION
+    )
+      return 1;
     return 0;
   });
 };
@@ -418,25 +456,25 @@ const prioritizeConstructionSites = (constructionSites) => {
 const findHealTarget = (creep) => {
   // Find friendly creeps that are damaged
   const damagedCreeps = creep.room.find(FIND_MY_CREEPS, {
-    filter: (c) => c.hits < c.hitsMax
+    filter: (c) => c.hits < c.hitsMax,
   });
-  
+
   if (damagedCreeps.length === 0) {
     return null;
   }
-  
+
   // Prioritize creeps by damage percentage and proximity
- const scoredCreeps = damagedCreeps.map((c) => {
-    const damagePercent = 1 - (c.hits / c.hitsMax); // Higher = more damaged
+  const scoredCreeps = damagedCreeps.map((c) => {
+    const damagePercent = 1 - c.hits / c.hitsMax; // Higher = more damaged
     const distance = creep.pos.getRangeTo(c);
     // Score: prioritize heavily damaged + close
-    const score = (damagePercent * 100) - (distance * 2);
+    const score = damagePercent * 100 - distance * 2;
     return { creep: c, score };
   });
-  
+
   // Sort by score (highest first)
   scoredCreeps.sort((a, b) => b.score - a.score);
-  
+
   return scoredCreeps[0].creep;
 };
 
@@ -452,8 +490,9 @@ const findRangedAttackTarget = (creep) => {
   const hostileCreeps = creep.room.find(FIND_HOSTILE_CREEPS);
   if (hostileCreeps.length > 0) {
     // For shooters, prefer targets at medium range (not too close, not too far)
-    const optimalRange = CONFIG.OFFENSIVE.FIGHTER_CLASSES.SHOOTER.OPTIMAL_RANGE || 3;
-    
+    const optimalRange =
+      CONFIG.OFFENSIVE.FIGHTER_CLASSES.SHOOTER.OPTIMAL_RANGE || 3;
+
     const scoredTargets = hostileCreeps.map((c) => {
       const range = creep.pos.getRangeTo(c);
       // Prefer targets near optimal range
@@ -461,23 +500,25 @@ const findRangedAttackTarget = (creep) => {
       const score = 100 - rangePenalty;
       return { target: c, score };
     });
-    
+
     scoredTargets.sort((a, b) => b.score - a.score);
     return scoredTargets[0].target;
   }
 
   // Priority 2: Check for attack flags to target structures
   // Reuse same logic as melee attackers
-  const attackFlags = Object.entries(Game.flags).filter(([name, flag]) => 
-    name === 'attack' || name.startsWith('attack_')
+  const attackFlags = Object.entries(Game.flags).filter(
+    ([name, flag]) => name === "attack" || name.startsWith("attack_"),
   );
-  
+
   if (attackFlags.length === 0) {
     return null;
   }
 
   // Find the closest attack flag
-  const closestFlagEntry = creep.pos.findClosestByPath(attackFlags.map(([name, flag]) => flag));
+  const closestFlagEntry = creep.pos.findClosestByPath(
+    attackFlags.map(([name, flag]) => flag),
+  );
   const attackFlag = closestFlagEntry || attackFlags[0][1];
 
   if (!attackFlag) {
@@ -486,7 +527,7 @@ const findRangedAttackTarget = (creep) => {
 
   // Find the structure at the flag's position
   const flagPos = attackFlag.pos;
-  
+
   // Check if we have vision of the flag's room before calling lookFor
   const flagRoom = Game.rooms[flagPos.roomName];
   if (flagRoom) {
@@ -495,7 +536,7 @@ const findRangedAttackTarget = (creep) => {
     // If there's a structure at the flag position, target it specifically
     if (structuresAtFlag.length > 0) {
       const validTarget = structuresAtFlag.find(
-        (s) => !s.my && (!s.owner || s.owner.username !== creep.owner.username)
+        (s) => !s.my && (!s.owner || s.owner.username !== creep.owner.username),
       );
       if (validTarget) {
         return validTarget;
@@ -506,8 +547,10 @@ const findRangedAttackTarget = (creep) => {
     const hostileStructures = flagRoom.find(FIND_HOSTILE_STRUCTURES);
     const walls = flagRoom.find(FIND_STRUCTURES, {
       filter: (s) =>
-        (s.structureType === STRUCTURE_WALL || s.structureType === STRUCTURE_RAMPART) &&
-        !s.my && (!s.owner || s.owner.username !== creep.owner.username),
+        (s.structureType === STRUCTURE_WALL ||
+          s.structureType === STRUCTURE_RAMPART) &&
+        !s.my &&
+        (!s.owner || s.owner.username !== creep.owner.username),
     });
 
     const allStructureTargets = [...hostileStructures, ...walls];
@@ -531,10 +574,10 @@ const findRangedAttackTarget = (creep) => {
  * @returns {Flag|null} Nearest attack flag or null
  */
 const findNearestAttackFlag = (creep) => {
-  const attackFlags = Object.entries(Game.flags).filter(([name, flag]) => 
-    name === 'attack' || name.startsWith('attack_')
+  const attackFlags = Object.entries(Game.flags).filter(
+    ([name, flag]) => name === "attack" || name.startsWith("attack_"),
   );
-  
+
   if (attackFlags.length === 0) {
     return null;
   }
@@ -542,7 +585,7 @@ const findNearestAttackFlag = (creep) => {
   // Find the closest attack flag by path
   const flagObjects = attackFlags.map(([name, flag]) => flag);
   const closest = creep.pos.findClosestByPath(flagObjects);
-  
+
   // If findClosestByPath fails (no path), fall back to range
   return closest || creep.pos.findClosestByRange(flagObjects);
 };
