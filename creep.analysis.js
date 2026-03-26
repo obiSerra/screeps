@@ -13,12 +13,52 @@ const { ACTION_BODY_REQUIREMENTS } = require("./creep.constants");
  * Check if creep is a fighter (has attack parts)
  * Pure function
  * @param {Creep} creep
- * @returns {boolean} True if creep has ATTACK or RANGED_ATTACK parts
+ * @returns {boolean} True if creep has ATTACK, RANGED_ATTACK, or HEAL parts
  */
 const isFighter = (creep) =>
   creep.body.some(
-    (part) => part.type === ATTACK || part.type === RANGED_ATTACK,
+    (part) => part.type === ATTACK || part.type === RANGED_ATTACK || part.type === HEAL,
   );
+
+/**
+ * Get fighter class from creep memory
+ * Pure function
+ * @param {Creep} creep
+ * @returns {string|null} Fighter class ('fodder', 'invader', 'healer', 'shooter') or null
+ */
+const getFighterClass = (creep) => {
+  if (creep.memory.role !== 'fighter') {
+    return null;
+  }
+  return creep.memory.fighterClass || null;
+};
+
+/**
+ * Check if creep is a healer (has HEAL parts)
+ * Pure function
+ * @param {Creep} creep
+ * @returns {boolean} True if creep has HEAL parts
+ */
+const isHealer = (creep) =>
+  creep.body.some((part) => part.type === HEAL);
+
+/**
+ * Check if creep is a shooter (has RANGED_ATTACK parts)
+ * Pure function
+ * @param {Creep} creep
+ * @returns {boolean} True if creep has RANGED_ATTACK parts
+ */
+const isShooter = (creep) =>
+  creep.body.some((part) => part.type === RANGED_ATTACK);
+
+/**
+ * Check if creep is a melee fighter (has ATTACK parts)
+ * Pure function
+ * @param {Creep} creep
+ * @returns {boolean} True if creep has ATTACK parts
+ */
+const isMeleeFighter = (creep) =>
+  creep.body.some((part) => part.type === ATTACK);
 
 /**
  * Check if creep can perform a specific action based on body parts
@@ -84,5 +124,9 @@ const canPerformAction = (creep, action) => {
 
 module.exports = {
   isFighter,
+  getFighterClass,
+  isHealer,
+  isShooter,
+  isMeleeFighter,
   canPerformAction,
 };

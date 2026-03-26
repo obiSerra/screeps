@@ -138,6 +138,7 @@ const checkDefenderPriority = (spawn, room, currentCreeps, roomStatus, efficienc
 
 /**
  * Check if offensive fighters should be spawned (Priority 2)
+ * Spawns fighters by class in priority order: fodder → invader → healer → shooter
  * @param {StructureSpawn} spawn - The spawn structure
  * @param {Room} room - The room object
  * @param {Object} currentCreeps - Current creep counts by role
@@ -149,17 +150,46 @@ const checkOffensiveFighterPriority = (spawn, room, currentCreeps, roomStatus, e
   const { getRequiredOffensiveFighterCount } = getRosterFunctions();
   const { trySpawn } = getTrySpawn();
   
-  const requiredFighters = getRequiredOffensiveFighterCount();
-  const currentFighters = currentCreeps.fighter || 0;
+  const requirements = getRequiredOffensiveFighterCount(roomStatus.controllerLevel);
   
-  if (requiredFighters > 0 && currentFighters < requiredFighters) {
-    const flagType = Game.flags["attack"]
-      ? "attack"
-      : "prepare_attack";
-    console.log(
-      `⚔️ Spawning fighter (${currentFighters + 1}/${requiredFighters}) for ${flagType}`
-    );
-    return trySpawn(spawn, "fighter", roomStatus, room, efficiencyMetrics);
+  if (requirements.total === 0) {
+    return null;
+  }
+  
+  // Count current fighters by class
+  const currentByClass = {
+    fodder: 0,
+    invader: 0,
+    healer: 0,
+    shooter: 0
+  };
+  
+  for (const creep of Object.values(Game.creeps)) {
+    if (creep.memory.spawnRoom !== roomStatus.roomName) continue;
+    if (creep.memory.role !== 'fighter') continue;
+    
+    const fighterClass = creep.memory.fighterClass;
+    if (fighterClass && currentByClass.hasOwnProperty(fighterClass)) {
+      currentByClass[fighterClass]++;
+    }
+  }
+  
+  // Calculate total current fighters
+  const totalCurrent = Object.values(currentByClass).reduce((sum, count) => sum + count, 0);
+  
+  // Try to spawn by priority order: fodder → invader → healer → shooter
+  const classOrder = ['fodder', 'invader', 'healer', 'shooter'];
+  
+  for (const fighterClass of classOrder) {
+    const required = requirements.byClass[fighterClass];
+    const current = currentByClass[fighterClass];
+    
+    if (current < required) {
+      console.log(
+        `⚔️ Spawning ${fighterClass} fighter (${current + 1}/${required}) - Total: ${totalCurrent + 1}/${requirements.total}`
+      );
+      return trySpawn(spawn, "fighter", roomStatus, room, efficiencyMetrics, fighterClass);
+    }
   }
   
   return null;

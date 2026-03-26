@@ -403,3 +403,104 @@ global.errorStats = function() {
 global.errorClear = function() {
   errorTracker.clear();
 };
+
+/**
+ * Display attack flag status and fighter distribution
+ * Usage: attackStatus()
+ */
+global.attackStatus = function() {
+  // Parse attack flags
+  const attackFlags = [];
+  for (const flagName in Game.flags) {
+    const flag = Game.flags[flagName];
+    let count = null;
+    
+    if (flagName === 'attack') {
+      count = CONFIG.OFFENSIVE.DEFAULT_ATTACK_COUNT;
+    } else {
+      const match = flagName.match(/^attack_(\d+)$/);
+      if (match) {
+        count = parseInt(match[1], 10);
+      }
+    }
+    
+    if (count !== null) {
+      attackFlags.push({ flagName, flag, count });
+    }
+  }
+  
+  // Count fighters by class
+  const fighterCounts = {
+    fodder: 0,
+    invader: 0,
+    healer: 0,
+    shooter: 0,
+    unclassified: 0
+  };
+  
+  const fightersByFlag = {};
+  
+  for (const creepName in Game.creeps) {
+    const creep = Game.creeps[creepName];
+    if (creep.memory.role === 'fighter') {
+      const fighterClass = creep.memory.fighterClass || 'unclassified';
+      fighterCounts[fighterClass] = (fighterCounts[fighterClass] || 0) + 1;
+      
+      // Determine which flag this fighter is assigned to (closest attack flag)
+      let closestFlag = null;
+      let minDistance = Infinity;
+      
+      for (const attackFlag of attackFlags) {
+        const distance = creep.pos.getRangeTo(attackFlag.flag.pos);
+        if (distance < minDistance) {
+          minDistance = distance;
+          closestFlag = attackFlag.flagName;
+        }
+      }
+      
+      if (closestFlag) {
+        if (!fightersByFlag[closestFlag]) {
+          fightersByFlag[closestFlag] = { fodder: 0, invader: 0, healer: 0, shooter: 0, unclassified: 0 };
+        }
+        fightersByFlag[closestFlag][fighterClass]++;
+      }
+    }
+  }
+  
+  console.log(`\n═══════════════════════════════════════════`);
+  console.log(`  ATTACK STATUS`);
+  console.log(`═══════════════════════════════════════════`);
+  
+  if (attackFlags.length === 0) {
+    console.log('❌ No attack flags found');
+  } else {
+    console.log(`🚩 ATTACK FLAGS (${attackFlags.length}):`);
+    attackFlags.forEach(({ flagName, flag, count }) => {
+      const room = flag.pos.roomName;
+      const rcl = Game.rooms[room] && Game.rooms[room].controller 
+        ? Game.rooms[room].controller.level : '?';
+      const assigned = fightersByFlag[flagName] || { fodder: 0, invader: 0, healer: 0, shooter: 0, unclassified: 0 };
+      const totalAssigned = assigned.fodder + assigned.invader + assigned.healer + assigned.shooter + assigned.unclassified;
+      
+      console.log(`\n  📍 ${flagName} (${room}, RCL ${rcl})`);
+      console.log(`     Required: ${count} fighters | Current: ${totalAssigned}/${count}`);
+      console.log(`     💀 Fodder: ${assigned.fodder} | ⚔️ Invader: ${assigned.invader}`);
+      console.log(`     💊 Healer: ${assigned.healer} | 🎯 Shooter: ${assigned.shooter}`);
+      if (assigned.unclassified > 0) {
+        console.log(`     ❓ Unclassified: ${assigned.unclassified}`);
+      }
+    });
+  }
+  
+  console.log(`\n⚔️ TOTAL FIGHTERS:`);
+  const totalFighters = fighterCounts.fodder + fighterCounts.invader + fighterCounts.healer + fighterCounts.shooter + fighterCounts.unclassified;
+  console.log(`  Total: ${totalFighters}`);
+  console.log(`  💀 Fodder: ${fighterCounts.fodder}`);
+  console.log(`  ⚔️ Invader: ${fighterCounts.invader}`);
+  console.log(`  💊 Healer: ${fighterCounts.healer}`);
+  console.log(`  🎯 Shooter: ${fighterCounts.shooter}`);
+  if (fighterCounts.unclassified > 0) {
+    console.log(`  ❓ Unclassified: ${fighterCounts.unclassified}`);
+  }
+  console.log(`═══════════════════════════════════════════\n`);
+};

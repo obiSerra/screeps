@@ -445,33 +445,108 @@
   };
 
   /**
-   * Get fighter creep body based on available energy
+   * Generic fighter body builder helper
+   * Builds bodies with repeating part sets while respecting limits
+   * Pure function - no side effects
+   * @param {number} energyAvailable - Current energy available
+   * @param {number} minCost - Minimum cost for viable body
+   * @param {number} setCost - Cost per repeating set
+   * @param {Array} coreBody - Core body parts that must be present
+   * @param {Function} buildSetFn - Function that adds one set to the body
+   * @param {number} maxSets - Maximum number of sets allowed
+   * @returns {Array|undefined} Body parts array or undefined if not affordable
+   */
+  const buildFighterBodyHelper = (energyAvailable, minCost, setCost, coreBody, buildSetFn, maxSets) => {
+    if (energyAvailable < minCost) {
+      return undefined;
+    }
+
+    const body = [...coreBody];
+    let remainingEnergy = energyAvailable - calculateBodyCost(coreBody);
+    let setsAdded = 0;
+
+    while (remainingEnergy >= setCost && setsAdded < maxSets && body.length < CONFIG.SPAWNING.BODY_LIMITS.HARD_LIMIT - 2) {
+      buildSetFn(body);
+      remainingEnergy -= setCost;
+      setsAdded++;
+    }
+
+    return body;
+  };
+
+  /**
+   * Get fodder fighter body (cheap disposable melee units)
+   * Pure function - no side effects
+   * Design: 1 ATTACK part, TOUGH for armor, MOVE for speed
+   * Target: Cheap cannon fodder to absorb damage
+   * @param {number} energyAvailable - Current energy available
+   * @returns {Array} Body parts array
+   */
+  const getFodderCreepBody = (energyAvailable) => {
+    const cfg = CONFIG.OFFENSIVE.FIGHTER_CLASSES.FODDER;
+    const minCost = cfg.MIN_COST; // [TOUGH, ATTACK, MOVE] = 140
+
+    if (energyAvailable < minCost) {
+      return undefined;
+    }
+
+    // Start with minimum viable body
+    const body = [TOUGH, ATTACK, MOVE];
+    let remainingEnergy = energyAvailable - minCost;
+
+    // Add [TOUGH, MOVE] sets for durability (60 energy each)
+    const toughMoveSetCost = cfg.TOUGH_MOVE_SET_COST;
+    let toughCount = 1; // Already have 1
+    let moveCount = 1;  // Already have 1
+
+    while (
+      remainingEnergy >= toughMoveSetCost &&
+      toughCount < cfg.MAX_TOUGH_PARTS &&
+      body.length < CONFIG.SPAWNING.BODY_LIMITS.HARD_LIMIT - 2
+    ) {
+      toughCount++;
+      moveCount++;
+      remainingEnergy -= toughMoveSetCost;
+    }
+
+    // Build final body: TOUGH first (absorbs damage), then ATTACK, then MOVE
+    const finalBody = [];
+    for (let i = 0; i < toughCount; i++) finalBody.push(TOUGH);
+    finalBody.push(ATTACK);
+    for (let i = 0; i < moveCount; i++) finalBody.push(MOVE);
+
+    return finalBody;
+  };
+
+  /**
+   * Get invader fighter body (balanced melee units with utility)
    * Pure function - no side effects
    * Design: Max 2 ATTACK parts, 1 CARRY for utility, TOUGH for armor, and appropriate MOVE for speed
    * Target: 1 MOVE per 2 body parts for full speed on roads
    * @param {number} energyAvailable - Current energy available
    * @returns {Array} Body parts array
    */
-  const getFighterCreepBody = (energyAvailable) => {
+  const getInvaderCreepBody = (energyAvailable) => {
+    const cfg = CONFIG.OFFENSIVE.FIGHTER_CLASSES.INVADER;
     const toughCost = BODYPART_COST[TOUGH]; // 10
     const attackCost = BODYPART_COST[ATTACK]; // 80
     const carryCost = BODYPART_COST[CARRY]; // 50
     const workCost = BODYPART_COST[WORK]; // 100
     const moveCost = BODYPART_COST[MOVE]; // 50
 
-    // Minimum viable fighter: 1 ATTACK + 1 CARRY + 1 MOVE = 180
-    const minCost = attackCost + carryCost + workCost + moveCost;
+    // Minimum viable invader: 1 ATTACK + 1 CARRY + 1 WORK + 1 MOVE = 280
+    const minCost = cfg.MIN_COST;
     if (energyAvailable < minCost) {
       return undefined;
     }
 
     let remainingEnergy = energyAvailable;
 
-    // Determine how many ATTACK we can afford (max 2)
+    // Determine how many ATTACK we can afford (max from config)
     let attackCount = 0;
-    if (remainingEnergy >= attackCost * 2) {
-      attackCount = 2;
-      remainingEnergy -= attackCost * 2;
+    if (remainingEnergy >= attackCost * cfg.MAX_ATTACK_PARTS) {
+      attackCount = cfg.MAX_ATTACK_PARTS;
+      remainingEnergy -= attackCost * cfg.MAX_ATTACK_PARTS;
     } else if (remainingEnergy >= attackCost) {
       attackCount = 1;
       remainingEnergy -= attackCost;
@@ -480,21 +555,20 @@
     }
 
     // Reserve 1 CARRY for utility
-    const carryCount = 1;
+    const carryCount = cfg.RESERVED_CARRY;
     remainingEnergy -= carryCost;
 
     // Calculate TOUGH and MOVE parts with remaining energy
-    // Strategy: Add sets of [TOUGH, TOUGH, MOVE] = 70 energy
-    // This gives 1 MOVE per 2 non-MOVE parts (full speed on roads)
-    const toughMoveSetCost = toughCost * 2 + moveCost; // 70
+    // Strategy: Add sets of [TOUGH×2, MOVE] = 70 energy
+    const toughMoveSetCost = cfg.TOUGH_MOVE_SET_COST;
     let toughCount = 0;
     let moveCount = 0;
 
     // Add as many [TOUGH×2, MOVE] sets as we can afford
     while (
       remainingEnergy >= toughMoveSetCost &&
-      attackCount + carryCount + toughCount + moveCount <
-        CONFIG.SPAWNING.BODY_LIMITS.SOFT_LIMIT
+      toughCount < cfg.MAX_TOUGH_PARTS &&
+      attackCount + carryCount + toughCount + moveCount < CONFIG.SPAWNING.BODY_LIMITS.SOFT_LIMIT
     ) {
       toughCount += 2;
       moveCount += 1;
@@ -504,8 +578,8 @@
     // Add any remaining TOUGH parts we can afford
     while (
       remainingEnergy >= toughCost &&
-      attackCount + carryCount + toughCount + moveCount <
-        CONFIG.SPAWNING.BODY_LIMITS.HARD_LIMIT
+      toughCount < cfg.MAX_TOUGH_PARTS &&
+      attackCount + carryCount + toughCount + moveCount < CONFIG.SPAWNING.BODY_LIMITS.HARD_LIMIT
     ) {
       toughCount += 1;
       remainingEnergy -= toughCost;
@@ -517,22 +591,20 @@
         moveCount = 1;
         remainingEnergy -= moveCost;
       } else {
-        // Not enough energy for minimum viable fighter
-        // Need to remove 1 TOUGH to make room for 1 MOVE
+        // Not enough energy - try removing 1 TOUGH to make room for 1 MOVE
         if (toughCount > 0) {
           toughCount -= 1;
           moveCount = 1;
         } else {
-          return undefined; // Cannot build valid fighter
+          return undefined;
         }
       }
     }
 
-    // Final check: ensure proper MOVE ratio (add more MOVE if needed for heavy fighters)
+    // Final check: ensure proper MOVE ratio (add more MOVE if needed)
     const nonMovePartsCount = attackCount + carryCount + toughCount;
-    const idealMoveCount = Math.ceil(nonMovePartsCount / 2); // 1 MOVE per 2 parts
+    const idealMoveCount = Math.ceil(nonMovePartsCount * cfg.MOVE_RATIO);
 
-    // Add more MOVE if we're under the ideal and have budget
     while (
       moveCount < idealMoveCount &&
       remainingEnergy >= moveCost &&
@@ -542,26 +614,120 @@
       remainingEnergy -= moveCost;
     }
 
-    // Build the body array: TOUGH first (absorbs damage), then ATTACK, then CARRY, then MOVE
+    // Build body: TOUGH first (absorbs damage), then ATTACK, then CARRY, then MOVE
     const body = [];
-
-    for (let i = 0; i < toughCount; i++) {
-      body.push(TOUGH);
-    }
-
-    for (let i = 0; i < attackCount; i++) {
-      body.push(ATTACK);
-    }
-
-    for (let i = 0; i < carryCount; i++) {
-      body.push(CARRY);
-    }
-
-    for (let i = 0; i < moveCount; i++) {
-      body.push(MOVE);
-    }
+    for (let i = 0; i < toughCount; i++) body.push(TOUGH);
+    for (let i = 0; i < attackCount; i++) body.push(ATTACK);
+    for (let i = 0; i < carryCount; i++) body.push(CARRY);
+    for (let i = 0; i < moveCount; i++) body.push(MOVE);
 
     return body;
+  };
+
+  /**
+   * Get healer fighter body (support units with HEAL parts)
+   * Pure function - no side effects
+   * Design: HEAL parts with 1 CARRY for energy pickup, 1:1 MOVE ratio for fast movement
+   * Target: Stay behind front line and heal damaged fighters
+   * @param {number} energyAvailable - Current energy available
+   * @returns {Array} Body parts array
+   */
+  const getHealerCreepBody = (energyAvailable) => {
+    const cfg = CONFIG.OFFENSIVE.FIGHTER_CLASSES.HEALER;
+    const healCost = BODYPART_COST[HEAL]; // 250
+    const carryCost = BODYPART_COST[CARRY]; // 50
+    const moveCost = BODYPART_COST[MOVE]; // 50
+
+    // Minimum: 1 HEAL + 1 CARRY + 2 MOVE = 400 (need extra MOVE for 1:1 ratio)
+    const minCost = cfg.MIN_COST;
+    if (energyAvailable < minCost) {
+      return undefined;
+    }
+
+    // Start with base: 1 HEAL, 1 CARRY, 2 MOVE
+    let healCount = 1;
+    const carryCount = cfg.RESERVED_CARRY;
+    let moveCount = 2; // 1 for HEAL, 1 for CARRY
+    let remainingEnergy = energyAvailable - minCost;
+
+    // Add [HEAL, MOVE] sets for more healing power (300 energy each)
+    const healMoveSetCost = cfg.HEAL_MOVE_SET_COST;
+    
+    while (
+      remainingEnergy >= healMoveSetCost &&
+      healCount < cfg.MAX_HEAL_PARTS &&
+      healCount + carryCount + moveCount < CONFIG.SPAWNING.BODY_LIMITS.HARD_LIMIT - 2
+    ) {
+      healCount++;
+      moveCount++;
+      remainingEnergy -= healMoveSetCost;
+    }
+
+    // Build body: HEAL first, then CARRY, then MOVE
+    const body = [];
+    for (let i = 0; i < healCount; i++) body.push(HEAL);
+    for (let i = 0; i < carryCount; i++) body.push(CARRY);
+    for (let i = 0; i < moveCount; i++) body.push(MOVE);
+
+    return body;
+  };
+
+  /**
+   * Get shooter fighter body (ranged damage dealers)
+   * Pure function - no side effects
+   * Design: RANGED_ATTACK parts with 1 CARRY for energy, 1:1 MOVE ratio for kiting
+   * Target: Maintain range 3 for optimal damage/safety balance
+   * @param {number} energyAvailable - Current energy available
+   * @returns {Array} Body parts array
+   */
+  const getShooterCreepBody = (energyAvailable) => {
+    const cfg = CONFIG.OFFENSIVE.FIGHTER_CLASSES.SHOOTER;
+    const rangedCost = BODYPART_COST[RANGED_ATTACK]; // 150
+    const carryCost = BODYPART_COST[CARRY]; // 50
+    const moveCost = BODYPART_COST[MOVE]; // 50
+
+    // Minimum: 1 RANGED_ATTACK + 1 CARRY + 2 MOVE = 300
+    const minCost = cfg.MIN_COST;
+    if (energyAvailable < minCost) {
+      return undefined;
+    }
+
+    // Start with base: 1 RANGED_ATTACK, 1 CARRY, 2 MOVE
+    let rangedCount = 1;
+    const carryCount = cfg.RESERVED_CARRY;
+    let moveCount = 2; // 1 for RANGED_ATTACK, 1 for CARRY
+    let remainingEnergy = energyAvailable - minCost;
+
+    // Add [RANGED_ATTACK, MOVE] sets (200 energy each)
+    const rangedMoveSetCost = cfg.RANGED_MOVE_SET_COST;
+    
+    while (
+      remainingEnergy >= rangedMoveSetCost &&
+      rangedCount < cfg.MAX_RANGED_ATTACK_PARTS &&
+      rangedCount + carryCount + moveCount < CONFIG.SPAWNING.BODY_LIMITS.HARD_LIMIT - 2
+    ) {
+      rangedCount++;
+      moveCount++;
+      remainingEnergy -= rangedMoveSetCost;
+    }
+
+    // Build body: RANGED_ATTACK first, then CARRY, then MOVE
+    const body = [];
+    for (let i = 0; i < rangedCount; i++) body.push(RANGED_ATTACK);
+    for (let i = 0; i < carryCount; i++) body.push(CARRY);
+    for (let i = 0; i < moveCount; i++) body.push(MOVE);
+
+    return body;
+  };
+
+  /**
+   * Get fighter creep body based on available energy (DEPRECATED - use class-specific functions)
+   * Kept for backwards compatibility, delegates to getInvaderCreepBody
+   * @param {number} energyAvailable - Current energy available
+   * @returns {Array} Body parts array
+   */
+  const getFighterCreepBody = (energyAvailable) => {
+    return getInvaderCreepBody(energyAvailable);
   };
 
   /**
@@ -831,6 +997,10 @@
     getBuilderBody,
     getDefenderBody,
     getFighterCreepBody,
+    getFodderCreepBody,
+    getInvaderCreepBody,
+    getHealerCreepBody,
+    getShooterCreepBody,
     getExplorerBody,
     getTransporterBody,
     getMineralExtractorBody,

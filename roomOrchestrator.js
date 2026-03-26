@@ -12,7 +12,11 @@ const roleClaimer = require("./role.claimer");
 const roleTransporter = require("./role.transporter");
 const roleMiner = require("./role.miner");
 const roleHauler = require("./role.hauler");
-const roleFighter = require("./role.fighter");
+const roleFighter = require("./role.fighter"); // Kept for backwards compatibility (becomes invader)
+const roleFighterFodder = require("./role.fighterFodder");
+const roleFighterInvader = require("./role.fighterInvader");
+const roleFighterHealer = require("./role.fighterHealer");
+const roleFighterShooter = require("./role.fighterShooter");
 const roleExplorer = require("./role.explorer");
 const roleMineralExtractor = require("./role.mineralExtractor");
 const roleChemist = require("./role.chemist");
@@ -287,145 +291,44 @@ const handleTowers = (room) => {
  * Route creep to its role handler
  * @param {Creep} creep - The creep to handle
  */
-const roleHandlers = {
-  harvester: roleHarvester.run,
-  upgrader: roleUpgrader.run,
-  builder: roleBuilder.run,
-  claimer: roleClaimer.run,
-  transporter: roleTransporter.run,
-  miner: roleMiner.run,
-  hauler: roleHauler.run,
-  fighter: roleFighter.run,
-  explorer: roleExplorer.run,
-  mineralExtractor: roleMineralExtractor.run,
-  chemist: roleChemist.run,
-};
-
-/**
- * Handle prepare_attack flag coordination
- * Moves fighters to the prepare_attack flag position and holds them there
- * @returns {boolean} True if prepare_attack flag exists and was handled
- */
-const handlePrepareAttackFlag = () => {
-  // Find any prepare_attack flag (with or without number suffix)
-  const prepareAttackFlags = Object.keys(Game.flags).filter(name => 
-    name.startsWith('prepare_attack')
-  );
+const getCreepRoleHandler = (creep) => {
+  const role = creep.memory.role;
   
-  if (prepareAttackFlags.length === 0) {
-    return false;
-  }
-  
-  const flagName = prepareAttackFlags[0];
-  const prepareFlag = Game.flags[flagName];
-  
-  if (!prepareFlag) {
-    return false;
-  }
-
-  // Find all creeps with ATTACK parts
-  const fighters = Object.values(Game.creeps).filter(creep => 
-    baseCreep.isFighter(creep)
-  );
-
-  if (fighters.length === 0) {
-    console.log(`[PREPARE ATTACK] Flag '${flagName}' detected but no fighters available`);
-    return true;
-  }
-
-  console.log(`[PREPARE ATTACK] Moving ${fighters.length} fighters to staging position at ${prepareFlag.pos}`);
-
-  fighters.forEach(creep => {
-    // Move to flag and hold position (within range 2)
-    if (creep.pos.getRangeTo(prepareFlag.pos) > 2) {
-      creep.moveTo(prepareFlag.pos, {
-        visualizePathStyle: { stroke: '#ffaa00' },  // Orange for staging
-        reusePath: 10
-      });
-      creep.say('🛡️ Stage');
-    } else {
-      // Fighters are in position - just stay close to flag
-      creep.say('🛡️ Ready');
-      
-      // Optional: defend the staging area if hostiles approach
-      const nearbyHostile = creep.pos.findInRange(FIND_HOSTILE_CREEPS, 3)[0];
-      if (nearbyHostile) {
-        if (creep.pos.getRangeTo(nearbyHostile) > 1) {
-          creep.moveTo(nearbyHostile, {
-            visualizePathStyle: { stroke: '#ff0000' }
-          });
-        } else {
-          creep.attack(nearbyHostile);
-        }
-      }
+  // Special handling for fighters - route by class
+  if (role === 'fighter') {
+    const fighterClass = creep.memory.fighterClass;
+    switch (fighterClass) {
+      case 'fodder':
+        return roleFighterFodder.run;
+      case 'invader':
+        return roleFighterInvader.run;
+      case 'healer':
+        return roleFighterHealer.run;
+      case 'shooter':
+        return roleFighterShooter.run;
+      default:
+        // Fallback to standard fighter (for old fighters or default)
+        return roleFighterInvader.run;
     }
-  });
-
-  return true;
-};
-
-/**
- * Handle attack flag coordination
- * If an "attack" flag exists, all creeps with ATTACK parts move to attack
- * @returns {boolean} True if attack flag exists and was handled
- */
-const handleAttackFlag = () => {
-  const attackFlag = Game.flags['attack'];
-  if (!attackFlag) {
-    return false;
   }
-
-  // Find all creeps with ATTACK parts
-  const attackingCreeps = Object.values(Game.creeps).filter(creep => baseCreep.isFighter(creep));
-
-  if (attackingCreeps.length === 0) {
-    console.log('[ATTACK FLAG] Flag detected but no creeps with ATTACK parts available');
-    return true;
-  }
-
-  console.log(`[ATTACK FLAG] Coordinating ${attackingCreeps.length} attacking creeps to ${attackFlag.pos}`);
-
-  attackingCreeps.forEach(creep => {
-    // Move to flag position
-    if (creep.pos.getRangeTo(attackFlag.pos) > 3) {
-      creep.moveTo(attackFlag.pos, {
-        visualizePathStyle: { stroke: '#ff0000' }
-      });
-    } else {
-      // Look for hostile creeps or structures nearby
-      const hostileCreep = creep.pos.findClosestByRange(FIND_HOSTILE_CREEPS);
-      const hostileStructure = creep.pos.findClosestByRange(FIND_HOSTILE_STRUCTURES);
-      
-      if (hostileCreep && creep.pos.getRangeTo(hostileCreep) <= 3) {
-        if (creep.pos.getRangeTo(hostileCreep) > 1) {
-          creep.moveTo(hostileCreep, {
-            visualizePathStyle: { stroke: '#ff0000' }
-          });
-        } else {
-          creep.attack(hostileCreep);
-        }
-      } else if (hostileStructure && creep.pos.getRangeTo(hostileStructure) <= 3) {
-        if (creep.pos.getRangeTo(hostileStructure) > 1) {
-          creep.moveTo(hostileStructure, {
-            visualizePathStyle: { stroke: '#ff0000' }
-          });
-        } else {
-          creep.attack(hostileStructure);
-        }
-      } else {
-        // No enemies nearby, move toward flag
-        creep.moveTo(attackFlag.pos, {
-          visualizePathStyle: { stroke: '#ff0000' }
-        });
-      }
-    }
-  });
-
-  return true;
+  
+  // Standard role handlers
+  const roleHandlers = {
+    harvester: roleHarvester.run,
+    upgrader: roleUpgrader.run,
+    builder: roleBuilder.run,
+    claimer: roleClaimer.run,
+    transporter: roleTransporter.run,
+    miner: roleMiner.run,
+    hauler: roleHauler.run,
+    fighter: roleFighterInvader.run, // Fallback (shouldn't reach here)
+    explorer: roleExplorer.run,
+    mineralExtractor: roleMineralExtractor.run,
+    chemist: roleChemist.run,
+  };
+  
+  return roleHandlers[role];
 };
-
-
-
 
 /**
  * Handle all creeps in the room
@@ -433,24 +336,19 @@ const handleAttackFlag = () => {
  * @param {Room} room - The room (currently unused, handles all creeps)
  */
 const handleCreeps = (room) => {
-  // Check for attack flags - priority: attack > prepare_attack
-  // Attack flag takes priority - if present, fighters attack immediately
-  const attackFlagActive = handleAttackFlag();
-  
-  // If no attack flag, check for prepare_attack flag (staging/positioning)
-  const prepareAttackFlagActive = !attackFlagActive && handlePrepareAttackFlag();
+  // Note: Attack flag coordination is now handled automatically via creep role files
+  // and target finding functions (findPrioritizedAttackTarget, findRangedAttackTarget, findHealTarget)
+  // which detect attack/attack_X flags and route fighters appropriately
 
   // Logic for rebalancing workers tasks
 
   Object.values(Game.creeps).forEach((creep) => {
-    // Skip fighters when attack flags are active (they're handled by flag coordinators)
+    // All fighters now follow normal role handling (flag detection is automatic)
     const isFighterCreep = baseCreep.isFighter(creep);
-    if ((attackFlagActive || prepareAttackFlagActive) && isFighterCreep) {
-      return; // Skip normal role handling - fighters are following flags
-    }
+
 
     try {
-      const handler = roleHandlers[creep.memory.role];
+      const handler = getCreepRoleHandler(creep);
       if (handler) {
         handler(creep);
       } else {

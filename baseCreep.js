@@ -8,8 +8,8 @@
 
 const utils = require("./utils");
 const errorTracker = require("./errorTracker");
-const { isFighter } = require("./creep.analysis");
-const { findPrioritizedAttackTarget } = require("./creep.targetFinding");
+const { isFighter, isHealer, isShooter, isMeleeFighter, getFighterClass } = require("./creep.analysis");
+const { findPrioritizedAttackTarget, findHealTarget, findRangedAttackTarget } = require("./creep.targetFinding");
 const {
   needsToGather,
   hasFinishedGathering,
@@ -38,13 +38,36 @@ const workerActions = (creep, priorityList) => {
   const isMiner = priorityList.includes("mining");
   const isHauler = priorityList.includes("hauling") && creep.body.some((part) => part.type === CARRY);
 
-  // Check for combat: if creep is a fighter and there are targets to attack
+  // Check for combat actions based on fighter class
   if (isFighter(creep)) {
-    const target = findPrioritizedAttackTarget(creep);
-    if (target) {
-      setCreepAction(creep, "attacking", { id: target.id, pos: target.pos });
-      sayAction(creep, "attacking");
-      return;
+    // Healers: find damaged allies to heal
+    if (isHealer(creep)) {
+      const healTarget = findHealTarget(creep);
+      if (healTarget) {
+        setCreepAction(creep, "healing", { id: healTarget.id, pos: healTarget.pos });
+        sayAction(creep, "healing");
+        return;
+      }
+    }
+    
+    // Shooters: find targets for ranged attack
+    if (isShooter(creep)) {
+      const rangedTarget = findRangedAttackTarget(creep);
+      if (rangedTarget) {
+        setCreepAction(creep, "rangingAttack", { id: rangedTarget.id, pos: rangedTarget.pos });
+        sayAction(creep, "rangingAttack");
+        return;
+      }
+    }
+    
+    // Melee fighters (fodder/invader): find targets to attack
+    if (isMeleeFighter(creep)) {
+      const meleeTarget = findPrioritizedAttackTarget(creep);
+      if (meleeTarget) {
+        setCreepAction(creep, "attacking", { id: meleeTarget.id, pos: meleeTarget.pos });
+        sayAction(creep, "attacking");
+        return;
+      }
     }
   }
 

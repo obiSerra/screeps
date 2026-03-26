@@ -85,7 +85,7 @@ const CONFIG = {
             EXPLORER_MIN_ENERGY: 800            // Min for [CLAIM, RANGED_ATTACK, MOVE]
         },
 
-        // Fighter/Combat
+        // Fighter/Combat (deprecated - see FIGHTER_CLASSES in COMBAT section)
         FIGHTER: {
             MAX_ATTACK_PARTS: 2,
             RESERVED_CARRY: 1,
@@ -261,6 +261,74 @@ const CONFIG = {
         DEFENSIVE_RANGE: 5,                     // Defensive engagement range
         PATROL_MODULO: 4,                       // Patrol pattern variation
         PATROL_OFFSET: 2                        // Patrol position offset
+    },
+
+    // ===========================
+    // OFFENSIVE FIGHTERS
+    // ===========================
+    OFFENSIVE: {
+        // Default attack force size when no number specified (e.g., "attack" flag)
+        DEFAULT_ATTACK_COUNT: 4,
+
+        // Fighter class specifications
+        FIGHTER_CLASSES: {
+            // Fodder: Cheap disposable melee units (TOUGH + minimal ATTACK + MOVE)
+            FODDER: {
+                MAX_ATTACK_PARTS: 1,                // Only 1 ATTACK part
+                MAX_TOUGH_PARTS: 10,                // Up to 10 TOUGH for damage absorption
+                MOVE_RATIO: 0.5,                    // 1 MOVE per 2 non-MOVE parts
+                MIN_COST: 140,                      // [TOUGH, ATTACK, MOVE] = 140
+                TOUGH_MOVE_SET_COST: 60,            // [TOUGH, MOVE] = 60
+                ICON: '💀',
+                COLOR: '#FF6B6B'
+            },
+            // Invader: Balanced melee units (current fighter design)
+            INVADER: {
+                MAX_ATTACK_PARTS: 2,                // Up to 2 ATTACK parts
+                MAX_TOUGH_PARTS: 20,                // More TOUGH than fodder
+                RESERVED_CARRY: 1,                  // 1 CARRY for utility
+                MOVE_RATIO: 0.5,                    // 1 MOVE per 2 non-MOVE parts
+                MIN_COST: 280,                      // [ATTACK, CARRY, WORK, MOVE] = 280
+                TOUGH_MOVE_SET_COST: 70,            // [TOUGH×2, MOVE] = 70
+                ICON: '⚔️',
+                COLOR: '#FF4444'
+            },
+            // Healer: Support units with HEAL parts
+            HEALER: {
+                MAX_HEAL_PARTS: 10,                 // Up to 10 HEAL parts
+                RESERVED_CARRY: 1,                  // 1 CARRY to pick up energy
+                MOVE_RATIO: 1.0,                    // 1 MOVE per 1 HEAL (fast movement)
+                MIN_COST: 350,                      // [HEAL, CARRY, MOVE×2] = 350
+                HEAL_MOVE_SET_COST: 300,            // [HEAL, MOVE] = 300
+                OPTIMAL_RANGE: 3,                   // Stay 3 tiles behind front line
+                ICON: '💊',
+                COLOR: '#4CAF50'
+            },
+            // Shooter: Ranged damage dealers
+            SHOOTER: {
+                MAX_RANGED_ATTACK_PARTS: 10,        // Up to 10 RANGED_ATTACK parts
+                RESERVED_CARRY: 1,                  // 1 CARRY to pick up energy
+                MOVE_RATIO: 1.0,                    // 1 MOVE per 1 RANGED_ATTACK (kiting)
+                MIN_COST: 300,                      // [RANGED_ATTACK, CARRY, MOVE×2] = 300
+                RANGED_MOVE_SET_COST: 200,          // [RANGED_ATTACK, MOVE] = 200
+                OPTIMAL_RANGE: 3,                   // Maintain range 3 for safety
+                ICON: '🎯',
+                COLOR: '#2196F3'
+            }
+        },
+
+        // Fighter composition ratios per RCL (percentages, must sum to 1.0)
+        // Format: { fodder: 0.5, invader: 0.3, healer: 0.1, shooter: 0.1 }
+        FIGHTER_RATIOS: {
+            1: { fodder: 0.8, invader: 0.2, healer: 0.0, shooter: 0.0 },    // Early: cheap fodder only
+            2: { fodder: 0.8, invader: 0.2, healer: 0.0, shooter: 0.0 },
+            3: { fodder: 0.7, invader: 0.3, healer: 0.0, shooter: 0.0 },
+            4: { fodder: 0.6, invader: 0.3, healer: 0.05, shooter: 0.05 },  // Mid: introduce support
+            5: { fodder: 0.5, invader: 0.3, healer: 0.1, shooter: 0.1 },
+            6: { fodder: 0.4, invader: 0.35, healer: 0.15, shooter: 0.1 },  // Late: balanced composition
+            7: { fodder: 0.3, invader: 0.4, healer: 0.15, shooter: 0.15 },
+            8: { fodder: 0.25, invader: 0.4, healer: 0.2, shooter: 0.15 }   // End: strong invaders + support
+        }
     },
 
     DEFENDER: {

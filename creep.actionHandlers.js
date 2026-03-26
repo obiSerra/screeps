@@ -883,6 +883,125 @@ const handleDelivering = (creep) => {
  * Action handler registry
  * Maps action names to handler functions
  */
+/**
+ * Handle healing action (heal damaged allies)
+ * Effectful function
+ * @param {Creep} creep
+ */
+const handleHealing = (creep) => {
+  // Validate creep can perform this action
+  if (!canPerformAction(creep, "healing")) {
+    clearCreepAction(creep);
+    return;
+  }
+  
+  const { actionTarget } = creep.memory;
+  if (!actionTarget) {
+    clearCreepAction(creep);
+    return;
+  }
+
+  const target = Game.getObjectById(actionTarget.id);
+
+  // Target no longer exists or is fully healed - clear action
+  if (!target || target.hits >= target.hitsMax) {
+    clearCreepAction(creep);
+    return;
+  }
+
+  const range = creep.pos.getRangeTo(target);
+  
+  // Try to heal - can heal at range 1 (heal) or up to range 3 (rangedHeal)
+  let healResult = ERR_NOT_IN_RANGE;
+  
+  if (range === 1) {
+    // Use heal (more powerful) if adjacent
+    healResult = creep.heal(target);
+  } else if (range <= 3) {
+    // Use rangedHeal if within range 3
+    healResult = creep.rangedHeal(target);
+  }
+
+  // If heal was successful, we're done
+  if (healResult === OK) {
+    return;
+  }
+
+  // Move closer to target (optimal range: 1 for maximum healing)
+  if (healResult === ERR_NOT_IN_RANGE || range > 1) {
+    moveToTarget(creep, target, PATH_COLORS.delivering); // Use delivering color (green)
+  }
+};
+
+/**
+ * Handle ranged attack action (shooter combat behavior)
+ * Effectful function
+ * @param {Creep} creep
+ */
+const handleRangingAttack = (creep) => {
+  // Validate creep can perform this action
+  if (!canPerformAction(creep, "rangingAttack")) {
+    clearCreepAction(creep);
+    return;
+  }
+  
+  const { actionTarget } = creep.memory;
+  if (!actionTarget) {
+    clearCreepAction(creep);
+    return;
+  }
+
+  const target = Game.getObjectById(actionTarget.id);
+
+  utils.periodicLogger(`Creep ${creep.name} is ranging attack on target ${actionTarget.id}`, 10);
+
+  // Target no longer exists - clear action
+  if (!target) {
+    clearCreepAction(creep);
+    return;
+  }
+
+  const range = creep.pos.getRangeTo(target);
+  const hasRangedAttack = creep.body.some((part) => part.type === RANGED_ATTACK);
+  
+  if (!hasRangedAttack) {
+    clearCreepAction(creep);
+    return;
+  }
+
+  // Perform ranged attack if in range (1-3 tiles)
+  let attackResult = ERR_NOT_IN_RANGE;
+  
+  if (range <= 3) {
+    attackResult = creep.rangedAttack(target);
+  }
+
+  // If attack was successful, we're done
+  if (attackResult === OK) {
+    // Maintain optimal range (3 tiles for safety, or use configured range)
+    const optimalRange = CONFIG.OFFENSIVE.FIGHTER_CLASSES.SHOOTER.OPTIMAL_RANGE || 3;
+    
+    if (range < optimalRange) {
+      // Too close - kite away
+      const direction = target.pos.getDirectionTo(creep.pos);
+      creep.move(direction);
+    } else if (range > optimalRange) {
+      // Too far - move closer
+      moveToTarget(creep, target, PATH_COLORS.attacking);
+    }
+    return;
+  }
+
+  // Move to optimal range
+  if (attackResult === ERR_NOT_IN_RANGE) {
+    moveToTarget(creep, target, PATH_COLORS.attacking);
+  }
+};
+
+// ============================================================================
+// Action Handler Registry
+// ============================================================================
+
 const ACTION_HANDLERS = {
   gathering: handleGathering,
   building: handleBuilding,
@@ -890,6 +1009,8 @@ const ACTION_HANDLERS = {
   upgrading: handleUpgrading,
   harvesting: handleHarvesting,
   attacking: handleAttacking,
+  healing: handleHealing,
+  rangingAttack: handleRangingAttack,
   transporting: handleTransporting,
   mining: handleMining,
   hauling: handleHauling,
@@ -908,6 +1029,8 @@ module.exports = {
   handleUpgrading,
   handleHarvesting,
   handleAttacking,
+  handleHealing,
+  handleRangingAttack,
   handleTransporting,
   handleMining,
   handleHauling,

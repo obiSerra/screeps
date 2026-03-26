@@ -87,24 +87,45 @@ const displaySpawningVisual = (spawn, efficiencyMetrics = null) => {
  * @param {Object} roomStatus - Room status
  * @param {Room} room - The room object
  * @param {Object} efficiencyMetrics - Energy collection efficiency metrics (optional)
+ * @param {string} fighterClass - Fighter class for fighter role (fodder/invader/healer/shooter) (optional)
  * @returns {Object} Spawn result
  */
-const trySpawn = (spawn, role, roomStatus, room, efficiencyMetrics = null) => {
+const trySpawn = (spawn, role, roomStatus, room, efficiencyMetrics = null, fighterClass = null) => {
   const rcl = roomStatus.controllerLevel;
-  const body = getBodyForRole(
-    role,
-    rcl,
-    roomStatus.energyAvailable,
-    room,
-    efficiencyMetrics,
-  );
+  
+  // Get body - for fighters, use class-specific body or fallback to default
+  let body;
+  if (role === "fighter" && fighterClass) {
+    const bodyFunctions = require("./spawnerBodyUtils");
+    const energyAvailable = roomStatus.energyAvailable;
+    
+    switch (fighterClass) {
+      case 'fodder':
+        body = bodyFunctions.getFodderCreepBody(energyAvailable);
+        break;
+      case 'invader':
+        body = bodyFunctions.getInvaderCreepBody(energyAvailable);
+        break;
+      case 'healer':
+        body = bodyFunctions.getHealerCreepBody(energyAvailable);
+        break;
+      case 'shooter':
+        body = bodyFunctions.getShooterCreepBody(energyAvailable);
+        break;
+      default:
+        body = getBodyForRole(role, rcl, energyAvailable, room, efficiencyMetrics);
+    }
+  } else {
+    body = getBodyForRole(role, rcl, roomStatus.energyAvailable, room, efficiencyMetrics);
+  }
 
   if (!body || calculateBodyCost(body) > roomStatus.energyAvailable) {
     return { spawned: false, role, reason: "insufficient_energy_or_no_body" };
   }
 
-  // Extra memory for miners
+  // Extra memory based on role
   let extraMemory = {};
+  
   if (role === "miner") {
     const existingMiners = Object.values(Game.creeps).filter(
       (c) => c.memory.role === "miner" && c.memory.spawnRoom === room.name,
@@ -112,9 +133,13 @@ const trySpawn = (spawn, role, roomStatus, room, efficiencyMetrics = null) => {
     const sourceId = findUnassignedSource(room, existingMiners);
     extraMemory = { assignedSource: sourceId };
   }
+  
+  if (role === "fighter" && fighterClass) {
+    extraMemory.fighterClass = fighterClass;
+  }
 
   const result = executeSpawn(spawn, role, body, Game.time, extraMemory);
-  return { spawned: result === OK, role, result };
+  return { spawned: result === OK, role, result, fighterClass };
 };
 
 module.exports = {

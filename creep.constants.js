@@ -26,6 +26,8 @@ const ACTION_ICONS = {
   harvesting: "⛏",
   claiming: "📜",
   attacking: "⚔️",
+  healing: "💊",
+  rangingAttack: "🎯",
   transporting: "📦",
   mining: "⛏️",
   hauling: "🚚",
@@ -40,6 +42,8 @@ const PATH_COLORS = {
   upgrading: "#ffaa00",
   harvesting: "#0004ff",
   attacking: "#ff0000",
+  healing: "#4CAF50",
+  rangingAttack: "#2196F3",
   transporting: "#ff8800",
   mining: "#ffaa00",
   hauling: "#00aaff",
@@ -61,6 +65,8 @@ const ACTION_BODY_REQUIREMENTS = {
   harvesting: [CARRY],
   transporting: [CARRY],
   hauling: [CARRY],
+  healing: [HEAL],
+  rangingAttack: [RANGED_ATTACK],
   delivering: [CARRY],
   attacking: [ATTACK, RANGED_ATTACK], // Requires at least one
 };

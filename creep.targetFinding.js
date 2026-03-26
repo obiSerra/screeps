@@ -164,8 +164,19 @@ const findPrioritizedAttackTarget = (creep) => {
     return closest || hostileCreeps[0];
   }
 
-  // Priority 2: Check for attack flag to target structures
-  const attackFlag = Game.flags['attack'];
+  // Priority 2: Check for attack flags to target structures (attack or attack_X pattern)
+  const attackFlags = Object.entries(Game.flags).filter(([name, flag]) => 
+    name === 'attack' || name.startsWith('attack_')
+  );
+  
+  if (attackFlags.length === 0) {
+    return null;
+  }
+
+  // Find the closest attack flag
+  const closestFlagEntry = creep.pos.findClosestByPath(attackFlags.map(([name, flag]) => flag));
+  const attackFlag = closestFlagEntry || attackFlags[0][1];
+
   if (!attackFlag) {
     return null;
   }
@@ -208,6 +219,26 @@ const findPrioritizedAttackTarget = (creep) => {
     [STRUCTURE_TOWER]: 2,
     [STRUCTURE_EXTENSION]: 3,
     [STRUCTURE_WALL]: 5,
+    [STRUCTURE_RAMPART]: 4,
+  };
+
+  // Find closest high-priority structure
+  const priorityTargets = allStructureTargets
+    .map((s) => ({
+      structure: s,
+      priority: structurePriority[s.structureType] || 10,
+      distance: creep.pos.getRangeTo(s),
+    }))
+    .sort((a, b) => {
+      // Sort by priority first, then distance
+      if (a.priority !== b.priority) {
+        return a.priority - b.priority;
+      }
+      return a.distance - b.distance;
+    });
+
+  return priorityTargets[0].structure;
+};
     [STRUCTURE_RAMPART]: 5,
   };
 
@@ -346,6 +377,114 @@ const prioritizeConstructionSites = (constructionSites) => {
 // Exports
 // ============================================================================
 
+/**
+ * Find damaged friendly creeps to heal
+ * Pure function
+ * @param {Creep} creep - The healer creep
+ * @returns {Creep|null} Most damaged friendly creep in range or null
+ */
+const findHealTarget = (creep) => {
+  // Find friendly creeps that are damaged
+  const damagedCreeps = creep.room.find(FIND_MY_CREEPS, {
+    filter: (c) => c.hits < c.hitsMax
+  });
+  
+  if (damagedCreeps.length === 0) {
+    return null;
+  }
+  
+  // Prioritize creeps by damage percentage and proximity
+ const scoredCreeps = damagedCreeps.map((c) => {
+    const damagePercent = 1 - (c.hits / c.hitsMax); // Higher = more damaged
+    const distance = creep.pos.getRangeTo(c);
+    // Score: prioritize heavily damaged + close
+    const score = (damagePercent * 100) - (distance * 2);
+    return { creep: c, score };
+  });
+  
+  // Sort by score (highest first)
+  scoredCreeps.sort((a, b) => b.score - a.score);
+  
+  return scoredCreeps[0].creep;
+};
+
+/**
+ * Find and prioritize ranged attack targets for shooters
+ * Similar to findPrioritizedAttackTarget but considers optimal shooter range
+ * Pure function
+ * @param {Creep} creep
+ * @returns {Object|null} Highest priority ranged attack target or null
+ */
+const findRangedAttackTarget = (creep) => {
+  // Priority 1: Always look for enemy creeps first (highest priority)
+  const hostileCreeps = creep.room.find(FIND_HOSTILE_CREEPS);
+  if (hostileCreeps.length > 0) {
+    // For shooters, prefer targets at medium range (not too close, not too far)
+    const optimalRange = CONFIG.OFFENSIVE.FIGHTER_CLASSES.SHOOTER.OPTIMAL_RANGE || 3;
+    
+    const scoredTargets = hostileCreeps.map((c) => {
+      const range = creep.pos.getRangeTo(c);
+      // Prefer targets near optimal range
+      const rangePenalty = Math.abs(range - optimalRange);
+      const score = 100 - rangePenalty;
+      return { target: c, score };
+    });
+    
+    scoredTargets.sort((a, b) => b.score - a.score);
+    return scoredTargets[0].target;
+  }
+
+  // Priority 2: Check for attack flags to target structures
+  // Reuse same logic as melee attackers
+  const attackFlags = Object.entries(Game.flags).filter(([name, flag]) => 
+    name === 'attack' || name.startsWith('attack_')
+  );
+  
+  if (attackFlags.length === 0) {
+    return null;
+  }
+
+  // Find the closest attack flag
+  const closestFlagEntry = creep.pos.findClosestByPath(attackFlags.map(([name, flag]) => flag));
+  const attackFlag = closestFlagEntry || attackFlags[0][1];
+
+  if (!attackFlag) {
+    return null;
+  }
+
+  // Find the structure at the flag's position
+  const flagPos = attackFlag.pos;
+  const structuresAtFlag = flagPos.lookFor(LOOK_STRUCTURES);
+
+  // If there's a structure at the flag position, target it specifically
+  if (structuresAtFlag.length > 0) {
+    const validTarget = structuresAtFlag.find(
+      (s) => !s.my && (!s.owner || s.owner.username !== creep.owner.username)
+    );
+    if (validTarget) {
+      return validTarget;
+    }
+  }
+
+  // If no structure at flag, find all potential targets in the room
+  const hostileStructures = creep.room.find(FIND_HOSTILE_STRUCTURES);
+  const walls = creep.room.find(FIND_STRUCTURES, {
+    filter: (s) =>
+      (s.structureType === STRUCTURE_WALL || s.structureType === STRUCTURE_RAMPART) &&
+      !s.my && (!s.owner || s.owner.username !== creep.owner.username),
+  });
+
+  const allStructureTargets = [...hostileStructures, ...walls];
+
+  if (allStructureTargets.length === 0) {
+    return null;
+  }
+
+  // Find closest target (shooters can hit from range)
+  const closest = creep.pos.findClosestByPath(allStructureTargets);
+  return closest || allStructureTargets[0];
+};
+
 module.exports = {
   findWallsNeedingRepair,
   findRampartsNeedingRepair,
@@ -356,6 +495,8 @@ module.exports = {
   findDeconstructTarget,
   findPriorityBuildTarget,
   findPrioritizedAttackTarget,
+  findHealTarget,
+  findRangedAttackTarget,
   calculateRepairScore,
   countCreepsTargeting,
   sortByContention,

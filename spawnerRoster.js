@@ -40,29 +40,114 @@ const getRequiredDefenderCount = (room, currentCreeps) => {
 };
 
 /**
+ * Parse all active attack flags and extract force size requirements
+ * Pure function - no side effects
+ * @returns {Array<Object>} Array of {flagName, count, position} for each attack flag
+ */
+const parseAttackFlags = () => {
+  const attackFlags = [];
+  
+  for (const [flagName, flag] of Object.entries(Game.flags)) {
+    // Match "attack" or "attack_X" pattern
+    if (flagName === 'attack') {
+      attackFlags.push({
+        flagName: flagName,
+        count: CONFIG.OFFENSIVE.DEFAULT_ATTACK_COUNT,
+        position: flag.pos
+      });
+    } else if (flagName.startsWith('attack_')) {
+      // Extract number from "attack_5" -> 5
+      const match = flagName.match(/^attack_(\d+)$/);
+      if (match) {
+        const count = parseInt(match[1], 10);
+        attackFlags.push({
+          flagName: flagName,
+          count: count,
+          position: flag.pos
+        });
+      }
+    }
+  }
+  
+  return attackFlags;
+};
+
+/**
+ * Calculate fighter class distribution based on total count and RCL
+ * Pure function - no side effects
+ * @param {number} totalCount - Total number of fighters to spawn
+ * @param {number} rcl - Room Control Level
+ * @returns {Object} Fighter counts by class {fodder, invader, healer, shooter}
+ */
+const calculateFighterClassCounts = (totalCount, rcl) => {
+  // Get ratios for this RCL (or default to RCL 8 if higher)
+  const ratios = CONFIG.OFFENSIVE.FIGHTER_RATIOS[rcl] || CONFIG.OFFENSIVE.FIGHTER_RATIOS[8];
+  
+  // Calculate raw counts (may have fractional parts)
+  const rawCounts = {
+    fodder: totalCount * ratios.fodder,
+    invader: totalCount * ratios.invader,
+    healer: totalCount * ratios.healer,
+    shooter: totalCount * ratios.shooter
+  };
+  
+  // Round down to get initial allocation
+  const counts = {
+    fodder: Math.floor(rawCounts.fodder),
+    invader: Math.floor(rawCounts.invader),
+    healer: Math.floor(rawCounts.healer),
+    shooter: Math.floor(rawCounts.shooter)
+  };
+  
+  // Calculate remainder to distribute
+  let allocated = counts.fodder + counts.invader + counts.healer + counts.shooter;
+  let remainder = totalCount - allocated;
+  
+  // Distribute remainder by priority (fodder → invader → healer → shooter)
+  const priorityOrder = ['fodder', 'invader', 'healer', 'shooter'];
+  let priorityIndex = 0;
+  
+  while (remainder > 0) {
+    const classKey = priorityOrder[priorityIndex % priorityOrder.length];
+    // Only add if ratio > 0 for this class
+    if (ratios[classKey] > 0) {
+      counts[classKey]++;
+      remainder--;
+    }
+    priorityIndex++;
+  }
+  
+  return counts;
+};
+
+/**
  * Get required number of offensive fighters based on active attack flags
  * Pure function - no side effects
- * @returns {number} Number of fighters needed
+ * @param {number} rcl - Room Control Level (for calculating class distribution)
+ * @returns {Object} Fighter requirements {total, byClass: {fodder, invader, healer, shooter}, flags}
  */
-const getRequiredOffensiveFighterCount = () => {
-  // Attack flag: 2 fighters for immediate combat
-  if (Game.flags['attack']) {
-    return 2;
+const getRequiredOffensiveFighterCount = (rcl) => {
+  const attackFlags = parseAttackFlags();
+  
+  if (attackFlags.length === 0) {
+    return {
+      total: 0,
+      byClass: { fodder: 0, invader: 0, healer: 0, shooter: 0 },
+      flags: []
+    };
   }
   
-  // Prepare attack flag: configurable fighter count (default 4)
-  // Can be configured by naming flag: prepare_attack_3, prepare_attack_5, etc.
-  const prepareAttackFlags = Object.keys(Game.flags).filter(name => 
-    name.startsWith('prepare_attack')
-  );
+  // Sum up total required fighters from all flags
+  const totalRequired = attackFlags.reduce((sum, flag) => sum + flag.count, 0);
   
-  if (prepareAttackFlags.length > 0) {
-    // Extract number from flag name (e.g., "prepare_attack_5" -> 5)
-    const match = prepareAttackFlags[0].match(/prepare_attack_(\d+)/);
-    return match ? parseInt(match[1], 10) : 4; // Default to 4 if no number specified
-  }
+  // Calculate class distribution
+  const byClass = calculateFighterClassCounts(totalRequired, rcl);
   
-  return 0; // No offensive fighters needed
+  return {
+    total: totalRequired,
+    byClass: byClass,
+    flags: attackFlags
+  };
 };
 
 /**
@@ -125,5 +210,7 @@ module.exports = {
   getRequiredDefenderCount,
   getRequiredOffensiveFighterCount,
   getRequiredFighterCount: getRequiredOffensiveFighterCount, // Alias for backward compatibility
+  parseAttackFlags,
+  calculateFighterClassCounts,
   findBestRoleToSpawn,
 };
