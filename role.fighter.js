@@ -5,6 +5,7 @@
 
   const utils = require("utils");
   const baseCreep = require("baseCreep");
+  const { findNearestAttackFlag } = require("./creep.targetFinding");
 
   var roleFighter = () => {
     const base = baseCreep.baseCreep;
@@ -24,14 +25,25 @@
         // Perform the assigned action
         base.performAction(creep, creep.memory.action);
         
-        // If no action assigned and no invaders, patrol near controller/spawn
+        // If no action assigned and no invaders, check for attack flags first
         if (!creep.memory.action && !utils.areThereInvaders(creep.room)) {
-          // Patrol: move to controller area as defensive position
-          const controller = creep.room.controller;
-          if (controller && creep.pos.getRangeTo(controller) > 5) {
-            creep.moveTo(controller, {
-              visualizePathStyle: { stroke: "#ff0000", opacity: 0.5 }
-            });
+          // Check for attack flags to rally at
+          const attackFlag = findNearestAttackFlag(creep);
+          if (attackFlag) {
+            // Move to attack flag position
+            if (creep.pos.getRangeTo(attackFlag) > 2) {
+              creep.moveTo(attackFlag, {
+                visualizePathStyle: { stroke: "#ff0000", opacity: 0.5 }
+              });
+            }
+          } else {
+            // No attack flags, patrol near controller/spawn
+            const controller = creep.room.controller;
+            if (controller && creep.pos.getRangeTo(controller) > 5) {
+              creep.moveTo(controller, {
+                visualizePathStyle: { stroke: "#ff0000", opacity: 0.5 }
+              });
+            }
           }
         }
       },

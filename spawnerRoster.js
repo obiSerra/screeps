@@ -7,6 +7,7 @@
 const { findLabs, findMineralInRoom } = require("./spawnerHelpers");
 const { shouldSpawnDefenders } = require("./spawnerCombat");
 const utils = require("./utils");
+const CONFIG = require("./config");
 
 /**
  * Count current creeps by role

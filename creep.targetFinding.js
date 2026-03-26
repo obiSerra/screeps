@@ -470,6 +470,29 @@ const findRangedAttackTarget = (creep) => {
   return closest || allStructureTargets[0];
 };
 
+/**
+ * Find the nearest attack flag (attack or attack_X pattern)
+ * Pure function
+ * @param {Creep} creep
+ * @returns {Flag|null} Nearest attack flag or null
+ */
+const findNearestAttackFlag = (creep) => {
+  const attackFlags = Object.entries(Game.flags).filter(([name, flag]) => 
+    name === 'attack' || name.startsWith('attack_')
+  );
+  
+  if (attackFlags.length === 0) {
+    return null;
+  }
+
+  // Find the closest attack flag by path
+  const flagObjects = attackFlags.map(([name, flag]) => flag);
+  const closest = creep.pos.findClosestByPath(flagObjects);
+  
+  // If findClosestByPath fails (no path), fall back to range
+  return closest || creep.pos.findClosestByRange(flagObjects);
+};
+
 module.exports = {
   findWallsNeedingRepair,
   findRampartsNeedingRepair,
@@ -482,6 +505,7 @@ module.exports = {
   findPrioritizedAttackTarget,
   findHealTarget,
   findRangedAttackTarget,
+  findNearestAttackFlag,
   calculateRepairScore,
   countCreepsTargeting,
   sortByContention,
