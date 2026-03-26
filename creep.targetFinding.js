@@ -239,21 +239,6 @@ const findPrioritizedAttackTarget = (creep) => {
 
   return priorityTargets[0].structure;
 };
-    [STRUCTURE_RAMPART]: 5,
-  };
-
-  // Sort by priority, then by distance
-  allStructureTargets.sort((a, b) => {
-    const priorityA = structurePriority[a.structureType] || 10;
-    const priorityB = structurePriority[b.structureType] || 10;
-    if (priorityA !== priorityB) {
-      return priorityA - priorityB;
-    }
-    return creep.pos.getRangeTo(a) - creep.pos.getRangeTo(b);
-  });
-
-  return allStructureTargets[0];
-};
 
 // ============================================================================
 // Pure Functions - Target Scoring and Prioritization
