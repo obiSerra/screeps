@@ -357,88 +357,91 @@
    * @returns {Array} Body parts array
    */
   const getDefenderBody = (rcl, energyAvailable) => {
-    const tier = getRCLTier(rcl);
+    // New dynamic defender body: Max 4 ATTACK, TOUGH armor, MOVE for speed
+    // Optimized for emergency room defense with maximum attack power
+    const attackCost = BODYPART_COST[ATTACK]; // 80
+    const moveCost = BODYPART_COST[MOVE]; // 50
+    const toughCost = BODYPART_COST[TOUGH]; // 10
 
-    if (tier === "early") {
-      // RCL 1-3: Minimal defender
-      const bodyList = [
-        [TOUGH, ATTACK, ATTACK, MOVE, MOVE],
-        [ATTACK, MOVE],
-      ];
-
-      for (const body of bodyList) {
-        const cost = calculateBodyCost(body);
-        if (energyAvailable >= cost) {
-          return body;
-        }
-      }
+    // Minimum: 1 ATTACK + 1 MOVE = 130 energy
+    const minCost = attackCost + moveCost;
+    if (energyAvailable < minCost) {
       return undefined;
     }
 
-    if (tier === "late") {
-      // RCL 8: Heavy defender with ranged support
-      const bodyList = [
-        [
-          TOUGH,
-          TOUGH,
-          TOUGH,
-          TOUGH,
-          ATTACK,
-          ATTACK,
-          ATTACK,
-          RANGED_ATTACK,
-          RANGED_ATTACK,
-          MOVE,
-          MOVE,
-          MOVE,
-          MOVE,
-          MOVE,
-          MOVE,
-          MOVE,
-        ],
-        [
-          TOUGH,
-          TOUGH,
-          TOUGH,
-          ATTACK,
-          ATTACK,
-          ATTACK,
-          RANGED_ATTACK,
-          MOVE,
-          MOVE,
-          MOVE,
-          MOVE,
-          MOVE,
-        ],
-        [TOUGH, TOUGH, ATTACK, ATTACK, RANGED_ATTACK, MOVE, MOVE, MOVE, MOVE],
-        [TOUGH, ATTACK, ATTACK, MOVE, MOVE, MOVE],
-        [TOUGH, ATTACK, MOVE],
-      ];
+    let remainingEnergy = energyAvailable;
 
-      for (const body of bodyList) {
-        const cost = calculateBodyCost(body);
-        if (energyAvailable >= cost) {
-          return body;
+    // Phase 1: Add ATTACK parts (max 4, defenders optimized for damage)
+    let attackCount = 0;
+    const maxAttackParts = 4;
+
+    while (
+      attackCount < maxAttackParts &&
+      remainingEnergy >= attackCost &&
+      attackCount < CONFIG.SPAWNING.BODY_LIMITS.HARD_LIMIT
+    ) {
+      attackCount++;
+      remainingEnergy -= attackCost;
+    }
+
+    // Phase 2: Add TOUGH armor (in pairs with MOVE for efficiency)
+    let toughCount = 0;
+    let moveCount = 0;
+
+    // Add TOUGH + MOVE pairs for armored mobility
+    while (
+      remainingEnergy >= toughCost * 2 + moveCost &&
+      toughCount + moveCount + attackCount < CONFIG.SPAWNING.BODY_LIMITS.HARD_LIMIT
+    ) {
+      toughCount += 2;
+      moveCount += 1;
+      remainingEnergy -= toughCost * 2 + moveCost;
+    }
+
+    // Phase 3: Fill remaining capacity with MOVE for speed
+    while (
+      remainingEnergy >= moveCost &&
+      toughCount + moveCount + attackCount < CONFIG.SPAWNING.BODY_LIMITS.HARD_LIMIT
+    ) {
+      moveCount++;
+      remainingEnergy -= moveCost;
+    }
+
+    // Ensure at least 1 MOVE for mobility
+    if (moveCount === 0) {
+      if (remainingEnergy >= moveCost) {
+        moveCount = 1;
+        remainingEnergy -= moveCost;
+      } else {
+        // Sacrifice 1 TOUGH or ATTACK if needed to get movement
+        if (toughCount > 0) {
+          toughCount -= 1;
+          moveCount = 1;
+        } else if (attackCount > 1) {
+          attackCount -= 1;
+          moveCount = 1;
+        } else {
+          return undefined; // Cannot build valid defender
         }
       }
-      return undefined;
     }
 
-    // RCL 4-7: Medium defender
-    const bodyList = [
-      [TOUGH, TOUGH, ATTACK, ATTACK, RANGED_ATTACK, MOVE, MOVE, MOVE, MOVE, MOVE],
-      [TOUGH, ATTACK, ATTACK, MOVE, MOVE, MOVE],
-      [TOUGH, ATTACK, MOVE],
-    ];
+    // Build the body array: TOUGH first (absorbs damage), then ATTACK, then MOVE
+    const body = [];
 
-    for (const body of bodyList) {
-      const cost = calculateBodyCost(body);
-      if (energyAvailable >= cost) {
-        return body;
-      }
+    for (let i = 0; i < toughCount; i++) {
+      body.push(TOUGH);
     }
 
-    return undefined;
+    for (let i = 0; i < attackCount; i++) {
+      body.push(ATTACK);
+    }
+
+    for (let i = 0; i < moveCount; i++) {
+      body.push(MOVE);
+    }
+
+    return body;
   };
 
   /**
@@ -787,6 +790,9 @@
 
       case "builder":
         return getBuilderBody(rcl, energyAvailable, efficiencyMetrics);
+
+      case "defender":
+        return getDefenderBody(rcl, energyAvailable);
 
       case "fighter":
         return getFighterCreepBody(energyAvailable);

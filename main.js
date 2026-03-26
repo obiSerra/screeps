@@ -19,6 +19,7 @@ const errorTracker = require("./errorTracker");
 /**
  * Clear memory for dead creeps
  * Prevents memory bloat from accumulated dead creep data
+ * Also tracks recent creep losses for invasion threat assessment
  */
 const clearCreepsMemory = () => {
   for (const name in Memory.creeps) {
@@ -28,8 +29,43 @@ const clearCreepsMemory = () => {
       if (creepMemory.role && creepMemory.spawnRoom) {
         const ticksLived = Game.time - (creepMemory.spawnTick || 0);
         stats.recordCreepDeath(creepMemory.spawnRoom, name, creepMemory.role, ticksLived);
+        
+        // Track recent creep losses for invasion threat calculation
+        const roomName = creepMemory.spawnRoom;
+        if (!Memory.rooms[roomName]) {
+          Memory.rooms[roomName] = {};
+        }
+        if (!Memory.rooms[roomName].recentCreepLosses) {
+          Memory.rooms[roomName].recentCreepLosses = [];
+        }
+        
+        // Add loss with timestamp and last known position
+        Memory.rooms[roomName].recentCreepLosses.push({
+          name: name,
+          role: creepMemory.role,
+          tick: Game.time,
+          pos: creepMemory.lastPos || null, // Store last position if available
+        });
       }
       delete Memory.creeps[name];
+    }
+  }
+};
+
+/**
+ * Prune old creep losses from room memory
+ * Removes losses older than configured threshold
+ */
+const pruneCreepLosses = () => {
+  const CONFIG = require("./config");
+  const maxAge = CONFIG.DEFENDER.CREEP_LOSS_MEMORY_TICKS;
+  
+  for (const roomName in Memory.rooms) {
+    const roomMemory = Memory.rooms[roomName];
+    if (roomMemory.recentCreepLosses) {
+      roomMemory.recentCreepLosses = roomMemory.recentCreepLosses.filter(
+        (loss) => Game.time - loss.tick < maxAge
+      );
     }
   }
 };
@@ -62,6 +98,7 @@ module.exports.loop = function () {
   // Garbage collection
   clearCreepsMemory();
   clearStaleRoomMemory();
+  pruneCreepLosses();
 
   // Process each owned room
   Object.values(Game.rooms)

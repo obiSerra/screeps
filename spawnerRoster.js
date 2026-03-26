@@ -5,6 +5,7 @@
  */
 
 const { findLabs, findMineralInRoom } = require("./spawnerHelpers");
+const { shouldSpawnDefenders } = require("./spawnerCombat");
 const utils = require("./utils");
 
 /**
@@ -27,12 +28,23 @@ const countCreepsByRole = (creeps, roomName) =>
   }, {});
 
 /**
- * Get required number of fighters based on active flags
+ * Get required number of defenders based on invasion threat assessment
  * Pure function - no side effects
- * @param {boolean} hasHostiles - Whether hostile creeps are present
+ * @param {Room} room - The room to analyze
+ * @param {Object} currentCreeps - Current creep counts by role
+ * @returns {number} Number of defenders needed
+ */
+const getRequiredDefenderCount = (room, currentCreeps) => {
+  const defenderNeed = shouldSpawnDefenders(room, currentCreeps);
+  return defenderNeed.needed;
+};
+
+/**
+ * Get required number of offensive fighters based on active attack flags
+ * Pure function - no side effects
  * @returns {number} Number of fighters needed
  */
-const getRequiredFighterCount = (hasHostiles) => {
+const getRequiredOffensiveFighterCount = () => {
   // Attack flag: 2 fighters for immediate combat
   if (Game.flags['attack']) {
     return 2;
@@ -50,12 +62,7 @@ const getRequiredFighterCount = (hasHostiles) => {
     return match ? parseInt(match[1], 10) : 4; // Default to 4 if no number specified
   }
   
-  // Hostiles present: 2 defenders
-  if (hasHostiles) {
-    return 2;
-  }
-  
-  return 0; // No fighters needed
+  return 0; // No offensive fighters needed
 };
 
 /**
@@ -115,6 +122,8 @@ const findBestRoleToSpawn = (roster, currentCreeps, roomStatus) => {
 
 module.exports = {
   countCreepsByRole,
-  getRequiredFighterCount,
+  getRequiredDefenderCount,
+  getRequiredOffensiveFighterCount,
+  getRequiredFighterCount: getRequiredOffensiveFighterCount, // Alias for backward compatibility
   findBestRoleToSpawn,
 };

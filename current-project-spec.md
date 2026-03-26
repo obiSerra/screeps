@@ -457,3 +457,5 @@ errorTracker.logError(error, {
 15. **Monitor error tracking statistics** — Use `errorSummary()` and `errorStats()` to identify recurring issues
 
 ---
+
+## 10. Future Improvements & TODOs

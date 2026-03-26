@@ -263,6 +263,16 @@ const CONFIG = {
         PATROL_OFFSET: 2                        // Patrol position offset
     },
 
+    DEFENDER: {
+        TOWER_EFFECTIVENESS_FACTOR: 2.0,        // 1 tower ≈ 2 defenders worth of power
+        MIN_TOWER_ENERGY_PERCENT: 0.3,          // Spawn defenders if towers < 30% energy
+        THREAT_MULTIPLIER_IF_ATTACKS: 1.5,      // Threat × 1.5 if invaders near structures
+        THREAT_MULTIPLIER_IF_KILLS: 2.5,        // Threat × 2.5 if killed creeps in last 50 ticks
+        MAX_DEFENDERS: 5,                       // Cap on simultaneous defenders
+        EMERGENCY_SPAWN_OVERRIDE: true,         // Skip 70% energy threshold for defenders
+        CREEP_LOSS_MEMORY_TICKS: 50            // How long to remember deaths
+    },
+
     // ===========================
     // PATHFINDING & REUSE
     // ===========================

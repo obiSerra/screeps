@@ -5,6 +5,34 @@
  */
 
 const CONFIG = require("./config");
+const utils = require("./utils");
+
+// Import for priority check functions
+let trySpawn = null;
+let displaySpawningVisual = null;
+let getRequiredDefenderCount = null;
+let getRequiredOffensiveFighterCount = null;
+let findBestRoleToSpawn = null;
+
+// Lazy load to avoid circular dependencies
+const getTrySpawn = () => {
+  if (!trySpawn) {
+    const spawnerCore = require("./spawnerCore");
+    trySpawn = spawnerCore.trySpawn;
+    displaySpawningVisual = spawnerCore.displaySpawningVisual;
+  }
+  return { trySpawn, displaySpawningVisual };
+};
+
+const getRosterFunctions = () => {
+  if (!getRequiredDefenderCount) {
+    const spawnerRoster = require("./spawnerRoster");
+    getRequiredDefenderCount = spawnerRoster.getRequiredDefenderCount;
+    getRequiredOffensiveFighterCount = spawnerRoster.getRequiredOffensiveFighterCount;
+    findBestRoleToSpawn = spawnerRoster.findBestRoleToSpawn;
+  }
+  return { getRequiredDefenderCount, getRequiredOffensiveFighterCount, findBestRoleToSpawn };
+};
 
 /**
  * Calculate emergency energy reserve for fighter spawning
@@ -78,9 +106,192 @@ const findMineralInRoom = (room) => {
   return null;
 };
 
+// ============================================================================
+// Priority Check Functions
+// ============================================================================
+
+/**
+ * Check if defenders should be spawned (Priority 1)
+ * @param {StructureSpawn} spawn - The spawn structure
+ * @param {Room} room - The room object
+ * @param {Object} currentCreeps - Current creep counts by role
+ * @param {Object} roomStatus - Room status
+ * @param {Object} efficiencyMetrics - Energy collection efficiency metrics
+ * @returns {Object|null} Spawn result or null if not needed
+ */
+const checkDefenderPriority = (spawn, room, currentCreeps, roomStatus, efficiencyMetrics) => {
+  const { getRequiredDefenderCount } = getRosterFunctions();
+  const { trySpawn } = getTrySpawn();
+  
+  const requiredDefenders = getRequiredDefenderCount(room, currentCreeps);
+  const currentDefenders = currentCreeps.defender || 0;
+  
+  if (requiredDefenders > 0 && currentDefenders < requiredDefenders) {
+    console.log(
+      `🛡️ Spawning defender (${currentDefenders + 1}/${requiredDefenders}) for invasion response`
+    );
+    return trySpawn(spawn, "defender", roomStatus, room, efficiencyMetrics);
+  }
+  
+  return null;
+};
+
+/**
+ * Check if offensive fighters should be spawned (Priority 2)
+ * @param {StructureSpawn} spawn - The spawn structure
+ * @param {Room} room - The room object
+ * @param {Object} currentCreeps - Current creep counts by role
+ * @param {Object} roomStatus - Room status
+ * @param {Object} efficiencyMetrics - Energy collection efficiency metrics
+ * @returns {Object|null} Spawn result or null if not needed
+ */
+const checkOffensiveFighterPriority = (spawn, room, currentCreeps, roomStatus, efficiencyMetrics) => {
+  const { getRequiredOffensiveFighterCount } = getRosterFunctions();
+  const { trySpawn } = getTrySpawn();
+  
+  const requiredFighters = getRequiredOffensiveFighterCount();
+  const currentFighters = currentCreeps.fighter || 0;
+  
+  if (requiredFighters > 0 && currentFighters < requiredFighters) {
+    const flagType = Game.flags["attack"]
+      ? "attack"
+      : "prepare_attack";
+    console.log(
+      `⚔️ Spawning fighter (${currentFighters + 1}/${requiredFighters}) for ${flagType}`
+    );
+    return trySpawn(spawn, "fighter", roomStatus, room, efficiencyMetrics);
+  }
+  
+  return null;
+};
+
+/**
+ * Check if minimum fleet needs to be maintained (Priority 3)
+ * @param {StructureSpawn} spawn - The spawn structure
+ * @param {Room} room - The room object
+ * @param {Object} currentCreeps - Current creep counts by role
+ * @param {Object} roomStatus - Room status
+ * @param {Object} efficiencyMetrics - Energy collection efficiency metrics
+ * @returns {Object|null} Spawn result or null if not needed
+ */
+const checkMinimumFleetPriority = (spawn, room, currentCreeps, roomStatus, efficiencyMetrics) => {
+  const { trySpawn } = getTrySpawn();
+  
+  const minimumFleet = { harvester: 2, builder: 2, upgrader: 1 };
+  
+  for (const [role, min] of Object.entries(minimumFleet)) {
+    if ((currentCreeps[role] || 0) < min) {
+      return trySpawn(spawn, role, roomStatus, room, efficiencyMetrics);
+    }
+  }
+  
+  return null;
+};
+
+/**
+ * Check if claimer should be spawned (Priority 4)
+ * @param {StructureSpawn} spawn - The spawn structure
+ * @param {Room} room - The room object
+ * @param {Object} currentCreeps - Current creep counts by role
+ * @param {Object} roomStatus - Room status
+ * @param {Object} efficiencyMetrics - Energy collection efficiency metrics
+ * @returns {Object|null} Spawn result or null if not needed
+ */
+const checkClaimerPriority = (spawn, room, currentCreeps, roomStatus, efficiencyMetrics) => {
+  const { trySpawn } = getTrySpawn();
+  
+  if (Game.flags["claim"] && !currentCreeps.claimer) {
+    return trySpawn(spawn, "claimer", roomStatus, room, efficiencyMetrics);
+  }
+  
+  return null;
+};
+
+/**
+ * Check if energy priority harvesters should be spawned (Priority 5)
+ * @param {StructureSpawn} spawn - The spawn structure
+ * @param {Room} room - The room object
+ * @param {Object} currentCreeps - Current creep counts by role
+ * @param {Object} roster - Target roster
+ * @param {Object} roomMemory - Room memory
+ * @param {Object} roomStatus - Room status
+ * @param {Object} efficiencyMetrics - Energy collection efficiency metrics
+ * @returns {Object|null} Spawn result or null if not needed
+ */
+const checkEnergyPriorityHarvester = (spawn, room, currentCreeps, roster, roomMemory, roomStatus, efficiencyMetrics) => {
+  const { trySpawn } = getTrySpawn();
+  
+  const energyPriorityMode = roomMemory && roomMemory.energyPriorityMode;
+  
+  if (energyPriorityMode) {
+    const currentHarvesters = currentCreeps.harvester || 0;
+    const targetHarvesters = (roster.harvester || 2) + CONFIG.ENERGY.PRIORITY_MODE.HARVESTER_BOOST;
+    
+    if (currentHarvesters < targetHarvesters) {
+      console.log(
+        `⚡ [PRIORITY MODE] Spawning harvester (${currentHarvesters + 1}/${targetHarvesters}) ` +
+        `to improve energy filling - ${roomStatus.roomName}`
+      );
+      return trySpawn(spawn, "harvester", roomStatus, room, efficiencyMetrics);
+    }
+  }
+  
+  return null;
+};
+
+/**
+ * Check if energy threshold is met for roster spawning (Priority 6)
+ * @param {Object} roomStatus - Room status
+ * @returns {Object|null} Result object or null if threshold is met
+ */
+const checkEnergyThreshold = (roomStatus) => {
+  const energyRatio = roomStatus.energyAvailable / roomStatus.energyCapacity;
+  const minEnergyRatio = 0.7;
+  
+  if (energyRatio < minEnergyRatio) {
+    utils.periodicLogger(
+      `Energy at ${Math.round(energyRatio * 100)}% - waiting to spawn until >= ${minEnergyRatio * 100}% - ${roomStatus.roomName}`,
+      10,
+    );
+    return { spawned: false, reason: "waiting_for_energy" };
+  }
+  
+  return null;
+};
+
+/**
+ * Check roster spawning (Priority 7)
+ * @param {StructureSpawn} spawn - The spawn structure
+ * @param {Room} room - The room object
+ * @param {Object} currentCreeps - Current creep counts by role
+ * @param {Object} roster - Target roster
+ * @param {Object} roomStatus - Room status
+ * @param {Object} efficiencyMetrics - Energy collection efficiency metrics
+ * @returns {Object|null} Spawn result or null if roster is full
+ */
+const checkRosterSpawning = (spawn, room, currentCreeps, roster, roomStatus, efficiencyMetrics) => {
+  const { findBestRoleToSpawn } = getRosterFunctions();
+  const { trySpawn } = getTrySpawn();
+  
+  const bestRole = findBestRoleToSpawn(roster, currentCreeps, roomStatus);
+  
+  if (bestRole) {
+    return trySpawn(spawn, bestRole, roomStatus, room, efficiencyMetrics);
+  }
+  
+  return null;
+};
+
 module.exports = {
   getEmergencyReserve,
   findUnassignedSource,
   findLabs,
   findMineralInRoom,
+  checkDefenderPriority,
+  checkOffensiveFighterPriority,
+  checkMinimumFleetPriority,
+  checkClaimerPriority,
+  checkEnergyPriorityHarvester,
+  checkEnergyThreshold,
+  checkRosterSpawning,
 };
