@@ -823,6 +823,14 @@ const handleDelivering = (creep) => {
           s.store.getFreeCapacity(RESOURCE_ENERGY) > 0
         );
       }
+
+      // Priority 6: Containers (when spawns/extensions are full)
+      if (targets.length === 0) {
+        targets = allStructures.filter(s =>
+          s.structureType === STRUCTURE_CONTAINER &&
+          s.store.getFreeCapacity(RESOURCE_ENERGY) > 0
+        );
+      }
     }
 
     if (targets.length === 0) {

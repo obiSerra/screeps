@@ -19,7 +19,15 @@ const { ACTION_ICONS, PATH_COLORS } = require("./creep.constants");
  */
 const sayAction = (creep, action) => {
   const icon = ACTION_ICONS[action] || "";
-  creep.say(`${icon} ${action}`);
+  
+  // Check if creep is working remotely (target in different room)
+  const target = creep.memory.actionTarget;
+  const isRemote = target && target.pos && target.pos.roomName !== creep.room.name;
+  
+  // Add remote indicator (🌍) for cross-room operations
+  const remoteIndicator = isRemote ? "🌍" : "";
+  
+  creep.say(`${remoteIndicator}${icon} ${action}`);
 };
 
 /**

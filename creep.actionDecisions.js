@@ -88,12 +88,13 @@ const getActionAvailability = (creep) => {
   const hasHaulingTarget =
     containersForHauling.length > 0 || droppedEnergy.length > 0;
 
-  // Check for delivery targets (spawns/extensions/towers/storage needing energy)
+  // Check for delivery targets (spawns/extensions/towers/storage/containers needing energy)
   const deliveryTargets = allStructures.filter(s =>
     (s.structureType === STRUCTURE_SPAWN ||
       s.structureType === STRUCTURE_EXTENSION ||
       s.structureType === STRUCTURE_TOWER ||
-      s.structureType === STRUCTURE_STORAGE) &&
+      s.structureType === STRUCTURE_STORAGE ||
+      s.structureType === STRUCTURE_CONTAINER) &&
     s.store.getFreeCapacity(RESOURCE_ENERGY) > 0
   );
   const hasDeliveryTarget = deliveryTargets.length > 0;

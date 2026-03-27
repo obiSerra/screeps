@@ -209,8 +209,93 @@ const areThereInvaders = (room) => {
   return areInvaders;
 };
 
+/**
+ * Get all flags matching the remote source pattern (source_X)
+ * Pure function based on Game.flags reference
+ * @returns {Flag[]} Array of flags matching source_X pattern
+ */
+function getRemoteSourceFlags() {
+  const CONFIG = require("./config");
+  if (!CONFIG.REMOTE_HARVESTING.ENABLED) {
+    return [];
+  }
+  
+  return Object.values(Game.flags).filter(flag =>
+    CONFIG.REMOTE_HARVESTING.FLAG_PATTERN.test(flag.name)
+  );
+}
+
+/**
+ * Find all sources in rooms marked by remote source flags
+ * Pure function with side-effect-free room queries
+ * @param {Flag[]} flags - Array of remote source flags
+ * @returns {Source[]} Array of sources found near flags (excludes sources in hostile rooms)
+ */
+function findRemoteSourcesNearFlags(flags) {
+  const CONFIG = require("./config");
+  const sources = [];
+  
+  for (const flag of flags) {
+    const room = Game.rooms[flag.pos.roomName];
+    
+    // Skip if room not visible
+    if (!room) {
+      continue;
+    }
+    
+    // Skip if room has hostiles and config says to avoid them
+    if (CONFIG.REMOTE_HARVESTING.AVOID_HOSTILE_ROOMS && areThereInvaders(room)) {
+      continue;
+    }
+    
+    // Add all sources from this room
+    const roomSources = room.find(FIND_SOURCES);
+    sources.push(...roomSources);
+  }
+  
+  return sources;
+}
+
+/**
+ * Check if a creep can harvest from remote rooms
+ * Requires both WORK and CARRY body parts
+ * Pure function
+ * @param {Creep} creep
+ * @returns {boolean} True if creep has both WORK and CARRY parts
+ */
+function canHarvestRemotely(creep) {
+  const hasWork = creep.body.some(part => part.type === WORK);
+  const hasCarry = creep.body.some(part => part.type === CARRY);
+  return hasWork && hasCarry;
+}
+
+/**
+ * Find nearest container with available capacity
+ * Pure function (query only, no side effects)
+ * @param {Creep} creep
+ * @returns {StructureContainer|null} Closest container with space, or null
+ */
+function findNearestContainerWithSpace(creep) {
+  const containers = creep.room.find(FIND_STRUCTURES, {
+    filter: (structure) =>
+      structure.structureType === STRUCTURE_CONTAINER &&
+      structure.store.getFreeCapacity(RESOURCE_ENERGY) > 0
+  });
+  
+  if (containers.length === 0) {
+    return null;
+  }
+  
+  return creep.pos.findClosestByPath(containers);
+}
+
 function findBestSourceForCreep(creep) {
-  const sources = creep.room.find(FIND_SOURCES);
+  const CONFIG = require("./config");
+  
+  // Get local sources
+  const localSources = creep.room.find(FIND_SOURCES);
+  
+  // Get local containers with high fill threshold
   const containers = creep.room.find(FIND_STRUCTURES, {
     filter: (structure) =>
       structure.structureType === STRUCTURE_CONTAINER &&
@@ -218,19 +303,37 @@ function findBestSourceForCreep(creep) {
         structure.store.getCapacity(RESOURCE_ENERGY) * 0.75,
   });
 
-  const targets = [...sources, ...containers];
+  // Collect all sources (local + remote if applicable)
+  let allSources = [...localSources];
+  
+  // Add remote sources if creep can harvest remotely
+  if (canHarvestRemotely(creep)) {
+    const remoteFlags = getRemoteSourceFlags();
+    const remoteSources = findRemoteSourcesNearFlags(remoteFlags);
+    allSources = allSources.concat(remoteSources);
+  }
+  
+  // Filter out depleted sources
+  allSources = allSources.filter(source => source.energy > 0);
+  
+  const targets = [...allSources, ...containers];
 
-  // Scoring weights - easy to tweak
-  // With DISTANCE_WEIGHT=2 and CREEP_WEIGHT=1:
-  // A source twice as far needs half the creeps to be equally attractive
-  const DISTANCE_WEIGHT = 2;
-  const CREEP_WEIGHT = 1;
-  const ENERGY_WEIGHT = 1;
+  // Scoring weights from CONFIG
+  const DISTANCE_WEIGHT = CONFIG.UTILITY.DISTANCE_WEIGHT;
+  const CREEP_WEIGHT = CONFIG.UTILITY.CREEP_WEIGHT;
+  const ENERGY_WEIGHT = CONFIG.UTILITY.ENERGY_WEIGHT;
+  const REMOTE_DISTANCE_PENALTY = CONFIG.REMOTE_HARVESTING.DISTANCE_PENALTY_MULTIPLIER;
 
   for (const target of targets) {
     const creepsTargeting = countCreepsTargetingSource(target.id);
     const energyAvailable = target.energy || (target.store && target.store[RESOURCE_ENERGY]) || 0;
-    const distance = creep.pos.getRangeTo(target);
+    let distance = creep.pos.getRangeTo(target);
+    
+    // Apply distance penalty for remote sources (not in same room)
+    const isRemote = target.pos && target.pos.roomName !== creep.room.name;
+    if (isRemote) {
+      distance = distance * REMOTE_DISTANCE_PENALTY;
+    }
 
     const score =
       Math.pow(energyAvailable, ENERGY_WEIGHT) /
@@ -367,6 +470,12 @@ const utils = {
   countCreepsTargetingSource,
   actions,
   areThereInvaders,
+
+  // Remote harvesting utilities
+  getRemoteSourceFlags,
+  findRemoteSourcesNearFlags,
+  canHarvestRemotely,
+  findNearestContainerWithSpace,
 
   // Functional utilities
   pipe,
