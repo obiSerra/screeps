@@ -242,7 +242,6 @@ function findRemoteSourcesNearFlags(flags) {
     if (!room) {
       continue;
     }
-    
     // Skip if room has hostiles and config says to avoid them
     if (CONFIG.REMOTE_HARVESTING.AVOID_HOSTILE_ROOMS && areThereInvaders(room)) {
       continue;
@@ -308,9 +307,12 @@ function findBestSourceForCreep(creep) {
   
   // Add remote sources if creep can harvest remotely
   if (canHarvestRemotely(creep)) {
+    console.log(`Creep ${creep.name} can harvest remotely, checking for remote sources...`);
     const remoteFlags = getRemoteSourceFlags();
     const remoteSources = findRemoteSourcesNearFlags(remoteFlags);
     allSources = allSources.concat(remoteSources);
+  } else {
+    console.log(`Creep ${creep.name} cannot harvest remotely, only considering local sources.`);
   }
   
   // Filter out depleted sources

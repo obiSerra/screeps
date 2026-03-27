@@ -186,29 +186,13 @@ const selectGatheringTarget = (creep) => {
     }
   }
 
-  // Priority 2: Find nearest between non-empty sources and containers/storage with sufficient energy
-  const sources = creep.room.find(FIND_SOURCES_ACTIVE, {
-    filter: (s) => s.energy > 0,
-  });
-
-  const containers = creep.room.find(FIND_STRUCTURES, {
-    filter: (s) =>
-      (s.structureType === STRUCTURE_CONTAINER || s.structureType === STRUCTURE_STORAGE) &&
-      s.store[RESOURCE_ENERGY] > CONFIG.ENERGY.CONTAINER.MIN_FOR_PICKUP,
-  });
-
-  // Combine both lists and find the closest
-  const allTargets = [...sources, ...containers];
-  if (allTargets.length === 0) {
+  // Priority 2: Use smart source selection from findBestSourceForCreep
+  const bestSource = utils.findBestSourceForCreep(creep);
+  if (!bestSource) {
     return null;
   }
 
-  const closest = creep.pos.findClosestByPath(allTargets);
-  if (!closest) {
-    return null;
-  }
-
-  return { id: closest.id, pos: closest.pos };
+  return { id: bestSource.id, pos: bestSource.pos };
 };
 
 /**
