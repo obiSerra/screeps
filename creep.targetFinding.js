@@ -367,14 +367,12 @@ const filterCriticalRepairs = (targets) =>
 /**
  * Count creeps targeting a specific object
  * Pure function
+ * Uses global targeting map for O(1) lookup instead of O(n) scan
  * @param {string} targetId
  * @returns {number} Count of creeps targeting this object
  */
 const countCreepsTargeting = (targetId) =>
-  Object.values(Game.creeps).filter(
-    (creep) =>
-      creep.memory.actionTarget && creep.memory.actionTarget.id === targetId,
-  ).length;
+  global.targetingCounts[targetId] || 0;
 
 /**
  * Sort targets by least contention and distance

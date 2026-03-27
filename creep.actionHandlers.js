@@ -730,6 +730,10 @@ const handleDelivering = (creep) => {
 
   // Find target if not set
   if (!actionTarget) {
+    // Use cached structures to avoid redundant find() calls
+    const cache = global.roomCache[room.name];
+    const allStructures = cache ? cache.allStructures : room.find(FIND_STRUCTURES);
+    
     // Check if room is in energy priority mode
     const roomMemory = Memory.rooms && Memory.rooms[room.name];
     const energyPriorityMode = roomMemory && roomMemory.energyPriorityMode;
@@ -742,29 +746,26 @@ const handleDelivering = (creep) => {
       const minTowerEnergy = CONFIG.ENERGY.PRIORITY_MODE.MIN_TOWER_ENERGY_PERCENT;
       
       // Priority 1: Spawns
-      targets = creep.room.find(FIND_STRUCTURES, {
-        filter: (s) =>
-          s.structureType === STRUCTURE_SPAWN &&
-          s.store.getFreeCapacity(RESOURCE_ENERGY) > 0,
-      });
+      targets = allStructures.filter(s =>
+        s.structureType === STRUCTURE_SPAWN &&
+        s.store.getFreeCapacity(RESOURCE_ENERGY) > 0
+      );
       
       // Priority 2: Towers below minimum threshold (critical for defense)
       if (targets.length === 0) {
-        targets = creep.room.find(FIND_STRUCTURES, {
-          filter: (s) =>
-            s.structureType === STRUCTURE_TOWER &&
-            s.store.getFreeCapacity(RESOURCE_ENERGY) > 0 &&
-            s.store[RESOURCE_ENERGY] < s.store.getCapacity(RESOURCE_ENERGY) * minTowerEnergy,
-        });
+        targets = allStructures.filter(s =>
+          s.structureType === STRUCTURE_TOWER &&
+          s.store.getFreeCapacity(RESOURCE_ENERGY) > 0 &&
+          s.store[RESOURCE_ENERGY] < s.store.getCapacity(RESOURCE_ENERGY) * minTowerEnergy
+        );
       }
       
       // Priority 3: Extensions
       if (targets.length === 0) {
-        targets = creep.room.find(FIND_STRUCTURES, {
-          filter: (s) =>
-            s.structureType === STRUCTURE_EXTENSION &&
-            s.store.getFreeCapacity(RESOURCE_ENERGY) > 0,
-        });
+        targets = allStructures.filter(s =>
+          s.structureType === STRUCTURE_EXTENSION &&
+          s.store.getFreeCapacity(RESOURCE_ENERGY) > 0
+        );
       }
     } else {
       // NORMAL MODE: Standard priority order
@@ -785,47 +786,42 @@ const handleDelivering = (creep) => {
       }
 
       // Priority 1: Spawns
-      targets = creep.room.find(FIND_STRUCTURES, {
-        filter: (s) =>
-          s.structureType === STRUCTURE_SPAWN &&
-          s.store.getFreeCapacity(RESOURCE_ENERGY) > 0,
-      });
+      targets = allStructures.filter(s =>
+        s.structureType === STRUCTURE_SPAWN &&
+        s.store.getFreeCapacity(RESOURCE_ENERGY) > 0
+      );
 
       // Priority 2: Towers (only if below 80% capacity)
       if (targets.length === 0) {
-        targets = creep.room.find(FIND_STRUCTURES, {
-        filter: (s) =>
+        targets = allStructures.filter(s =>
           s.structureType === STRUCTURE_TOWER &&
           s.store.getFreeCapacity(RESOURCE_ENERGY) > 0 &&
-          s.store[RESOURCE_ENERGY] < s.store.getCapacity(RESOURCE_ENERGY) * 0.8,
-        });
+          s.store[RESOURCE_ENERGY] < s.store.getCapacity(RESOURCE_ENERGY) * 0.8
+        );
       }
 
       // Priority 3: Extensions
       if (targets.length === 0) {
-        targets = creep.room.find(FIND_STRUCTURES, {
-          filter: (s) =>
-            s.structureType === STRUCTURE_EXTENSION &&
-            s.store.getFreeCapacity(RESOURCE_ENERGY) > 0,
-        });
+        targets = allStructures.filter(s =>
+          s.structureType === STRUCTURE_EXTENSION &&
+          s.store.getFreeCapacity(RESOURCE_ENERGY) > 0
+        );
       }
       
       // Priority 4: Towers (any capacity)
       if (targets.length === 0) {
-        targets = creep.room.find(FIND_STRUCTURES, {
-        filter: (s) =>
+        targets = allStructures.filter(s =>
           s.structureType === STRUCTURE_TOWER &&
           s.store.getFreeCapacity(RESOURCE_ENERGY) > 0
-        });
+        );
       }
 
       // Priority 5: Storage
       if (targets.length === 0) {
-        targets = creep.room.find(FIND_STRUCTURES, {
-          filter: (s) =>
-            s.structureType === STRUCTURE_STORAGE &&
-            s.store.getFreeCapacity(RESOURCE_ENERGY) > 0,
-        });
+        targets = allStructures.filter(s =>
+          s.structureType === STRUCTURE_STORAGE &&
+          s.store.getFreeCapacity(RESOURCE_ENERGY) > 0
+        );
       }
     }
 

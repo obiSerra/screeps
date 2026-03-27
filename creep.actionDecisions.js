@@ -52,46 +52,50 @@ const hasFinishedGathering = (creep) =>
  */
 const getActionAvailability = (creep) => {
   const { room } = creep;
+  
+  // Use cached room data
+  const cache = global.roomCache[room.name];
   const repairTargets = findRepairTargets(creep);
   const criticalRepairs = filterCriticalRepairs(repairTargets);
-  const constructionSites = room.find(FIND_CONSTRUCTION_SITES);
+  const constructionSites = cache ? cache.constructionSites : room.find(FIND_CONSTRUCTION_SITES);
   const energyAvailable = room.energyAvailable;
   const energyCapacity = room.energyCapacityAvailable;
 
-  // Check for storage and containers at 50% capacity for transporting
-  const storage = room.find(FIND_STRUCTURES, {
+  // Check for storage and containers at 50% capacity for transporting (use cache)
+  const storage = cache ? cache.storage : room.find(FIND_STRUCTURES, {
     filter: (s) => s.structureType === STRUCTURE_STORAGE,
   })[0];
-  const containersWithEnergy = room.find(FIND_STRUCTURES, {
-    filter: (s) =>
-      s.structureType === STRUCTURE_CONTAINER &&
-      s.store[RESOURCE_ENERGY] >= s.store.getCapacity(RESOURCE_ENERGY) * CONFIG.ENERGY.CONTAINER.TARGET_THRESHOLD,
-  });
+  
+  const allStructures = cache ? cache.allStructures : room.find(FIND_STRUCTURES);
+  const containersWithEnergy = allStructures.filter(s =>
+    s.structureType === STRUCTURE_CONTAINER &&
+    s.store[RESOURCE_ENERGY] >= s.store.getCapacity(RESOURCE_ENERGY) * CONFIG.ENERGY.CONTAINER.TARGET_THRESHOLD
+  );
 
   // Check for mining opportunities (sources exist and creep has assigned source)
-  const sources = room.find(FIND_SOURCES_ACTIVE);
+  const sources = cache ? cache.sourcesActive : room.find(FIND_SOURCES_ACTIVE);
   const hasMiningTarget = creep.memory.assignedSource || sources.length > 0;
 
   // Check for hauling opportunities (containers with energy or dropped resources)
-  const containersForHauling = room.find(FIND_STRUCTURES, {
-    filter: (s) =>
-      s.structureType === STRUCTURE_CONTAINER && s.store[RESOURCE_ENERGY] > 0,
-  });
-  const droppedEnergy = room.find(FIND_DROPPED_RESOURCES, {
-    filter: (r) => r.resourceType === RESOURCE_ENERGY && r.amount > CONFIG.ENERGY.CONTAINER.MIN_DROPPED_RESOURCE,
-  });
+  const containersForHauling = allStructures.filter(s =>
+    s.structureType === STRUCTURE_CONTAINER && s.store[RESOURCE_ENERGY] > 0
+  );
+  
+  const droppedResources = cache ? cache.droppedResources : room.find(FIND_DROPPED_RESOURCES);
+  const droppedEnergy = droppedResources.filter(r => 
+    r.resourceType === RESOURCE_ENERGY && r.amount > CONFIG.ENERGY.CONTAINER.MIN_DROPPED_RESOURCE
+  );
   const hasHaulingTarget =
     containersForHauling.length > 0 || droppedEnergy.length > 0;
 
   // Check for delivery targets (spawns/extensions/towers/storage needing energy)
-  const deliveryTargets = room.find(FIND_STRUCTURES, {
-    filter: (s) =>
-      (s.structureType === STRUCTURE_SPAWN ||
-        s.structureType === STRUCTURE_EXTENSION ||
-        s.structureType === STRUCTURE_TOWER ||
-        s.structureType === STRUCTURE_STORAGE) &&
-      s.store.getFreeCapacity(RESOURCE_ENERGY) > 0,
-  });
+  const deliveryTargets = allStructures.filter(s =>
+    (s.structureType === STRUCTURE_SPAWN ||
+      s.structureType === STRUCTURE_EXTENSION ||
+      s.structureType === STRUCTURE_TOWER ||
+      s.structureType === STRUCTURE_STORAGE) &&
+    s.store.getFreeCapacity(RESOURCE_ENERGY) > 0
+  );
   const hasDeliveryTarget = deliveryTargets.length > 0;
 
   // Check for deconstruct target

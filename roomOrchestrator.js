@@ -70,11 +70,16 @@ const getControllerLevel = (room) =>
 /**
  * Calculate comprehensive room status
  * Pure function - gathers room state without modifications
+ * Uses room cache to avoid redundant find() calls
  * @param {Room} room - The room to analyze
  * @returns {Object} Room status object
  */
 const getRoomStatus = (room) => {
-  const structures = room.find(FIND_STRUCTURES);
+  // Use cached structures and construction sites
+  const cache = global.roomCache[room.name];
+  const structures = cache ? cache.allStructures : room.find(FIND_STRUCTURES);
+  const constructionSites = cache ? cache.constructionSites : room.find(FIND_CONSTRUCTION_SITES);
+  
   const controllerLevel = getControllerLevel(room);
 
   // Count planned extensions from flags
@@ -86,9 +91,9 @@ const getRoomStatus = (room) => {
   roomPlanner.clearPlannerFlags(room);
   // console.log(`[STATUS] Cleared planner flags for room ${room.name}. Found ${extensionPlanned} planned extensions from flags.`);
   // Count extension construction sites
-  const extensionSites = room.find(FIND_CONSTRUCTION_SITES, {
-    filter: (s) => s.structureType === STRUCTURE_EXTENSION,
-  }).length;
+  const extensionSites = constructionSites.filter(
+    (s) => s.structureType === STRUCTURE_EXTENSION
+  ).length;
 
   // Count built extensions
   const extensionBuilt = structures.filter(
@@ -98,11 +103,8 @@ const getRoomStatus = (room) => {
   // Count creeps by role
   const creeps = spawner.countCreepsByRole(Game.creeps, room.name);
 
-  // Count construction sites
-  const constructionSites = room.find(FIND_CONSTRUCTION_SITES);
-
   // Check for storage
-  const storage = structures.find((s) => s.structureType === STRUCTURE_STORAGE);
+  const storage = cache ? cache.storage : structures.find((s) => s.structureType === STRUCTURE_STORAGE);
   const hasStorage = !!storage;
 
   // Check for containers at 50%+ capacity
@@ -217,17 +219,28 @@ const calculateRoster = (roomStatus, efficiencyMetrics = null) => {
 /**
  * Handle all towers in the room
  * Effectful function - makes towers attack enemies, heal creeps, and repair structures
+ * Uses room cache to avoid redundant find() calls
  * @param {Room} room - The room containing towers
  */
 const handleTowers = (room) => {
-  const towers = room.find(FIND_MY_STRUCTURES, {
-    filter: (s) => s.structureType === STRUCTURE_TOWER,
+  // Use cached tower list
+  const cache = global.roomCache[room.name];
+  if (!cache || !cache.towers || cache.towers.length === 0) {
+    return;
+  }
+  
+  // Scan room once for all towers (cached from main.js)
+  const hostileCreeps = cache.hostileCreeps;
+  const damagedCreeps = cache.myCreeps.filter(creep => creep.hits < creep.hitsMax);
+  const damagedStructures = cache.allStructures.filter(structure => {
+    const healthPercent = structure.hits / structure.hitsMax;
+    return healthPercent < CONFIG.ROSTERS.TOWER.REPAIR_THRESHOLD &&
+           structure.structureType !== STRUCTURE_WALL &&
+           structure.structureType !== STRUCTURE_RAMPART;
   });
 
-  towers.forEach((tower) => {
+  cache.towers.forEach((tower) => {
     // Priority 1: Attack hostile creeps
-    const hostileCreeps = room.find(FIND_HOSTILE_CREEPS);
-    
     if (hostileCreeps.length > 0) {
       const target = tower.pos.findClosestByRange(hostileCreeps);
       if (target) {
@@ -241,10 +254,6 @@ const handleTowers = (room) => {
     }
 
     // Priority 2: Heal friendly creeps
-    const damagedCreeps = room.find(FIND_MY_CREEPS, {
-      filter: (creep) => creep.hits < creep.hitsMax
-    });
-    
     if (damagedCreeps.length > 0) {
       const target = tower.pos.findClosestByRange(damagedCreeps);
       if (target) {
@@ -257,15 +266,6 @@ const handleTowers = (room) => {
     }
 
     // Priority 3: Repair structures
-    const damagedStructures = room.find(FIND_STRUCTURES, {
-      filter: (structure) => {
-        const healthPercent = structure.hits / structure.hitsMax;
-        return healthPercent < CONFIG.ROSTERS.TOWER.REPAIR_THRESHOLD &&
-               structure.structureType !== STRUCTURE_WALL &&
-               structure.structureType !== STRUCTURE_RAMPART;
-      }
-    });
-    
     if (damagedStructures.length > 0) {
       // Repair the most damaged structure (by percentage)
       const target = damagedStructures.reduce((min, structure) => {

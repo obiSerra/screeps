@@ -91,20 +91,96 @@ const clearStaleRoomMemory = () => {
 };
 
 // ============================================================================
+// Cache Management
+// ============================================================================
+
+/**
+ * Initialize per-tick room caches
+ * Caches frequently-accessed room data to avoid redundant find() calls
+ * Cache is stored in global (non-persistent) and cleared each tick
+ */
+const initializeRoomCache = (room) => {
+  if (!global.roomCache) {
+    global.roomCache = {};
+  }
+  
+  const cache = {
+    tick: Game.time,
+    // Structure caches
+    myStructures: room.find(FIND_MY_STRUCTURES),
+    allStructures: room.find(FIND_STRUCTURES),
+    constructionSites: room.find(FIND_CONSTRUCTION_SITES),
+    
+    // Creep caches
+    myCreeps: room.find(FIND_MY_CREEPS),
+    hostileCreeps: room.find(FIND_HOSTILE_CREEPS),
+    
+    // Resource caches
+    sources: room.find(FIND_SOURCES),
+    sourcesActive: room.find(FIND_SOURCES_ACTIVE),
+    droppedResources: room.find(FIND_DROPPED_RESOURCES),
+  };
+  
+  // Generate derived caches for common filters
+  cache.towers = cache.myStructures.filter(s => s.structureType === STRUCTURE_TOWER);
+  cache.spawns = cache.myStructures.filter(s => s.structureType === STRUCTURE_SPAWN);
+  cache.extensions = cache.myStructures.filter(s => s.structureType === STRUCTURE_EXTENSION);
+  cache.containers = cache.allStructures.filter(s => s.structureType === STRUCTURE_CONTAINER);
+  cache.links = cache.myStructures.filter(s => s.structureType === STRUCTURE_LINK);
+  cache.labs = cache.myStructures.filter(s => s.structureType === STRUCTURE_LAB);
+  
+  // Cache storage and terminal (single objects)
+  cache.storage = cache.myStructures.find(s => s.structureType === STRUCTURE_STORAGE);
+  cache.terminal = cache.myStructures.find(s => s.structureType === STRUCTURE_TERMINAL);
+  
+  global.roomCache[room.name] = cache;
+  return cache;
+};
+
+/**
+ * Build targeting map for all creeps
+ * Maps targetId -> array of creeps targeting it
+ * Used for contention-based target selection
+ */
+const buildTargetingMap = () => {
+  global.targetingMap = {};
+  global.targetingCounts = {};
+  
+  Object.values(Game.creeps).forEach(creep => {
+    if (creep.memory.actionTarget && creep.memory.actionTarget.id) {
+      const targetId = creep.memory.actionTarget.id;
+      if (!global.targetingMap[targetId]) {
+        global.targetingMap[targetId] = [];
+      }
+      global.targetingMap[targetId].push(creep);
+      global.targetingCounts[targetId] = (global.targetingCounts[targetId] || 0) + 1;
+    }
+  });
+};
+
+// ============================================================================
 // Main Game Loop
 // ============================================================================
 
 module.exports.loop = function () {
-  // Garbage collection
-  clearCreepsMemory();
-  clearStaleRoomMemory();
-  pruneCreepLosses();
+  // Garbage collection (throttled to every 100 ticks for CPU efficiency)
+  if (Game.time % 100 === 0) {
+    clearCreepsMemory();
+    clearStaleRoomMemory();
+    pruneCreepLosses();
+  }
+  
+  // Build global targeting map once per tick
+  buildTargetingMap();
 
   // Process each owned room
   Object.values(Game.rooms)
     .filter((room) => room.controller && room.controller.my)
     .forEach((room) => {
       try {
+        // Initialize room cache for this tick
+        initializeRoomCache(room);
+        
         // Update system and creep statistics
         stats.updateSystemStats(room.name);
         stats.updateCreepStats(room.name);
