@@ -24,6 +24,7 @@ const {
   clearCreepAction,
 } = require("./creep.effects");
 const { hasActiveLinkNetwork, getLinkNearPosition } = require("./linkManager");
+const { clear } = require("./errorTracker");
 
 // ============================================================================
 // Action Handlers - Composed Effectful Functions
@@ -120,8 +121,12 @@ const handleGathering = (creep) => {
       const workParts = creep.body.filter((p) => p.type === WORK).length;
       const harvestAmount = workParts * 2; // Each WORK part harvests 2 energy per tick
       stats.recordHarvest(creep.room.name, source.id, harvestAmount);
+    } else if (result === ERR_NO_BODYPART) {
+      clearCreepAction(creep);
     } else {
-      console.log("Error harvesting from source:", result);
+      console.log(
+        `Error harvesting from source ${source.id} for creep ${creep.name} - Room ${creep.room.name}: ${result}`,
+      );
       clearCreepAction(creep);
     }
   }
