@@ -23,10 +23,7 @@ const {
   setCreepAction,
   clearCreepAction,
 } = require("./creep.effects");
-const {
-  hasActiveLinkNetwork,
-  getLinkNearPosition,
-} = require("./linkManager");
+const { hasActiveLinkNetwork, getLinkNearPosition } = require("./linkManager");
 
 // ============================================================================
 // Action Handlers - Composed Effectful Functions
@@ -43,7 +40,7 @@ const handleGathering = (creep) => {
     clearCreepAction(creep);
     return;
   }
-  
+
   const { actionTarget } = creep.memory;
   if (!actionTarget) {
     // No target set, find one and set it
@@ -57,6 +54,9 @@ const handleGathering = (creep) => {
     return;
   }
 
+  if (actionTarget.isFlag) {
+    moveToTarget(creep, actionTarget, PATH_COLORS.gathering);
+  }
   const source = Game.getObjectById(actionTarget.id);
 
   // Source no longer exists (shouldn't happen with sources, but handle gracefully)
@@ -110,7 +110,7 @@ const handleGathering = (creep) => {
       moveToTarget(creep, source, PATH_COLORS.gathering);
     } else if (result === OK) {
       // Track harvested energy (estimate based on WORK parts)
-      const workParts = creep.body.filter(p => p.type === WORK).length;
+      const workParts = creep.body.filter((p) => p.type === WORK).length;
       const harvestAmount = workParts * 2; // Each WORK part harvests 2 energy per tick
       stats.recordHarvest(creep.room.name, source.id, harvestAmount);
     }
@@ -128,7 +128,7 @@ const handleBuilding = (creep) => {
     clearCreepAction(creep);
     return;
   }
-  
+
   const { actionTarget } = creep.memory;
   if (!actionTarget) {
     clearCreepAction(creep);
@@ -145,7 +145,7 @@ const handleBuilding = (creep) => {
       moveToTarget(creep, target, PATH_COLORS.building);
     } else if (result === OK) {
       // Track construction work (estimate based on WORK parts)
-      const workParts = creep.body.filter(p => p.type === WORK).length;
+      const workParts = creep.body.filter((p) => p.type === WORK).length;
       const buildAmount = workParts * 5; // Each WORK part builds 5 energy worth per tick
       stats.recordConstruction(creep.room.name, buildAmount);
     }
@@ -161,7 +161,7 @@ const handleBuilding = (creep) => {
     if (structures.length > 0) {
       console.log(
         `Target construction site ${actionTarget.id} is now a structure. ` +
-        `Creep ${creep.name} will switch to repairing it.`,
+          `Creep ${creep.name} will switch to repairing it.`,
       );
       setCreepAction(creep, "repairing", {
         id: structures[0].id,
@@ -176,7 +176,7 @@ const handleBuilding = (creep) => {
       if (newTarget) {
         console.log(
           `Target construction site ${actionTarget.id} completed. ` +
-          `Creep ${creep.name} will switch to building new target ${newTarget.id}.`,
+            `Creep ${creep.name} will switch to building new target ${newTarget.id}.`,
         );
         setCreepAction(creep, "building", {
           id: newTarget.id,
@@ -204,7 +204,7 @@ const handleRepairing = (creep) => {
     clearCreepAction(creep);
     return;
   }
-  
+
   const { actionTarget } = creep.memory;
   if (!actionTarget) {
     clearCreepAction(creep);
@@ -220,7 +220,7 @@ const handleRepairing = (creep) => {
       moveToTarget(creep, target, PATH_COLORS.repairing);
     } else if (result === OK) {
       // Track repair work (estimate based on WORK parts)
-      const workParts = creep.body.filter(p => p.type === WORK).length;
+      const workParts = creep.body.filter((p) => p.type === WORK).length;
       const repairAmount = workParts * 100; // Each WORK part repairs 100 hits per tick
       stats.recordRepair(creep.room.name, repairAmount);
     }
@@ -252,14 +252,14 @@ const handleUpgrading = (creep) => {
     clearCreepAction(creep);
     return;
   }
-  
+
   const { controller } = creep.room;
   const result = creep.upgradeController(controller);
   if (result === ERR_NOT_IN_RANGE) {
     moveToTarget(creep, controller, PATH_COLORS.upgrading);
   } else if (result === OK) {
     // Track controller upgrade work (based on WORK parts)
-    const workParts = creep.body.filter(p => p.type === WORK).length;
+    const workParts = creep.body.filter((p) => p.type === WORK).length;
     const upgradeAmount = workParts * 1; // Each WORK part upgrades 1 energy per tick
     stats.recordUpgrade(creep.room.name, upgradeAmount);
   }
@@ -276,7 +276,7 @@ const handleHarvesting = (creep) => {
     clearCreepAction(creep);
     return;
   }
-  
+
   const { room } = creep;
   const { energyAvailable, energyCapacityAvailable } = room;
 
@@ -284,7 +284,7 @@ const handleHarvesting = (creep) => {
   if (energyAvailable >= energyCapacityAvailable) {
     console.log(
       `Energy is full in room ${room.name}. ` +
-      `Creep ${creep.name} will switch to upgrading.`,
+        `Creep ${creep.name} will switch to upgrading.`,
     );
     setCreepAction(creep, "upgrading", null);
     return;
@@ -339,7 +339,7 @@ const handleAttacking = (creep) => {
     clearCreepAction(creep);
     return;
   }
-  
+
   const { actionTarget } = creep.memory;
   if (!actionTarget) {
     clearCreepAction(creep);
@@ -348,7 +348,10 @@ const handleAttacking = (creep) => {
 
   const target = Game.getObjectById(actionTarget.id);
 
-  utils.periodicLogger(`Creep ${creep.name} is attacking target ${actionTarget.id}`, 10);
+  utils.periodicLogger(
+    `Creep ${creep.name} is attacking target ${actionTarget.id}`,
+    10,
+  );
 
   // Target no longer exists - clear action
   if (!target) {
@@ -357,7 +360,9 @@ const handleAttacking = (creep) => {
   }
 
   // Check what attack parts the creep has
-  const hasRangedAttack = creep.body.some((part) => part.type === RANGED_ATTACK);
+  const hasRangedAttack = creep.body.some(
+    (part) => part.type === RANGED_ATTACK,
+  );
   const hasMeleeAttack = creep.body.some((part) => part.type === ATTACK);
   const range = creep.pos.getRangeTo(target);
 
@@ -367,7 +372,9 @@ const handleAttacking = (creep) => {
   if (hasRangedAttack && range <= 3) {
     // Use ranged attack if in range (1-3 tiles)
     attackResult = creep.rangedAttack(target);
-    console.log(`Attack result for ${creep.name} on target ${target.id}: ${attackResult}`);
+    console.log(
+      `Attack result for ${creep.name} on target ${target.id}: ${attackResult}`,
+    );
   } else if (hasMeleeAttack && range === 1) {
     // Use melee attack if adjacent
     attackResult = creep.attack(target);
@@ -397,7 +404,7 @@ const handleTransporting = (creep) => {
     clearCreepAction(creep);
     return;
   }
-  
+
   const { room } = creep;
   const { actionTarget } = creep.memory;
 
@@ -434,7 +441,7 @@ const handleMining = (creep) => {
     clearCreepAction(creep);
     return;
   }
-  
+
   const { assignedSource } = creep.memory;
 
   // Get assigned source from memory or find nearest
@@ -465,7 +472,7 @@ const handleMining = (creep) => {
     moveToTarget(creep, source, PATH_COLORS.mining);
   } else if (result === OK) {
     // Track mined energy (based on WORK parts)
-    const workParts = creep.body.filter(p => p.type === WORK).length;
+    const workParts = creep.body.filter((p) => p.type === WORK).length;
     const harvestAmount = workParts * 2; // Each WORK part harvests 2 energy per tick
     stats.recordHarvest(creep.room.name, source.id, harvestAmount);
 
@@ -519,7 +526,7 @@ const handleHauling = (creep) => {
     clearCreepAction(creep);
     return;
   }
-  
+
   // If creep is full, switch to delivering
   if (creep.store.getFreeCapacity() === 0) {
     clearCreepAction(creep);
@@ -532,7 +539,9 @@ const handleHauling = (creep) => {
   if (!actionTarget) {
     // Priority 1: Dropped energy (before it decays)
     const droppedEnergy = creep.room.find(FIND_DROPPED_RESOURCES, {
-      filter: (r) => r.resourceType === RESOURCE_ENERGY && r.amount > CONFIG.ENERGY.CONTAINER.MIN_DROPPED_RESOURCE,
+      filter: (r) =>
+        r.resourceType === RESOURCE_ENERGY &&
+        r.amount > CONFIG.ENERGY.CONTAINER.MIN_DROPPED_RESOURCE,
     });
 
     if (droppedEnergy.length > 0) {
@@ -582,7 +591,9 @@ const handleHauling = (creep) => {
 
     // Priority 4: Dropped minerals (RCL 6+)
     const droppedMinerals = creep.room.find(FIND_DROPPED_RESOURCES, {
-      filter: (r) => r.resourceType !== RESOURCE_ENERGY && r.amount > CONFIG.ENERGY.CONTAINER.MIN_DROPPED_RESOURCE,
+      filter: (r) =>
+        r.resourceType !== RESOURCE_ENERGY &&
+        r.amount > CONFIG.ENERGY.CONTAINER.MIN_DROPPED_RESOURCE,
     });
 
     if (droppedMinerals.length > 0) {
@@ -615,7 +626,10 @@ const handleHauling = (creep) => {
       // Find which mineral type to haul
       let mineralType = null;
       for (const resourceType in container.store) {
-        if (resourceType !== RESOURCE_ENERGY && container.store[resourceType] > 0) {
+        if (
+          resourceType !== RESOURCE_ENERGY &&
+          container.store[resourceType] > 0
+        ) {
           mineralType = resourceType;
           break;
         }
@@ -672,7 +686,7 @@ const handleDeconstructing = (creep) => {
     clearCreepAction(creep);
     return;
   }
-  
+
   const { actionTarget } = creep.memory;
   if (!actionTarget) {
     clearCreepAction(creep);
@@ -685,7 +699,7 @@ const handleDeconstructing = (creep) => {
   if (!target) {
     console.log(
       `Deconstruction target ${actionTarget.id} no longer exists. ` +
-      `Creep ${creep.name} completed deconstruction.`,
+        `Creep ${creep.name} completed deconstruction.`,
     );
     clearCreepAction(creep);
     return;
@@ -700,7 +714,7 @@ const handleDeconstructing = (creep) => {
   } else {
     console.log(
       `Creep ${creep.name} failed to deconstruct ${target.structureType} ` +
-      `at ${target.pos}: error ${result}`,
+        `at ${target.pos}: error ${result}`,
     );
     clearCreepAction(creep);
   }
@@ -717,7 +731,7 @@ const handleDelivering = (creep) => {
     clearCreepAction(creep);
     return;
   }
-  
+
   const { room } = creep;
 
   // If creep is empty, switch back to hauling
@@ -732,49 +746,61 @@ const handleDelivering = (creep) => {
   if (!actionTarget) {
     // Use cached structures to avoid redundant find() calls
     const cache = global.roomCache[room.name];
-    const allStructures = cache ? cache.allStructures : room.find(FIND_STRUCTURES);
-    
+    const allStructures = cache
+      ? cache.allStructures
+      : room.find(FIND_STRUCTURES);
+
     // Check if room is in energy priority mode
     const roomMemory = Memory.rooms && Memory.rooms[room.name];
     const energyPriorityMode = roomMemory && roomMemory.energyPriorityMode;
-    
+
     let targets = [];
-    
+
     if (energyPriorityMode) {
       // PRIORITY MODE: Only deliver to spawns and extensions (critical for spawning)
       // Exception: Also fill towers below minimum energy threshold
-      const minTowerEnergy = CONFIG.ENERGY.PRIORITY_MODE.MIN_TOWER_ENERGY_PERCENT;
-      
+      const minTowerEnergy =
+        CONFIG.ENERGY.PRIORITY_MODE.MIN_TOWER_ENERGY_PERCENT;
+
       // Priority 1: Spawns
-      targets = allStructures.filter(s =>
-        s.structureType === STRUCTURE_SPAWN &&
-        s.store.getFreeCapacity(RESOURCE_ENERGY) > 0
+      targets = allStructures.filter(
+        (s) =>
+          s.structureType === STRUCTURE_SPAWN &&
+          s.store.getFreeCapacity(RESOURCE_ENERGY) > 0,
       );
-      
+
       // Priority 2: Towers below minimum threshold (critical for defense)
       if (targets.length === 0) {
-        targets = allStructures.filter(s =>
-          s.structureType === STRUCTURE_TOWER &&
-          s.store.getFreeCapacity(RESOURCE_ENERGY) > 0 &&
-          s.store[RESOURCE_ENERGY] < s.store.getCapacity(RESOURCE_ENERGY) * minTowerEnergy
+        targets = allStructures.filter(
+          (s) =>
+            s.structureType === STRUCTURE_TOWER &&
+            s.store.getFreeCapacity(RESOURCE_ENERGY) > 0 &&
+            s.store[RESOURCE_ENERGY] <
+              s.store.getCapacity(RESOURCE_ENERGY) * minTowerEnergy,
         );
       }
-      
+
       // Priority 3: Extensions
       if (targets.length === 0) {
-        targets = allStructures.filter(s =>
-          s.structureType === STRUCTURE_EXTENSION &&
-          s.store.getFreeCapacity(RESOURCE_ENERGY) > 0
+        targets = allStructures.filter(
+          (s) =>
+            s.structureType === STRUCTURE_EXTENSION &&
+            s.store.getFreeCapacity(RESOURCE_ENERGY) > 0,
         );
       }
     } else {
       // NORMAL MODE: Standard priority order
       // Priority 0: Nearby link with energy (2-hop optimization: link → hauler → spawn)
       if (hasActiveLinkNetwork(room)) {
-        const nearbyLink = getLinkNearPosition(room, creep.pos, CONFIG.ENERGY.LINK.STORAGE_RANGE);
+        const nearbyLink = getLinkNearPosition(
+          room,
+          creep.pos,
+          CONFIG.ENERGY.LINK.STORAGE_RANGE,
+        );
         if (
           nearbyLink &&
-          nearbyLink.store[RESOURCE_ENERGY] >= CONFIG.ENERGY.LINK.MIN_TRANSFER_AMOUNT &&
+          nearbyLink.store[RESOURCE_ENERGY] >=
+            CONFIG.ENERGY.LINK.MIN_TRANSFER_AMOUNT &&
           creep.store.getFreeCapacity(RESOURCE_ENERGY) > 0
         ) {
           setCreepAction(creep, "delivering", {
@@ -786,49 +812,56 @@ const handleDelivering = (creep) => {
       }
 
       // Priority 1: Spawns
-      targets = allStructures.filter(s =>
-        s.structureType === STRUCTURE_SPAWN &&
-        s.store.getFreeCapacity(RESOURCE_ENERGY) > 0
+      targets = allStructures.filter(
+        (s) =>
+          s.structureType === STRUCTURE_SPAWN &&
+          s.store.getFreeCapacity(RESOURCE_ENERGY) > 0,
       );
 
       // Priority 2: Towers (only if below 80% capacity)
       if (targets.length === 0) {
-        targets = allStructures.filter(s =>
-          s.structureType === STRUCTURE_TOWER &&
-          s.store.getFreeCapacity(RESOURCE_ENERGY) > 0 &&
-          s.store[RESOURCE_ENERGY] < s.store.getCapacity(RESOURCE_ENERGY) * 0.8
+        targets = allStructures.filter(
+          (s) =>
+            s.structureType === STRUCTURE_TOWER &&
+            s.store.getFreeCapacity(RESOURCE_ENERGY) > 0 &&
+            s.store[RESOURCE_ENERGY] <
+              s.store.getCapacity(RESOURCE_ENERGY) * 0.8,
         );
       }
 
       // Priority 3: Extensions
       if (targets.length === 0) {
-        targets = allStructures.filter(s =>
-          s.structureType === STRUCTURE_EXTENSION &&
-          s.store.getFreeCapacity(RESOURCE_ENERGY) > 0
+        targets = allStructures.filter(
+          (s) =>
+            s.structureType === STRUCTURE_EXTENSION &&
+            s.store.getFreeCapacity(RESOURCE_ENERGY) > 0,
         );
       }
-      
+
       // Priority 4: Towers (any capacity)
       if (targets.length === 0) {
-        targets = allStructures.filter(s =>
-          s.structureType === STRUCTURE_TOWER &&
-          s.store.getFreeCapacity(RESOURCE_ENERGY) > 0
+        targets = allStructures.filter(
+          (s) =>
+            s.structureType === STRUCTURE_TOWER &&
+            s.store.getFreeCapacity(RESOURCE_ENERGY) > 0,
         );
       }
 
       // Priority 5: Storage
       if (targets.length === 0) {
-        targets = allStructures.filter(s =>
-          s.structureType === STRUCTURE_STORAGE &&
-          s.store.getFreeCapacity(RESOURCE_ENERGY) > 0
+        targets = allStructures.filter(
+          (s) =>
+            s.structureType === STRUCTURE_STORAGE &&
+            s.store.getFreeCapacity(RESOURCE_ENERGY) > 0,
         );
       }
 
       // Priority 6: Containers (when spawns/extensions are full)
       if (targets.length === 0) {
-        targets = allStructures.filter(s =>
-          s.structureType === STRUCTURE_CONTAINER &&
-          s.store.getFreeCapacity(RESOURCE_ENERGY) > 0
+        targets = allStructures.filter(
+          (s) =>
+            s.structureType === STRUCTURE_CONTAINER &&
+            s.store.getFreeCapacity(RESOURCE_ENERGY) > 0,
         );
       }
     }
@@ -898,7 +931,7 @@ const handleHealing = (creep) => {
     clearCreepAction(creep);
     return;
   }
-  
+
   const { actionTarget } = creep.memory;
   if (!actionTarget) {
     clearCreepAction(creep);
@@ -914,10 +947,10 @@ const handleHealing = (creep) => {
   }
 
   const range = creep.pos.getRangeTo(target);
-  
+
   // Try to heal - can heal at range 1 (heal) or up to range 3 (rangedHeal)
   let healResult = ERR_NOT_IN_RANGE;
-  
+
   if (range === 1) {
     // Use heal (more powerful) if adjacent
     healResult = creep.heal(target);
@@ -948,7 +981,7 @@ const handleRangingAttack = (creep) => {
     clearCreepAction(creep);
     return;
   }
-  
+
   const { actionTarget } = creep.memory;
   if (!actionTarget) {
     clearCreepAction(creep);
@@ -957,7 +990,10 @@ const handleRangingAttack = (creep) => {
 
   const target = Game.getObjectById(actionTarget.id);
 
-  utils.periodicLogger(`Creep ${creep.name} is ranging attack on target ${actionTarget.id}`, 10);
+  utils.periodicLogger(
+    `Creep ${creep.name} is ranging attack on target ${actionTarget.id}`,
+    10,
+  );
 
   // Target no longer exists - clear action
   if (!target) {
@@ -966,8 +1002,10 @@ const handleRangingAttack = (creep) => {
   }
 
   const range = creep.pos.getRangeTo(target);
-  const hasRangedAttack = creep.body.some((part) => part.type === RANGED_ATTACK);
-  
+  const hasRangedAttack = creep.body.some(
+    (part) => part.type === RANGED_ATTACK,
+  );
+
   if (!hasRangedAttack) {
     clearCreepAction(creep);
     return;
@@ -975,7 +1013,7 @@ const handleRangingAttack = (creep) => {
 
   // Perform ranged attack if in range (1-3 tiles)
   let attackResult = ERR_NOT_IN_RANGE;
-  
+
   if (range <= 3) {
     attackResult = creep.rangedAttack(target);
   }
@@ -983,8 +1021,9 @@ const handleRangingAttack = (creep) => {
   // If attack was successful, we're done
   if (attackResult === OK) {
     // Maintain optimal range (3 tiles for safety, or use configured range)
-    const optimalRange = CONFIG.OFFENSIVE.FIGHTER_CLASSES.SHOOTER.OPTIMAL_RANGE || 3;
-    
+    const optimalRange =
+      CONFIG.OFFENSIVE.FIGHTER_CLASSES.SHOOTER.OPTIMAL_RANGE || 3;
+
     if (range < optimalRange) {
       // Too close - kite away
       const direction = target.pos.getDirectionTo(creep.pos);

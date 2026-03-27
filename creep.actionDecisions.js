@@ -192,7 +192,7 @@ const selectGatheringTarget = (creep) => {
     return null;
   }
 
-  return { id: bestSource.id, pos: bestSource.pos };
+  return { id: bestSource.id, pos: bestSource.pos, isFlag: !!bestSource.isFlag };
 };
 
 /**
