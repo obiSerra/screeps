@@ -54,8 +54,15 @@ const handleGathering = (creep) => {
     return;
   }
 
-  if (actionTarget.isFlag) {
+  if (actionTarget.isFlag && creep.pos.roomName !== actionTarget.pos.roomName) {
     moveToTarget(creep, actionTarget, PATH_COLORS.gathering);
+    return;
+  } else if (
+    actionTarget.isFlag &&
+    creep.pos.roomName === actionTarget.pos.roomName
+  ) {
+    clearCreepAction(creep);
+    return;
   }
   const source = Game.getObjectById(actionTarget.id);
 
@@ -113,6 +120,9 @@ const handleGathering = (creep) => {
       const workParts = creep.body.filter((p) => p.type === WORK).length;
       const harvestAmount = workParts * 2; // Each WORK part harvests 2 energy per tick
       stats.recordHarvest(creep.room.name, source.id, harvestAmount);
+    } else {
+      console.log("Error harvesting from source:", result);
+      clearCreepAction(creep);
     }
   }
 };

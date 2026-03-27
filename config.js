@@ -113,8 +113,8 @@ const CONFIG = {
             HARVESTERS: 2,
             // MINERS: sourceCount (dynamic)
             HAULER_OFFSET: 1,                   // sourceCount + 1
-            BUILDERS: 2,
-            UPGRADERS: 2
+            BUILDERS: 1,
+            UPGRADERS: 1
         },
         RCL_6_7: {
             // MINERS: sourceCount (dynamic)
@@ -182,8 +182,8 @@ const CONFIG = {
 
         // Energy fill priority mode
         PRIORITY_MODE: {
-            CRITICAL_TIME_TO_FILL_CAPACITY: 75,  // Activate priority mode if time to fill > this (ticks)
-            HARVESTER_BOOST: 2,                  // Additional harvesters to spawn in priority mode
+            CRITICAL_TIME_TO_FILL_CAPACITY: 100,  // Activate priority mode if time to fill > this (ticks)
+            HARVESTER_BOOST: 0,                  // Additional harvesters to spawn in priority mode
             MIN_TOWER_ENERGY_PERCENT: 0.10       // Minimum tower energy (10%) even in priority mode
         }
     },
@@ -320,12 +320,12 @@ const CONFIG = {
         // Fighter composition ratios per RCL (percentages, must sum to 1.0)
         // Format: { fodder: 0.5, invader: 0.3, healer: 0.1, shooter: 0.1 }
         FIGHTER_RATIOS: {
-            1: { fodder: 0.8, invader: 0.2, healer: 0.0, shooter: 0.0 },    // Early: cheap fodder only
-            2: { fodder: 0.8, invader: 0.2, healer: 0.0, shooter: 0.0 },
-            3: { fodder: 0.7, invader: 0.3, healer: 0.0, shooter: 0.0 },
-            4: { fodder: 0.6, invader: 0.3, healer: 0.05, shooter: 0.05 },  // Mid: introduce support
+            1: { fodder: 0.0, invader: 0.0, healer: 0.0, shooter: 0.0 },    // Early: cheap fodder only
+            2: { fodder: 0.0, invader: 0.0, healer: 0.0, shooter: 0.0 },
+            3: { fodder: 0.0, invader: 0.0, healer: 0.0, shooter: 0.0 },
+            4: { fodder: 0.0, invader: 0.0, healer: 0.0, shooter: 0.0 },  // Mid: introduce support
             5: { fodder: 0.5, invader: 0.3, healer: 0.1, shooter: 0.1 },
-            6: { fodder: 0.4, invader: 0.35, healer: 0.15, shooter: 0.1 },  // Late: balanced composition
+            6: { fodder: 0.0, invader: 0.0, healer: 0.0, shooter: 1 },  // Late: balanced composition
             7: { fodder: 0.3, invader: 0.4, healer: 0.15, shooter: 0.15 },
             8: { fodder: 0.25, invader: 0.4, healer: 0.2, shooter: 0.15 }   // End: strong invaders + support
         }
