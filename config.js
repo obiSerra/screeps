@@ -85,6 +85,17 @@ const CONFIG = {
             EXPLORER_MIN_ENERGY: 800            // Min for [CLAIM, RANGED_ATTACK, MOVE]
         },
 
+        // RCL-based roster scaling multipliers (reduces creep count, compensated by larger bodies)
+        // Exempt: harvesters, miners (source-bound roles)
+        ROSTER_SCALING: {
+            6: 0.8,     // RCL 6: 80% of base roster counts
+            7: 0.6,     // RCL 7: 60% of base roster counts
+            8: 0.4      // RCL 8: 40% of base roster counts
+        },
+
+        // RCL 8 controller upgrade energy cap (energy/tick)
+        UPGRADER_CAP_WORK_PARTS: 15,
+
         // Fighter/Combat (deprecated - see FIGHTER_CLASSES in COMBAT section)
         FIGHTER: {
             MAX_ATTACK_PARTS: 2,

@@ -1,6 +1,6 @@
 # CPU Optimization Plan for Screeps Project
 
-**Status**: Phase 2 (Infrastructure Manager Optimizations) **IMPLEMENTED** ✅  
+**Status**: Phase 3 (High RCL Creep Count Reduction) **IMPLEMENTED** ✅  
 **Estimated Total Savings**: 60-85% CPU reduction from baseline  
 **Implementation Date**: 2026-03-29  
 
@@ -10,7 +10,7 @@
 
 This plan addresses critical CPU bottlenecks in the Screeps bot through memory caching, reducing redundant room scans, optimizing creep counts at high RCL, and implementing periodic execution for non-critical operations. The optimizations are organized into 5 independent phases for iterative implementation.
 
-**Current Progress**: Phase 1 + Phase 2 complete (est. -33 to -44 CPU/tick total savings)
+**Current Progress**: Phase 1 + Phase 2 + Phase 3 complete (est. -43 to -64 CPU/tick total savings)
 
 ---
 
@@ -197,34 +197,58 @@ This plan addresses critical CPU bottlenecks in the Screeps bot through memory c
 
 ---
 
-## Phase 3: High RCL Creep Count Reduction (NOT YET IMPLEMENTED)
+## Phase 3: High RCL Creep Count Reduction ✅ IMPLEMENTED
 
 **Goal**: Spawn fewer, larger creeps at RCL 6-8 to reduce per-creep CPU overhead  
 **Est. Savings**: -10 to -20 CPU/tick  
-**Status**: ⏳ Planned
+**Status**: ✅ Complete
+**Implementation Date**: 2026-03-29
 
-### Step 1: Add RCL-Based Roster Scaling to Config
-**File**: [config.js](config.js), [spawnerRoster.js](spawnerRoster.js)
-- Add `CONFIG.SPAWNING.ROSTER_SCALING = {6: 0.8, 7: 0.6, 8: 0.4}`
-- Apply multiplier in `findBestRoleToSpawn()`
-- At RCL 8: spawn 40% of base roster (compensated by larger bodies)
+### Implemented Changes
 
-### Step 2: Implement Controller Upgrade Cap Awareness
-**Files**: [spawnerRoster.js](spawnerRoster.js), [spawner.js](spawner.js)
-- Calculate total WORK parts across all upgraders
-- If `totalWorkParts * 1 >= 15`, skip spawning additional upgraders
-- RCL 8 controller cap is 15 energy/tick
+#### 1. RCL-Based Roster Scaling Config ✅
+**File**: [config.js](config.js)
+- Added `CONFIG.SPAWNING.ROSTER_SCALING = {6: 0.8, 7: 0.6, 8: 0.4}` to `SPAWNING` section
+- Added `CONFIG.SPAWNING.UPGRADER_CAP_WORK_PARTS = 15` for the RCL 8 upgrade cap constant
 
-### Step 3: Verify Body Sizes Scale Proportionally
+**Benefits**:
+- Single config location for all scaling tuning
+- Easy to adjust per-RCL multipliers independently
+
+#### 2. Roster Scaling Applied in calculateRoster ✅
+**File**: [roomOrchestrator.js](roomOrchestrator.js)
+- In the RCL 6-7 block: applies `ROSTER_SCALING[rcl]` to hauler, builder, upgrader — minimum 1 each
+- In the RCL 8 block: applies `ROSTER_SCALING[8]` (0.4×) to hauler, builder, upgrader, mineralExtractor, chemist
+- Harvesters and miners are exempt (source-bound roles, can't be reduced without losing throughput)
+- At RCL 8 with base `{hauler: 6, builder: 2, upgrader: 4}`: scales to `{hauler: 3, builder: 1, upgrader: 2}` (compensated by 2.5× body size from `RCL_MULTIPLIERS`)
+
+**Benefits**:
+- RCL 8: ~20-30 creeps → ~10-15 creeps target
+- Each non-harvester/miner creep is 2-2.5× larger, maintaining throughput
+- Saves 10-20 CPU/tick from reduced per-creep processing overhead
+
+#### 3. Controller Upgrade Cap Awareness ✅
+**Files**: [spawnerRoster.js](spawnerRoster.js), [roomOrchestrator.js](roomOrchestrator.js)
+- Added `getUpgraderWorkPartCount(roomName)` to `spawnerRoster.js`: counts total WORK parts of all upgraders for a room in O(n) using `game.creeps`
+- In `calculateRoster` at RCL 8: if `currentWorkParts >= 15`, cap `roster.upgrader` to the count of currently living upgraders (maintain, don't grow)
+- Prevents wasteful spawning when the game's energy delivery to the controller is already at cap
+
+**Benefits**:
+- Eliminates redundant upgraders at RCL 8 that would waste actions
+- A single max-sized upgrader (4-5 WORK sets = 16-20 WORK parts) hits the cap alone
+- Frees spawn time and CPU for other roles
+
+#### 4. Body Size Validation ✅
 **File**: [spawnerBodyUtils.js](spawnerBodyUtils.js)
-- Confirm hauler max sets = 16 at RCL 8 (currently correct)
-- Confirm upgrader bodies use [WORK×15, ...] at RCL 8 (currently correct)
-- Already implemented, just validation needed
+- Hauler max sets = 16 at RCL 8: `MAX_HAULER_SETS_LATE = 16` → 16 × 3 = 48 parts ✅
+- RCL 8 upgrader body: `[WORK×4, CARRY×2, MOVE×3]` per set — at 3300 energy cap, maxAffordable ≈ 4 sets (36 parts, 16 WORK) — upgrade cap check prevents over-spawning ✅
+- RCL multiplier 2.5× correctly scales bodies at RCL 8 ✅
 
-### Step 4: Adjust Priority Mode for Roster Scaling
-**File**: [spawner.js](spawner.js), [roomOrchestrator.js](roomOrchestrator.js)
-- Keep emergency +2 harvesters override
-- Apply roster scaling to other roles even in priority mode
+#### 5. Priority Mode Compatibility ✅
+**Files**: [spawnerHelpers.js](spawnerHelpers.js), [roomOrchestrator.js](roomOrchestrator.js)
+- `checkEnergyPriorityHarvester` spawns harvesters beyond the roster during energy shortfalls — unaffected since harvesters are exempt from scaling
+- Roster scaling applies in all modes (scaling happens in `calculateRoster`, not inside priority checks)
+- Emergency minimum fleet (`checkMinimumFleetPriority`) also unaffected — it's a hard floor below roster level
 
 **Expected Result**: RCL 8 rooms drop from 20-30 creeps to 10-15 creeps, maintaining same throughput
 
@@ -321,7 +345,9 @@ console.log(`Room ${room.name} CPU: ${(cpuAfter - cpuBefore).toFixed(2)}`);
 ✅ Tower defense responds to hostiles  
 ✅ Repairing continues for damaged structures  
 ✅ Upgrading continues at expected rate  
-❓ RCL 8 testing: Monitor 1000 ticks with reduced creep count  
+❓ RCL 8 testing: Monitor 1000 ticks with reduced creep count (target: 10-15 creeps vs 20-30)  
+❓ RCL 6-7 testing: Verify scaled roster maintains throughput with larger bodies  
+❓ Upgrade cap: Verify single maxed upgrader (16 WORK) correctly blocks additional spawns  
 ❓ Worst-case testing: 30+ construction sites, 50+ creeps  
 
 ### Expected Results by Phase
@@ -331,7 +357,7 @@ console.log(`Room ${room.name} CPU: ${(cpuAfter - cpuBefore).toFixed(2)}`);
 | Baseline | 120-200 | - | - | 20-30 |
 | Phase 1 ✅ | 120-200 | 80-160 | -30 to -40 | 20-30 |
 | Phase 2 ✅ | 80-160 | 77-156 | -3 to -4 | 20-30 |
-| Phase 3 | 77-156 | 67-136 | -10 to -20 | 10-15 |
+| Phase 3 ✅ | 77-156 | 67-136 | -10 to -20 | 10-15 |
 | Phase 4 | 67-136 | 62-128 | -5 to -8 | 10-15 |
 | Phase 5 | 62-128 | 60-123 | -2 to -5 | 10-15 |
 | **TOTAL** | **120-200** | **20-30** | **-60 to -85%** | **-50% creeps** |
@@ -455,11 +481,14 @@ if (Game.time % interval !== 0) return;
 - [spawnerCore.js](spawnerCore.js) — Register creeps to boost queue on spawn (10 lines added)
 - [terminalManager.js](terminalManager.js) — 5-tick TTL market order cache (35 lines added)
 
-### Files to Modify (Phases 3-5)
-- [spawnerRoster.js](spawnerRoster.js) — RCL roster scaling
+### Modified Files (Phase 3 ✅)
+- [config.js](config.js) — `ROSTER_SCALING` multipliers (6: 0.8, 7: 0.6, 8: 0.4) and `UPGRADER_CAP_WORK_PARTS: 15` added to `SPAWNING` (8 lines added)
+- [spawnerRoster.js](spawnerRoster.js) — `getUpgraderWorkPartCount(roomName)` helper added and exported (15 lines added)
+- [roomOrchestrator.js](roomOrchestrator.js) — Roster scaling applied in `calculateRoster` for RCL 6-8; upgrade cap check at RCL 8; added `getUpgraderWorkPartCount` import (35 lines modified)
+
+### Files to Modify (Phases 4-5)
 - [spawnerBodyUtils.js](spawnerBodyUtils.js) — Cached efficiency tier
 - [stats.js](stats.js) — Efficiency metrics caching
-- [config.js](config.js) — ROSTER_SCALING constant
 - [role.mineralExtractor.js](role.mineralExtractor.js) — Mineral caching
 
 ---
@@ -481,6 +510,6 @@ if (Game.time % interval !== 0) return;
 
 ---
 
-**Document Version**: 1.0  
-**Last Updated**: 2026-03-27  
-**Next Review**: After Phase 2 implementation
+**Document Version**: 1.2  
+**Last Updated**: 2026-03-29  
+**Next Review**: After Phase 4 implementation

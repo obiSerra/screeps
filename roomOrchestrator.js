@@ -21,6 +21,7 @@ const roleExplorer = require("./role.explorer");
 const roleMineralExtractor = require("./role.mineralExtractor");
 const roleChemist = require("./role.chemist");
 const roleDefender = require("./role.defender");
+const { getUpgraderWorkPartCount } = require("./spawnerRoster");
 
 // ============================================================================
 // Room Mode Management
@@ -197,6 +198,17 @@ const calculateRoster = (roomStatus, efficiencyMetrics = null) => {
     // TODO - Optimize later
     // roster.mineralExtractor = CONFIG.ROSTERS.RCL_6_7.MINERAL_EXTRACTORS;          // Mine minerals
     // roster.chemist = CONFIG.ROSTERS.RCL_6_7.CHEMISTS;                   // Lab logistics
+
+    // Apply RCL-based roster scaling (RCL 6: 0.8x, RCL 7: 0.6x)
+    const scalingMultiplier = CONFIG.SPAWNING.ROSTER_SCALING[rcl];
+    if (scalingMultiplier) {
+      const scalableRoles = ['hauler', 'builder', 'upgrader'];
+      for (const role of scalableRoles) {
+        if (roster[role] !== undefined) {
+          roster[role] = Math.max(1, Math.ceil(roster[role] * scalingMultiplier));
+        }
+      }
+    }
     return roster;
   }
   
@@ -207,7 +219,32 @@ const calculateRoster = (roomStatus, efficiencyMetrics = null) => {
   roster.upgrader = CONFIG.ROSTERS.RCL_8.UPGRADERS;
   roster.mineralExtractor = CONFIG.ROSTERS.RCL_8.MINERAL_EXTRACTORS;
   roster.chemist = CONFIG.ROSTERS.RCL_8.CHEMISTS;
-  
+
+  // Apply RCL-based roster scaling to reduce creep count (compensated by larger bodies)
+  // Exempt harvesters and miners — they are source-bound roles
+  const scalingMultiplier = CONFIG.SPAWNING.ROSTER_SCALING[rcl];
+  if (scalingMultiplier) {
+    const scalableRoles = ['hauler', 'builder', 'upgrader', 'mineralExtractor', 'chemist'];
+    for (const role of scalableRoles) {
+      if (roster[role] !== undefined) {
+        roster[role] = Math.max(1, Math.ceil(roster[role] * scalingMultiplier));
+      }
+    }
+  }
+
+  // RCL 8 upgrade cap: controller accepts max 15 energy/tick; cap upgrader count accordingly
+  if (rcl >= 8) {
+    const currentWorkParts = getUpgraderWorkPartCount(roomStatus.roomName);
+    const cap = CONFIG.SPAWNING.UPGRADER_CAP_WORK_PARTS;
+    if (currentWorkParts >= cap) {
+      // Already at or over cap — maintain current count but don't grow
+      const currentUpgraderCount = Object.values(Game.creeps).filter(
+        c => c.memory.spawnRoom === roomStatus.roomName && c.memory.role === 'upgrader'
+      ).length;
+      roster.upgrader = Math.min(roster.upgrader, currentUpgraderCount);
+    }
+  }
+
   console.log(`[ROSTER] Calculated roster for room ${roomStatus.roomName} at RCL ${rcl}:`, roster);
   return roster;
 };

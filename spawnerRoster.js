@@ -206,6 +206,21 @@ const findBestRoleToSpawn = (roster, currentCreeps, roomStatus) => {
   return null;
 };
 
+/**
+ * Count total WORK parts across all active upgraders for a room
+ * Pure function - no side effects
+ * Used for RCL 8 upgrade cap awareness (cap = 15 energy/tick = 15 WORK parts)
+ * @param {string} roomName - The room to count upgrader WORK parts for
+ * @returns {number} Total WORK parts across all upgraders in the room
+ */
+const getUpgraderWorkPartCount = (roomName) =>
+  Object.values(Game.creeps).reduce((total, creep) => {
+    if (creep.memory.spawnRoom !== roomName || creep.memory.role !== 'upgrader') {
+      return total;
+    }
+    return total + creep.body.filter(part => part.type === WORK).length;
+  }, 0);
+
 module.exports = {
   countCreepsByRole,
   getRequiredDefenderCount,
@@ -214,4 +229,5 @@ module.exports = {
   parseAttackFlags,
   calculateFighterClassCounts,
   findBestRoleToSpawn,
+  getUpgraderWorkPartCount,
 };
