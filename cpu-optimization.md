@@ -1,8 +1,8 @@
 # CPU Optimization Plan for Screeps Project
 
-**Status**: Phase 1 (Critical Room Scanning Optimizations) **IMPLEMENTED** ✅  
+**Status**: Phase 2 (Infrastructure Manager Optimizations) **IMPLEMENTED** ✅  
 **Estimated Total Savings**: 60-85% CPU reduction from baseline  
-**Implementation Date**: 2026-03-27  
+**Implementation Date**: 2026-03-29  
 
 ---
 
@@ -10,7 +10,7 @@
 
 This plan addresses critical CPU bottlenecks in the Screeps bot through memory caching, reducing redundant room scans, optimizing creep counts at high RCL, and implementing periodic execution for non-critical operations. The optimizations are organized into 5 independent phases for iterative implementation.
 
-**Current Progress**: Phase 1 complete (est. -30 to -40 CPU/tick savings)
+**Current Progress**: Phase 1 + Phase 2 complete (est. -33 to -44 CPU/tick total savings)
 
 ---
 
@@ -113,44 +113,87 @@ This plan addresses critical CPU bottlenecks in the Screeps bot through memory c
 
 ---
 
-## Phase 2: Infrastructure Manager Optimizations (NOT YET IMPLEMENTED)
+## Phase 2: Infrastructure Manager Optimizations ✅ IMPLEMENTED
 
 **Goal**: Cache infrastructure data and reduce per-creep overhead  
 **Est. Savings**: -3 to -4 CPU/tick  
-**Status**: ⏳ Planned
+**Status**: ✅ Complete
+**Implementation Date**: 2026-03-29
 
-### Step 1: Cache Lab Categorization Indefinitely
-**File**: [labManager.js](labManager.js#L315)
-- Store in `Memory.rooms[roomName].labs = {source, reactor, output}`
-- Only recalculate if lab count changes
+### Implemented Changes
+
+#### 1. Link Categorization Cache with 5-tick TTL ✅
+**File**: [linkManager.js](linkManager.js#L14-L78)
+- Added `global.linkCache[roomName]` with 5-tick TTL
+- Stores link IDs (not objects) for proper serialization
+- Uses Phase 1 room cache (`global.roomCache`) when available
+- Converts IDs back to objects via `Game.getObjectById()` with null checks
+- Cache auto-invalidates if links are destroyed
+
+**Benefits**:
+- Eliminates 2-3 `categorizeLinksByType()` calls per tick per room
+- Reuses categorization across `manageLinkNetwork()`, `hasActiveLinkNetwork()`, `getLinkNearPosition()`
 - Saves 0.3-0.4 CPU/tick
 
-### Step 2: Cache Link Positions (5-tick TTL)
-**File**: [linkManager.js](linkManager.js#L170-L177)
-- Store in `global.linkCache[roomName] = {links: [...], tick: Game.time}`
-- Expire if `Game.time - cache.tick > 5`
-- Saves 1.5-2 CPU/tick (called by multiple haulers)
+#### 2. Removed Double find() in manageLinkNetwork ✅
+**File**: [linkManager.js](linkManager.js#L110-L122)
+- Removed standalone `room.find(FIND_MY_STRUCTURES)` for link count check
+- Now uses `categorizeLinksByType()` result (which is cached) for early exit
+- Single call path for link detection
 
-### Step 3: Convert Boost Queue to Memory-Based
-**File**: [labManager.js](labManager.js#L297-L310)
-- Replace `room.find(FIND_MY_CREEPS, {filter: needsBoosting})` with `Memory.rooms[roomName].boostQueue`
-- Creeps add themselves to queue when needed
-- Remove from queue after boosting
-- Saves 0.2-0.5 CPU/tick
+**Benefits**:
+- Eliminates redundant room.find() call every tick
+- Saves 0.2-0.3 CPU/tick per room with links
 
-### Step 4: Remove Double Find in manageLinkNetwork
-**File**: [linkManager.js](linkManager.js#L112-L120)
-- Call `categorizeLinksByType()` once, store result
-- Use cached result for count check
-- Saves 0.4 CPU/tick
+#### 3. Optimized getLinkNearPosition ✅
+**File**: [linkManager.js](linkManager.js#L164-L181)
+- Uses Phase 1 room cache (`global.roomCache[room.name].links`) when available
+- Falls back to room.find() if cache unavailable
+- Filters cached links by range instead of find+filter
 
-### Step 5: Cache Market Orders (5-tick TTL)
-**File**: [terminalManager.js](terminalManager.js#L35-L54)
-- Store in `global.marketCache[resourceType] = {orders: [...], tick: Game.time}`
-- Expire if `Game.time - cache.tick > 5`
-- Saves 0.5-0.75 CPU per trading cycle (every 10 ticks)
+**Benefits**:
+- Called by miners and upgraders every tick
+- Eliminates 1-2 room.find() calls per tick
+- Saves 0.1-0.2 CPU/tick
 
-**Implementation Order**: Steps 1, 2, 3 (easy wins), then 4, 5 (medium complexity)
+#### 4. Lab Categorization Cache (Indefinite) ✅
+**File**: [labManager.js](labManager.js#L76-L139)
+- Stores lab categorization in `Memory.rooms[roomName].labCategories`
+- Structure: `{ labCount, inputLabIds, outputLabIds, boostLabIds, allLabIds }`
+- Only recalculates when lab count changes
+- Converts IDs back to objects with null filtering (handles destroyed labs)
+- Uses Phase 1 room cache when available
+
+**Benefits**:
+- Labs don't change position, so cache is ~permanent
+- Called 3x per tick (in `assignLabsForReaction`, `handleBoosting`, `manageLabsystem`)
+- Eliminates 3 room.find() calls per tick
+- Saves 0.3-0.4 CPU/tick
+
+#### 5. Memory-Based Boost Queue ✅
+**Files**: [labManager.js](labManager.js#L290-L373), [spawnerCore.js](spawnerCore.js#L30-L56)
+- Added `Memory.rooms[roomName].boostQueue` map: `{ creepName: boostTypes }`
+- **spawnerCore.js**: Registers creeps with `needsBoosting` to queue on spawn
+- **labManager.js**: Reads queue instead of `room.find(FIND_MY_CREEPS, {filter: needsBoosting})`
+- Auto-cleanup: removes dead creeps and fully-boosted creeps from queue
+
+**Benefits**:
+- Eliminates O(n) creep scan for boost candidates
+- Queue is typically empty or has 1-2 entries (vs scanning 30+ creeps)
+- Saves 0.1-0.2 CPU/tick
+
+#### 6. Market Order Cache with 5-tick TTL ✅
+**File**: [terminalManager.js](terminalManager.js#L43-L73)
+- Added `getCachedMarketOrders(resourceType, orderType)` helper
+- Stores in `global.marketCache[resourceType_orderType] = { orders, tick }`
+- 5-tick TTL balances freshness vs CPU cost
+- Used by both `getBestBuyOrder()` and `getBestSellOrder()`
+
+**Benefits**:
+- `Game.market.getAllOrders()` is expensive API call
+- Called 2-5x per trading cycle per resource type
+- With 5-tick cache: reduces API calls by 80%
+- Saves 0.5-0.8 CPU/tick during trading analysis
 
 ---
 
@@ -287,7 +330,7 @@ console.log(`Room ${room.name} CPU: ${(cpuAfter - cpuBefore).toFixed(2)}`);
 |-------|------------|-----------|---------|-------------|
 | Baseline | 120-200 | - | - | 20-30 |
 | Phase 1 ✅ | 120-200 | 80-160 | -30 to -40 | 20-30 |
-| Phase 2 | 80-160 | 77-156 | -3 to -4 | 20-30 |
+| Phase 2 ✅ | 80-160 | 77-156 | -3 to -4 | 20-30 |
 | Phase 3 | 77-156 | 67-136 | -10 to -20 | 10-15 |
 | Phase 4 | 67-136 | 62-128 | -5 to -8 | 10-15 |
 | Phase 5 | 62-128 | 60-123 | -2 to -5 | 10-15 |
@@ -367,10 +410,10 @@ if (Game.time % interval !== 0) return;
 - **Recommendation**: Option B for maximum CPU savings once base stable
 
 ### Should market order cache use longer TTL?
-- **Option A**: 5 ticks (planned) — Balances freshness vs CPU
+- **Option A**: 5 ticks (implemented in Phase 2) — Balances freshness vs CPU ✅
 - **Option B**: 10 ticks — Longer cache, risk of stale prices
 - **Option C**: 1 tick — Minimal caching, less savings
-- **Recommendation**: Start with 5, increase to 10 if market prices stable
+- **Current**: Using 5 ticks. Monitor market trading and consider increasing to 10 if prices remain stable.
 
 ### Role-specific find() caching opportunities
 - **Mineral extractors**: Cache `room.find(FIND_MINERALS)` (never changes)
@@ -406,10 +449,13 @@ if (Game.time % interval !== 0) return;
 - [creep.actionHandlers.js](creep.actionHandlers.js) — handleDelivering cache usage (20 lines modified)
 - [creep.targetFinding.js](creep.targetFinding.js) — countCreepsTargeting targeting map (5 lines modified)
 
-### Files to Modify (Phases 2-5)
-- [linkManager.js](linkManager.js) — Link caching, double find removal
-- [labManager.js](labManager.js) — Lab caching, boost queue
-- [terminalManager.js](terminalManager.js) — Market cache, rate limiting
+### Modified Files (Phase 2 ✅)
+- [linkManager.js](linkManager.js) — 5-tick TTL link categorization cache, removed double find(), optimized getLinkNearPosition (80 lines modified)
+- [labManager.js](labManager.js) — Indefinite lab categorization cache, memory-based boost queue (100 lines modified)
+- [spawnerCore.js](spawnerCore.js) — Register creeps to boost queue on spawn (10 lines added)
+- [terminalManager.js](terminalManager.js) — 5-tick TTL market order cache (35 lines added)
+
+### Files to Modify (Phases 3-5)
 - [spawnerRoster.js](spawnerRoster.js) — RCL roster scaling
 - [spawnerBodyUtils.js](spawnerBodyUtils.js) — Cached efficiency tier
 - [stats.js](stats.js) — Efficiency metrics caching

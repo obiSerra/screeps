@@ -42,6 +42,17 @@ const executeSpawn = (spawn, role, body, gameTime, extraMemory = {}) => {
   // Track spawn statistics
   if (result === OK) {
     stats.recordSpawn(spawn.room.name, role, body, calculateBodyCost(body));
+    
+    // Phase 2 optimization: Register creep in boost queue if it needs boosting
+    if (extraMemory.needsBoosting && extraMemory.boostTypes) {
+      if (!Memory.rooms[spawn.room.name]) {
+        Memory.rooms[spawn.room.name] = {};
+      }
+      if (!Memory.rooms[spawn.room.name].boostQueue) {
+        Memory.rooms[spawn.room.name].boostQueue = {};
+      }
+      Memory.rooms[spawn.room.name].boostQueue[name] = extraMemory.boostTypes;
+    }
   } else {
     console.log(`Room ${spawn.room.name} failed to spawn ${role}: ${result} - Body: ${body} (Cost: ${calculateBodyCost(body)}) - Available Energy: ${spawn.room.energyAvailable} `);
   }

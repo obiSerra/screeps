@@ -39,6 +39,43 @@ const CREDIT_RESERVE = CONFIG.TRADING.MIN_CREDITS;  // Minimum credits to mainta
 const MAX_ORDER_SIZE = CONFIG.TRADING.MAX_ORDER_UNITS;    // Maximum units per order
 const MIN_ORDER_VALUE = CONFIG.TRADING.MIN_ORDER_VALUE;    // Minimum credits for an order
 
+// Phase 2 optimization: TTL for market order cache
+const MARKET_CACHE_TTL = 5;
+
+/**
+ * Get cached market orders for a resource type
+ * Phase 2 optimization: Cache Game.market.getAllOrders() results with 5-tick TTL
+ * @param {string} resourceType - Resource to get orders for
+ * @param {string} orderType - ORDER_SELL or ORDER_BUY
+ * @returns {Array} Cached or fresh orders
+ */
+const getCachedMarketOrders = (resourceType, orderType) => {
+  if (!global.marketCache) {
+    global.marketCache = {};
+  }
+  
+  const cacheKey = `${resourceType}_${orderType}`;
+  const cached = global.marketCache[cacheKey];
+  
+  if (cached && Game.time - cached.tick < MARKET_CACHE_TTL) {
+    return cached.orders;
+  }
+  
+  // Fetch fresh orders
+  const orders = Game.market.getAllOrders({
+    type: orderType,
+    resourceType: resourceType,
+  });
+  
+  // Cache result
+  global.marketCache[cacheKey] = {
+    orders: orders,
+    tick: Game.time,
+  };
+  
+  return orders;
+};
+
 /**
  * Check if room can afford to buy
  * @param {number} cost - Cost of purchase
@@ -50,15 +87,13 @@ const canAfford = (cost) => {
 
 /**
  * Get best buy order for a resource
+ * Phase 2 optimization: Uses cached market orders
  * @param {string} resourceType - Resource to buy
  * @param {string} roomName - Room where terminal is located
  * @returns {Object|null} Best order or null
  */
 const getBestBuyOrder = (resourceType, roomName) => {
-  const orders = Game.market.getAllOrders({
-    type: ORDER_SELL,
-    resourceType: resourceType,
-  });
+  const orders = getCachedMarketOrders(resourceType, ORDER_SELL);
 
   if (orders.length === 0) return null;
 
@@ -81,14 +116,12 @@ const getBestBuyOrder = (resourceType, roomName) => {
 
 /**
  * Get best sell order for a resource
+ * Phase 2 optimization: Uses cached market orders
  * @param {string} resourceType - Resource to sell
  * @returns {Object|null} Best order or null
  */
 const getBestSellOrder = (resourceType) => {
-  const orders = Game.market.getAllOrders({
-    type: ORDER_BUY,
-    resourceType: resourceType,
-  });
+  const orders = getCachedMarketOrders(resourceType, ORDER_BUY);
 
   if (orders.length === 0) return null;
 

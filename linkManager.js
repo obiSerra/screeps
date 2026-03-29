@@ -7,22 +7,49 @@
 const CONFIG = require("./config");
 
 /**
- * Identify link types by position
+ * Identify link types by position (with 5-tick TTL cache)
+ * Links rarely change position, so cache result for 5 ticks
  * @param {Room} room - The room to analyze
  * @returns {Object} Categorized links
  */
 const categorizeLinksByType = (room) => {
-  const links = room.find(FIND_MY_STRUCTURES, {
+  // Phase 2 optimization: 5-tick TTL cache for link categorization
+  if (!global.linkCache) {
+    global.linkCache = {};
+  }
+  
+  const cached = global.linkCache[room.name];
+  if (cached && Game.time - cached.tick < 5) {
+    // Convert cached IDs back to objects (links may have died)
+    const result = {
+      sourceLinks: cached.sourceLinks
+        .map(sl => ({ link: Game.getObjectById(sl.linkId), source: Game.getObjectById(sl.sourceId) }))
+        .filter(sl => sl.link && sl.source),
+      storageLink: cached.storageLinkId ? Game.getObjectById(cached.storageLinkId) : null,
+      controllerLink: cached.controllerLinkId ? Game.getObjectById(cached.controllerLinkId) : null,
+    };
+    return result;
+  }
+  
+  // Use Phase 1 room cache if available, otherwise find
+  const cache = global.roomCache ? global.roomCache[room.name] : null;
+  const links = cache ? cache.links : room.find(FIND_MY_STRUCTURES, {
     filter: (s) => s.structureType === STRUCTURE_LINK,
   });
 
   if (links.length === 0) {
+    global.linkCache[room.name] = {
+      tick: Game.time,
+      sourceLinks: [],
+      storageLinkId: null,
+      controllerLinkId: null,
+    };
     return { sourceLinks: [], storageLink: null, controllerLink: null };
   }
 
   const storage = room.storage;
   const controller = room.controller;
-  const sources = room.find(FIND_SOURCES);
+  const sources = cache ? cache.sources : room.find(FIND_SOURCES);
 
   const sourceLinks = [];
   let storageLink = null;
@@ -48,6 +75,14 @@ const categorizeLinksByType = (room) => {
       continue;
     }
   }
+
+  // Cache result with IDs (objects don't serialize well)
+  global.linkCache[room.name] = {
+    tick: Game.time,
+    sourceLinks: sourceLinks.map(sl => ({ linkId: sl.link.id, sourceId: sl.source.id })),
+    storageLinkId: storageLink ? storageLink.id : null,
+    controllerLinkId: controllerLink ? controllerLink.id : null,
+  };
 
   return { sourceLinks, storageLink, controllerLink };
 };
@@ -113,17 +148,14 @@ const transferToControllerLink = (storageLink, controllerLink) => {
  * @returns {Object} Status report
  */
 const manageLinkNetwork = (room) => {
-  // Only run if room has links
-  const linkCount = room.find(FIND_MY_STRUCTURES, {
-    filter: (s) => s.structureType === STRUCTURE_LINK,
-  }).length;
-
-  if (linkCount === 0) {
+  // Phase 2 optimization: Remove duplicate room.find() - use categorizeLinksByType result instead
+  // Categorize links (uses cached data if available)
+  const { sourceLinks, storageLink, controllerLink } = categorizeLinksByType(room);
+  
+  // Early exit if no links found
+  if (sourceLinks.length === 0 && !storageLink && !controllerLink) {
     return { active: false, reason: "no links" };
   }
-
-  // Categorize links
-  const { sourceLinks, storageLink, controllerLink } = categorizeLinksByType(room);
 
   // Track transfers
   let sourcesToStorageTransfers = 0;
@@ -162,17 +194,21 @@ const hasActiveLinkNetwork = (room) => {
 
 /**
  * Get link near position (for miners and upgraders)
+ * Phase 2 optimization: Use Phase 1 roomCache instead of room.find()
  * @param {Room} room - The room
  * @param {RoomPosition} pos - Position to check near
  * @param {number} range - Range to check (default 1)
  * @returns {StructureLink|null} Nearby link or null
  */
 const getLinkNearPosition = (room, pos, range = 1) => {
-  const links = room.find(FIND_MY_STRUCTURES, {
-    filter: (s) => s.structureType === STRUCTURE_LINK && s.pos.inRangeTo(pos, range),
+  // Use Phase 1 room cache if available
+  const cache = global.roomCache ? global.roomCache[room.name] : null;
+  const links = cache ? cache.links : room.find(FIND_MY_STRUCTURES, {
+    filter: (s) => s.structureType === STRUCTURE_LINK,
   });
-
-  return links.length > 0 ? links[0] : null;
+  
+  const nearbyLink = links.find(link => link.pos.inRangeTo(pos, range));
+  return nearbyLink || null;
 };
 
 module.exports = {

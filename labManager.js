@@ -71,16 +71,50 @@ const COMPOUND_THRESHOLDS = {
 };
 
 /**
- * Identify labs by type
+ * Identify labs by type (with indefinite cache)
+ * Labs don't change position, so cache until lab count changes
+ * Phase 2 optimization: Store lab IDs in Memory, only recalculate when lab count changes
  * @param {Room} room - The room to analyze
  * @returns {Object} Categorized labs
  */
 const categorizeLabs = (room) => {
-  const labs = room.find(FIND_MY_STRUCTURES, {
+  // Use Phase 1 room cache if available, otherwise find
+  const cache = global.roomCache ? global.roomCache[room.name] : null;
+  const labs = cache ? cache.labs : room.find(FIND_MY_STRUCTURES, {
     filter: (s) => s.structureType === STRUCTURE_LAB,
   });
 
+  // Initialize room memory
+  if (!Memory.rooms[room.name]) {
+    Memory.rooms[room.name] = {};
+  }
+  
+  const labMemory = Memory.rooms[room.name].labCategories;
+  
+  // Check if we can use cached categorization
+  // Only recalculate if: no cache, or lab count changed
+  if (labMemory && labMemory.labCount === labs.length) {
+    // Convert cached IDs back to objects
+    const inputLabs = labMemory.inputLabIds.map(id => Game.getObjectById(id)).filter(Boolean);
+    const outputLabs = labMemory.outputLabIds.map(id => Game.getObjectById(id)).filter(Boolean);
+    const boostLabs = labMemory.boostLabIds.map(id => Game.getObjectById(id)).filter(Boolean);
+    const allLabs = labMemory.allLabIds.map(id => Game.getObjectById(id)).filter(Boolean);
+    
+    // Validate cache - if any objects missing, recalculate
+    if (allLabs.length === labMemory.labCount) {
+      return { inputLabs, outputLabs, boostLabs, allLabs };
+    }
+  }
+  
+  // Calculate fresh categorization
   if (labs.length < 3) {
+    Memory.rooms[room.name].labCategories = {
+      labCount: labs.length,
+      inputLabIds: [],
+      outputLabIds: [],
+      boostLabIds: [],
+      allLabIds: labs.map(l => l.id),
+    };
     return { inputLabs: [], outputLabs: [], boostLabs: [], allLabs: labs };
   }
 
@@ -92,6 +126,15 @@ const categorizeLabs = (room) => {
   const inputLabs = reactionLabs.slice(0, CONFIG.COMPOUNDS.LABS.INPUT_LABS);
   // Output labs are remaining labs (can run multiple reactions)
   const outputLabs = reactionLabs.slice(CONFIG.COMPOUNDS.LABS.INPUT_LABS);
+
+  // Store categorization in Memory (indefinite cache)
+  Memory.rooms[room.name].labCategories = {
+    labCount: labs.length,
+    inputLabIds: inputLabs.map(l => l.id),
+    outputLabIds: outputLabs.map(l => l.id),
+    boostLabIds: boostLabs.map(l => l.id),
+    allLabIds: labs.map(l => l.id),
+  };
 
   return { inputLabs, outputLabs, boostLabs, allLabs: labs };
 };
@@ -240,6 +283,8 @@ const runReactions = (room) => {
 
 /**
  * Handle creep boosting at boost labs
+ * Phase 2 optimization: Use memory-based boost queue instead of room.find()
+ * Creeps are added to queue on spawn (in spawnerCore.js)
  * @param {Room} room - The room
  * @returns {number} Number of boosts applied
  */
@@ -247,17 +292,46 @@ const handleBoosting = (room) => {
   const { boostLabs } = categorizeLabs(room);
   if (boostLabs.length === 0) return 0;
 
-  // Find creeps that need boosting
-  const creepsNeedingBoost = room.find(FIND_MY_CREEPS, {
-    filter: (c) => c.memory.needsBoosting && !c.memory.boosted,
-  });
+  // Initialize boost queue in memory if needed
+  if (!Memory.rooms[room.name]) {
+    Memory.rooms[room.name] = {};
+  }
+  if (!Memory.rooms[room.name].boostQueue) {
+    Memory.rooms[room.name].boostQueue = {};
+  }
+  
+  // Phase 2 optimization: Use memory-based boost queue instead of room.find()
+  const boostQueue = Memory.rooms[room.name].boostQueue;
+  const creepNames = Object.keys(boostQueue);
+  
+  if (creepNames.length === 0) return 0;
+  
+  // Build list of creeps needing boost from queue
+  const creepsNeedingBoost = [];
+  for (const creepName of creepNames) {
+    const creep = Game.creeps[creepName];
+    if (!creep) {
+      // Creep died, remove from queue
+      delete boostQueue[creepName];
+      continue;
+    }
+    if (creep.memory.boosted) {
+      // Already fully boosted, remove from queue
+      delete boostQueue[creepName];
+      continue;
+    }
+    // Only include creeps in this room
+    if (creep.room.name === room.name) {
+      creepsNeedingBoost.push(creep);
+    }
+  }
 
   if (creepsNeedingBoost.length === 0) return 0;
 
   let boostsApplied = 0;
 
   for (const creep of creepsNeedingBoost) {
-    const boostTypes = creep.memory.boostTypes || [];
+    const boostTypes = creep.memory.boostTypes || boostQueue[creep.name] || [];
     if (boostTypes.length === 0) continue;
 
     for (const boostType of boostTypes) {
@@ -289,6 +363,8 @@ const handleBoosting = (room) => {
         if (creep.memory.boostApplied.length >= boostTypes.length) {
           creep.memory.boosted = true;
           delete creep.memory.needsBoosting;
+          // Remove from boost queue
+          delete boostQueue[creep.name];
         }
       }
     }
