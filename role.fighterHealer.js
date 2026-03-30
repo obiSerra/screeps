@@ -26,7 +26,8 @@ var roleFighterHealer = () => {
           });
           return;
         }
-        creep.memory.action = "delivering";
+        // Stay combat-ready instead of becoming delivery worker
+        creep.memory.action = "rally";
       }
       
       // Perform the assigned action

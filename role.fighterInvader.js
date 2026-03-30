@@ -27,7 +27,8 @@ var roleFighterInvader = () => {
           });
           return;
         }
-        creep.memory.action = "transporting";
+        // Stay combat-ready instead of becoming transport worker
+        creep.memory.action = "rally";
       }
       
       // Perform the assigned action

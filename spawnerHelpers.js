@@ -14,6 +14,7 @@ let displaySpawningVisual = null;
 let getRequiredDefenderCount = null;
 let getRequiredOffensiveFighterCount = null;
 let findBestRoleToSpawn = null;
+let getRemoteHarvestingNeeds = null;
 
 // Lazy load to avoid circular dependencies
 const getTrySpawn = () => {
@@ -31,8 +32,9 @@ const getRosterFunctions = () => {
     getRequiredDefenderCount = spawnerRoster.getRequiredDefenderCount;
     getRequiredOffensiveFighterCount = spawnerRoster.getRequiredOffensiveFighterCount;
     findBestRoleToSpawn = spawnerRoster.findBestRoleToSpawn;
+    getRemoteHarvestingNeeds = spawnerRoster.getRemoteHarvestingNeeds;
   }
-  return { getRequiredDefenderCount, getRequiredOffensiveFighterCount, findBestRoleToSpawn };
+  return { getRequiredDefenderCount, getRequiredOffensiveFighterCount, findBestRoleToSpawn, getRemoteHarvestingNeeds };
 };
 
 /**
@@ -197,6 +199,70 @@ const checkOffensiveFighterPriority = (spawn, room, currentCreeps, roomStatus, e
 };
 
 /**
+ * Check if remote harvesting miners/haulers should be spawned (Priority 2.5)
+ * Spawns miners and haulers for remote source flags
+ * @param {StructureSpawn} spawn - The spawn structure
+ * @param {Room} room - The room object
+ * @param {Object} currentCreeps - Current creep counts by role
+ * @param {Object} roomStatus - Room status
+ * @param {Object} efficiencyMetrics - Energy collection efficiency metrics
+ * @returns {Object|null} Spawn result or null if not needed
+ */
+const checkRemoteHarvestingPriority = (spawn, room, currentCreeps, roomStatus, efficiencyMetrics) => {
+  const { getRemoteHarvestingNeeds } = getRosterFunctions();
+  const { trySpawn } = getTrySpawn();
+  
+  const needs = getRemoteHarvestingNeeds(room);
+  
+  if (needs.miners === 0 && needs.haulers === 0) {
+    return null;
+  }
+  
+  // Count current remote miners and haulers
+  const currentRemoteMiners = Object.values(Game.creeps).filter(
+    c => c.memory.spawnRoom === roomStatus.roomName && 
+         c.memory.role === 'miner' && 
+         c.memory.remoteSourceId !== undefined
+  ).length;
+  
+  const currentRemoteHaulers = Object.values(Game.creeps).filter(
+    c => c.memory.spawnRoom === roomStatus.roomName && 
+         c.memory.role === 'hauler' && 
+         c.memory.isRemoteHauler === true
+  ).length;
+  
+  // Priority: miners first, then haulers
+  if (currentRemoteMiners < needs.miners) {
+    // Find next unassigned remote source
+    const assignedSourceIds = Object.values(Game.creeps)
+      .filter(c => c.memory.spawnRoom === roomStatus.roomName && 
+                   c.memory.role === 'miner' && 
+                   c.memory.remoteSourceId !== undefined)
+      .map(c => c.memory.remoteSourceId);
+    
+    const nextSource = needs.sources.find(s => !assignedSourceIds.includes(s.sourceId));
+    
+    if (nextSource) {
+      console.log(
+        `⛏️ Spawning remote miner (${currentRemoteMiners + 1}/${needs.miners}) for ${nextSource.flagName}`
+      );
+      const extraMemory = { remoteSourceId: nextSource.sourceId, remoteFlagName: nextSource.flagName };
+      return trySpawn(spawn, "miner", roomStatus, room, efficiencyMetrics, null, extraMemory);
+    }
+  }
+  
+  if (currentRemoteHaulers < needs.haulers) {
+    console.log(
+      `🚚 Spawning remote hauler (${currentRemoteHaulers + 1}/${needs.haulers})`
+    );
+    const extraMemory = { isRemoteHauler: true };
+    return trySpawn(spawn, "hauler", roomStatus, room, efficiencyMetrics, null, extraMemory);
+  }
+  
+  return null;
+};
+
+/**
  * Check if minimum fleet needs to be maintained (Priority 3)
  * @param {StructureSpawn} spawn - The spawn structure
  * @param {Room} room - The room object
@@ -320,6 +386,7 @@ module.exports = {
   findMineralInRoom,
   checkDefenderPriority,
   checkOffensiveFighterPriority,
+  checkRemoteHarvestingPriority,
   checkMinimumFleetPriority,
   checkClaimerPriority,
   checkEnergyPriorityHarvester,

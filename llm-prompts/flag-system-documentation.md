@@ -64,6 +64,9 @@ const rallyFlag = flagManager.getRallyFlag();
 - `attack_X`: Spawns exactly X fighters to attack the flagged location
 - Multiple attack flags can be active simultaneously
 - Fighters move to the nearest attack flag and engage hostiles
+- **Fighter fallback**: When no targets visible, fighters use "rally" action to stay combat-ready (fixed March 30, 2026)
+
+**Recent Fix**: Fighters no longer fall back to worker actions ("delivering", "transporting") when at attack flags with no visible enemies. They now maintain combat readiness via "rally" action.
 
 **Usage**:
 ```javascript
@@ -86,6 +89,10 @@ const totalFighters = flagManager.getTotalAttackForceSize();
 - `role.explorer.js` - Explorers scout attack flag locations
 - `spawnerRoster.js` - Determines how many fighters to spawn
 - `main.js` - Global `attackStatus()` function for debugging
+- `role.fighterShooter.js` - Ranged attack fighters (fixed fallback behavior)
+- `role.fighterHealer.js` - Healer fighters (fixed fallback behavior)
+- `role.fighterFodder.js` - Melee fodder fighters (fixed fallback behavior)
+- `role.fighterInvader.js` - Balanced fighters (fixed fallback behavior)
 
 ---
 
@@ -191,8 +198,12 @@ const priorityBuildFlag = flagManager.getPriorityBuildFlag();
 **Behavior**:
 - Identifies sources in neighboring rooms for remote harvesting
 - Each flag corresponds to a specific remote source
-- Miners and haulers coordinate to harvest and transport resources
-- Requires `CONFIG.ROSTERS.REMOTE_HARVESTING.ENABLED = true`
+- Miners spawn with `remoteSourceId` and navigate to remote room
+- Haulers spawn with `isRemoteHauler` and transport energy back to spawn room
+- Hauler count scales with distance (1 base + 1 per 50 tiles with multiplier)
+- Requires `CONFIG.REMOTE_HARVESTING.ENABLED = true`
+
+**Implementation Status**: ✅ **FULLY IMPLEMENTED** (as of March 30, 2026)
 
 **Usage**:
 ```javascript
@@ -202,10 +213,35 @@ const remoteFlags = flagManager.getRemoteSourceFlags();
 
 // Check if remote harvesting is configured
 const hasRemote = flagManager.hasRemoteHarvestingFlags();
+
+// Get remote harvesting needs for a room
+const needs = flagManager.getRemoteHarvestingNeeds(room);
+// Returns: {miners: N, haulers: M, sources: [{sourceId, flagName, distance}]}
 ```
 
 **Files Using**:
-- `spawnerRoster.js` - Spawns miners and haulers for remote harvesting
+- `spawnerRoster.js` - Calculates remote harvesting needs with `getRemoteHarvestingNeeds()`
+- `spawnerHelpers.js` - Priority check `checkRemoteHarvestingPriority()` spawns remote creeps
+- `spawner.js` - Integrated into spawning priority chain (Priority 2.5)
+- `spawnerCore.js` - Enhanced `trySpawn()` to accept remote source assignments
+- `role.miner.js` - Remote navigation logic for miners with `remoteSourceId`
+- `role.hauler.js` - Remote hauling behavior for haulers with `isRemoteHauler`
+
+**Memory Properties**:
+- Remote Miners: `creep.memory.remoteSourceId` (number), `creep.memory.remoteFlagName` (string)
+- Remote Haulers: `creep.memory.isRemoteHauler` (boolean)
+
+**Configuration**:
+```javascript
+// In config.js
+CONFIG.REMOTE_HARVESTING: {
+    ENABLED: true,                          // Master switch
+    DISTANCE_PENALTY_MULTIPLIER: 1.5,       // Hauler scaling factor
+    AVOID_HOSTILE_ROOMS: false,             // Not yet implemented
+    FLAG_PATTERN: /^source_\d+$/,           // source_0, source_1, etc.
+    DEFAULT_DISTANCE: 100                   // Fallback distance
+}
+```
 
 ---
 

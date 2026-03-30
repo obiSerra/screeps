@@ -199,6 +199,60 @@ const getUpgraderWorkPartCount = (roomName) =>
     return total + creep.body.filter(part => part.type === WORK).length;
   }, 0);
 
+/**
+ * Get remote harvesting requirements based on active source flags
+ * Pure function - no side effects
+ * @param {Room} room - The spawning room (to calculate distances)
+ * @returns {Object} Remote harvesting needs {miners, haulers, sources: [{sourceId, flagName, distance}]}
+ */
+const getRemoteHarvestingNeeds = (room) => {
+  // Check if remote harvesting is enabled
+  if (!CONFIG.REMOTE_HARVESTING || !CONFIG.REMOTE_HARVESTING.ENABLED) {
+    return { miners: 0, haulers: 0, sources: [] };
+  }
+
+  // Get all remote source flags
+  const remoteSourceFlags = flagManager.getRemoteSourceFlags();
+  
+  if (remoteSourceFlags.length === 0) {
+    return { miners: 0, haulers: 0, sources: [] };
+  }
+
+  // Calculate distance and requirements for each source
+  const sources = remoteSourceFlags.map(({flag, sourceId, name}) => {
+    // Calculate linear distance from room controller to flag
+    const distance = room.controller && flag.pos 
+      ? room.controller.pos.getRangeTo(flag.pos)
+      : CONFIG.REMOTE_HARVESTING.DEFAULT_DISTANCE;
+    
+    return {
+      sourceId,
+      flagName: name,
+      distance
+    };
+  });
+
+  // Calculate total needs
+  // 1 miner per remote source
+  const miners = sources.length;
+  
+  // Haulers scale with distance (using distance penalty multiplier)
+  // Base: 1 hauler per source, +1 for every 50 tiles (scaled by multiplier)
+  const haulers = sources.reduce((total, source) => {
+    const baseHaulers = 1;
+    const distanceBonus = Math.floor(
+      (source.distance / 50) * CONFIG.REMOTE_HARVESTING.DISTANCE_PENALTY_MULTIPLIER
+    );
+    return total + baseHaulers + distanceBonus;
+  }, 0);
+
+  return {
+    miners,
+    haulers,
+    sources
+  };
+};
+
 module.exports = {
   countCreepsByRole,
   getRequiredDefenderCount,
@@ -208,4 +262,5 @@ module.exports = {
   calculateFighterClassCounts,
   findBestRoleToSpawn,
   getUpgraderWorkPartCount,
+  getRemoteHarvestingNeeds,
 };

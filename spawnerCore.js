@@ -99,9 +99,10 @@ const displaySpawningVisual = (spawn, efficiencyMetrics = null) => {
  * @param {Room} room - The room object
  * @param {Object} efficiencyMetrics - Energy collection efficiency metrics (optional)
  * @param {string} fighterClass - Fighter class for fighter role (fodder/invader/healer/shooter) (optional)
+ * @param {Object} additionalMemory - Additional memory properties to merge (optional)
  * @returns {Object} Spawn result
  */
-const trySpawn = (spawn, role, roomStatus, room, efficiencyMetrics = null, fighterClass = null) => {
+const trySpawn = (spawn, role, roomStatus, room, efficiencyMetrics = null, fighterClass = null, additionalMemory = {}) => {
   const rcl = roomStatus.controllerLevel;
   
   // Get body - for fighters, use class-specific body or fallback to default
@@ -135,14 +136,17 @@ const trySpawn = (spawn, role, roomStatus, room, efficiencyMetrics = null, fight
   }
 
   // Extra memory based on role
-  let extraMemory = {};
+  let extraMemory = { ...additionalMemory };
   
+  // Handle miner assignment - prioritize remote source if specified
   if (role === "miner") {
-    const existingMiners = Object.values(Game.creeps).filter(
-      (c) => c.memory.role === "miner" && c.memory.spawnRoom === room.name,
-    );
-    const sourceId = findUnassignedSource(room, existingMiners);
-    extraMemory = { assignedSource: sourceId };
+    if (!extraMemory.remoteSourceId) {
+      const existingMiners = Object.values(Game.creeps).filter(
+        (c) => c.memory.role === "miner" && c.memory.spawnRoom === room.name,
+      );
+      const sourceId = findUnassignedSource(room, existingMiners);
+      extraMemory.assignedSource = sourceId;
+    }
   }
   
   if (role === "fighter" && fighterClass) {

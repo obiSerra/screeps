@@ -11,6 +11,7 @@ const { countCreepsByRole } = require("./spawnerRoster");
 const {
   checkDefenderPriority,
   checkOffensiveFighterPriority,
+  checkRemoteHarvestingPriority,
   checkMinimumFleetPriority,
   checkClaimerPriority,
   checkEnergyPriorityHarvester,
@@ -53,6 +54,7 @@ const spawnProcedure = (spawn, roster, roomStatus, efficiencyMetrics) => {
     const priorityChecks = [
       () => checkDefenderPriority(spawn, room, currentCreeps, roomStatus, efficiencyMetrics),
       () => checkOffensiveFighterPriority(spawn, room, currentCreeps, roomStatus, efficiencyMetrics),
+      () => checkRemoteHarvestingPriority(spawn, room, currentCreeps, roomStatus, efficiencyMetrics),
       () => checkMinimumFleetPriority(spawn, room, currentCreeps, roomStatus, efficiencyMetrics),
       () => checkClaimerPriority(spawn, room, currentCreeps, roomStatus, efficiencyMetrics),
       () => checkEnergyPriorityHarvester(spawn, room, currentCreeps, roster, roomMemory, roomStatus, efficiencyMetrics),

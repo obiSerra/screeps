@@ -350,7 +350,7 @@ const hasActiveAttackOperations = () => getAttackFlags().length > 0;
  * @returns {boolean} True if remote harvesting is configured
  */
 const hasRemoteHarvestingFlags = () => {
-  return CONFIG.ROSTERS.REMOTE_HARVESTING && CONFIG.ROSTERS.REMOTE_HARVESTING.ENABLED && 
+  return CONFIG.REMOTE_HARVESTING && CONFIG.REMOTE_HARVESTING.ENABLED && 
          getRemoteSourceFlags().length > 0;
 };
 
