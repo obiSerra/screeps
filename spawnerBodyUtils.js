@@ -350,8 +350,8 @@
       return getGeneralistBody(rcl, energyAvailable, efficiencyMetrics);
     }
 
-    // RCL 4+: Builder - [WORK, CARRY, MOVE] sets
-    const bodySet = [WORK, CARRY, MOVE]; // 350 per set
+    // RCL 4+: Builder - [WORK, CARRY, MOVE×2] sets
+    const bodySet = [WORK, CARRY, MOVE, MOVE]; // 250 per set
     const setCost = calculateBodyCost(bodySet);
     const maxSets = CONFIG.SPAWNING.BODY_LIMITS.MAX_BUILDER_SETS;
 
@@ -474,6 +474,12 @@
       body.push(MOVE);
     }
 
+    // Validate final cost doesn't exceed available energy
+    if (calculateBodyCost(body) > energyAvailable) {
+      console.log(`ERROR: Defender body cost ${calculateBodyCost(body)} exceeds available energy ${energyAvailable}`);
+      return undefined;
+    }
+
     return body;
   };
 
@@ -547,6 +553,12 @@
     for (let i = 0; i < toughCount; i++) finalBody.push(TOUGH);
     finalBody.push(ATTACK);
     for (let i = 0; i < moveCount; i++) finalBody.push(MOVE);
+
+    // Validate final cost doesn't exceed available energy
+    if (calculateBodyCost(finalBody) > energyAvailable) {
+      console.log(`ERROR: Fodder body cost ${calculateBodyCost(finalBody)} exceeds available energy ${energyAvailable}`);
+      return undefined;
+    }
 
     return finalBody;
   };
@@ -654,6 +666,12 @@
     for (let i = 0; i < carryCount; i++) body.push(CARRY);
     for (let i = 0; i < moveCount; i++) body.push(MOVE);
 
+    // Validate final cost doesn't exceed available energy
+    if (calculateBodyCost(body) > energyAvailable) {
+      console.log(`ERROR: Invader body cost ${calculateBodyCost(body)} exceeds available energy ${energyAvailable}`);
+      return undefined;
+    }
+
     return body;
   };
 
@@ -702,6 +720,12 @@
     for (let i = 0; i < carryCount; i++) body.push(CARRY);
     for (let i = 0; i < moveCount; i++) body.push(MOVE);
 
+    // Validate final cost doesn't exceed available energy
+    if (calculateBodyCost(body) > energyAvailable) {
+      console.log(`ERROR: Healer body cost ${calculateBodyCost(body)} exceeds available energy ${energyAvailable}`);
+      return undefined;
+    }
+
     return body;
   };
 
@@ -749,6 +773,12 @@
     for (let i = 0; i < rangedCount; i++) body.push(RANGED_ATTACK);
     for (let i = 0; i < carryCount; i++) body.push(CARRY);
     for (let i = 0; i < moveCount; i++) body.push(MOVE);
+
+    // Validate final cost doesn't exceed available energy
+    if (calculateBodyCost(body) > energyAvailable) {
+      console.log(`ERROR: Shooter body cost ${calculateBodyCost(body)} exceeds available energy ${energyAvailable}`);
+      return undefined;
+    }
 
     return body;
   };
@@ -816,6 +846,12 @@
     body.push(RANGED_ATTACK);
     for (let i = 0; i < moveCount; i++) body.push(MOVE);
 
+    // Validate final cost doesn't exceed available energy
+    if (calculateBodyCost(body) > energyAvailable) {
+      console.log(`ERROR: Explorer body cost ${calculateBodyCost(body)} exceeds available energy ${energyAvailable}`);
+      return undefined;
+    }
+
     return body;
   };
 
@@ -850,6 +886,12 @@
     }
     for (let i = 0; i < sets; i++) {
       body.push(MOVE);
+    }
+
+    // Validate final cost doesn't exceed available energy
+    if (calculateBodyCost(body) > energyAvailable) {
+      console.log(`ERROR: Transporter body cost ${calculateBodyCost(body)} exceeds available energy ${energyAvailable}`);
+      return undefined;
     }
 
     return body;
@@ -887,6 +929,12 @@
     for (let i = 0; i < sets; i++) body.push(MOVE);
     for (let i = 0; i < sets; i++) body.push(CARRY);
 
+    // Validate final cost doesn't exceed available energy
+    if (calculateBodyCost(body) > energyAvailable) {
+      console.log(`ERROR: Mineral extractor body cost ${calculateBodyCost(body)} exceeds available energy ${energyAvailable}`);
+      return undefined;
+    }
+
     return body;
   };
 
@@ -919,6 +967,12 @@
     const body = [];
     for (let i = 0; i < sets; i++) body.push(CARRY);
     for (let i = 0; i < sets; i++) body.push(MOVE);
+
+    // Validate final cost doesn't exceed available energy
+    if (calculateBodyCost(body) > energyAvailable) {
+      console.log(`ERROR: Chemist body cost ${calculateBodyCost(body)} exceeds available energy ${energyAvailable}`);
+      return undefined;
+    }
 
     return body;
   };
@@ -955,6 +1009,12 @@
       remainingEnergy -= additionalSetCost;
     }
 
+    // Validate final cost doesn't exceed available energy
+    if (calculateBodyCost(body) > energyAvailable) {
+      console.log(`ERROR: Claimer body cost ${calculateBodyCost(body)} exceeds available energy ${energyAvailable}`);
+      return undefined;
+    }
+
     return body;
   };
 
@@ -980,46 +1040,67 @@
     console.log(`Calculating body for role ${role} with energy ${maxEnergy} at RCL ${rcl}`);
     const tier = getRCLTier(rcl);
 
+    let body;
     switch (role) {
       case "harvester":
-        return getGeneralistBody(rcl, maxEnergy, efficiencyMetrics);
+        body = getGeneralistBody(rcl, maxEnergy, efficiencyMetrics);
+        break;
 
       case "hauler":
-        return getHaulerBody(rcl, maxEnergy, efficiencyMetrics);
+        body = getHaulerBody(rcl, maxEnergy, efficiencyMetrics);
+        break;
 
       case "upgrader":
-        return getUpgraderBody(rcl, maxEnergy, efficiencyMetrics);
+        body = getUpgraderBody(rcl, maxEnergy, efficiencyMetrics);
+        break;
 
       case "builder":
-        return getBuilderBody(rcl, maxEnergy, efficiencyMetrics);
+        body = getBuilderBody(rcl, maxEnergy, efficiencyMetrics);
+        break;
 
       case "defender":
-        return getDefenderBody(rcl, maxEnergy);
+        body = getDefenderBody(rcl, maxEnergy);
+        break;
 
       case "fighter":
-        return getFighterCreepBody(maxEnergy);
+        body = getFighterCreepBody(maxEnergy);
+        break;
 
       case "explorer":
-        return getExplorerBody(rcl, maxEnergy);
+        body = getExplorerBody(rcl, maxEnergy);
+        break;
 
       case "claimer":
-        return getClaimerBody(rcl, maxEnergy);
+        body = getClaimerBody(rcl, maxEnergy);
+        break;
 
       case "transporter":
-        return getTransporterBody(maxEnergy);
+        body = getTransporterBody(maxEnergy);
+        break;
 
       case "miner":
-        return getMinerBody(rcl, maxEnergy, efficiencyMetrics);
+        body = getMinerBody(rcl, maxEnergy, efficiencyMetrics);
+        break;
 
       case "mineralExtractor":
-        return getMineralExtractorBody(rcl, maxEnergy);
+        body = getMineralExtractorBody(rcl, maxEnergy);
+        break;
 
       case "chemist":
-        return getChemistBody(rcl, maxEnergy);
+        body = getChemistBody(rcl, maxEnergy);
+        break;
 
       default:
         return undefined;
     }
+
+    // Final safety check: ensure returned body never exceeds available energy
+    if (body && calculateBodyCost(body) > energyAvailable) {
+      console.log(`WARNING: Body for ${role} (cost: ${calculateBodyCost(body)}) exceeds available energy ${energyAvailable}. Returning undefined.`);
+      return undefined;
+    }
+
+    return body;
   };
 
   module.exports = {
