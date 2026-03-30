@@ -4,6 +4,7 @@
  */
 
 const CONFIG = require("./config");
+const flagManager = require("./flagManager");
 const utils = require("./utils");
 const stats = require("./stats");
 const { PATH_COLORS } = require("./creep.constants");
@@ -1063,7 +1064,7 @@ const handleRangingAttack = (creep) => {
  * @param {Creep} creep
  */
 const handleRally = (creep) => {
-  const rallyFlag = Game.flags['rally'];
+  const rallyFlag = flagManager.getRallyFlag();
   
   // If flag doesn't exist, clear action and resume normal duties
   if (!rallyFlag) {

@@ -5,6 +5,7 @@
  */
 
 const CONFIG = require("./config");
+const flagManager = require("./flagManager");
 const utils = require("./utils");
 
 // Import for priority check functions
@@ -230,7 +231,7 @@ const checkMinimumFleetPriority = (spawn, room, currentCreeps, roomStatus, effic
 const checkClaimerPriority = (spawn, room, currentCreeps, roomStatus, efficiencyMetrics) => {
   const { trySpawn } = getTrySpawn();
   
-  if (Game.flags["claim"] && !currentCreeps.claimer) {
+  if (flagManager.hasFlag("claim") && !currentCreeps.claimer) {
     return trySpawn(spawn, "claimer", roomStatus, room, efficiencyMetrics);
   }
   

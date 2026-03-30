@@ -4,6 +4,7 @@
  * Pure functions for analyzing creep populations and spawn needs
  */
 
+const flagManager = require("./flagManager");
 const { findLabs, findMineralInRoom } = require("./spawnerHelpers");
 const { shouldSpawnDefenders } = require("./spawnerCombat");
 const utils = require("./utils");
@@ -43,34 +44,11 @@ const getRequiredDefenderCount = (room, currentCreeps) => {
 /**
  * Parse all active attack flags and extract force size requirements
  * Pure function - no side effects
- * @returns {Array<Object>} Array of {flagName, count, position} for each attack flag
+ * @returns {Array<Object>} Array of {name, count, flag} for each attack flag
  */
 const parseAttackFlags = () => {
-  const attackFlags = [];
-  
-  for (const [flagName, flag] of Object.entries(Game.flags)) {
-    // Match "attack" or "attack_X" pattern
-    if (flagName === 'attack') {
-      attackFlags.push({
-        flagName: flagName,
-        count: CONFIG.OFFENSIVE.DEFAULT_ATTACK_COUNT,
-        position: flag.pos
-      });
-    } else if (flagName.startsWith('attack_')) {
-      // Extract number from "attack_5" -> 5
-      const match = flagName.match(/^attack_(\d+)$/);
-      if (match) {
-        const count = parseInt(match[1], 10);
-        attackFlags.push({
-          flagName: flagName,
-          count: count,
-          position: flag.pos
-        });
-      }
-    }
-  }
-  
-  return attackFlags;
+  // Delegate to flag manager which caches results per tick
+  return flagManager.getAttackFlags();
 };
 
 /**

@@ -3,6 +3,7 @@ const utils = require("./utils");
 const spawner = require("./spawner");
 const planner = require("./planner");
 const stats = require("./stats");
+const flagManager = require("./flagManager");
 const errorTracker = require("./errorTracker");
 const roleHarvester = require("./role.harvester");
 const roleUpgrader = require("./role.upgrader");
@@ -84,9 +85,9 @@ const getRoomStatus = (room) => {
   const controllerLevel = getControllerLevel(room);
 
   // Count planned extensions from flags
-  const extensionPlanned = Object.keys(Game.flags).filter((flagName) =>
-    flagName.startsWith("EXT_")
-  ).length;
+  const extensionPlanned = flagManager.getPlannerFlags(room)
+    .filter(item => item.structureCode === 'EXT')
+    .length;
 
   const { roomPlanner } = planner;
   roomPlanner.clearPlannerFlags(room);

@@ -12,6 +12,7 @@
 const CONFIG = require("./config");
 const utils = require("./utils");
 const baseCreep = require("./baseCreep");
+const flagManager = require("./flagManager");
 
 var roleExplorer = () => {
   const base = baseCreep.baseCreep;
@@ -20,7 +21,7 @@ var roleExplorer = () => {
     /** @param {Creep} creep **/
     run: function (creep) {
       // Priority 1: Claim controller if 'claim' flag exists in same room
-      const claimFlag = Game.flags['claim'];
+      const claimFlag = flagManager.getClaimFlag();
       if (claimFlag && claimFlag.pos.roomName === creep.room.name) {
         const controller = creep.room.controller;
         
@@ -52,7 +53,7 @@ var roleExplorer = () => {
       }
       
       // Priority 2: Attack targets with 'attack' flag
-      const attackFlag = Game.flags['attack'];
+      const attackFlag = flagManager.findNearestAttackFlag(creep);
       if (attackFlag) {
         // Move toward attack flag
         if (creep.pos.getRangeTo(attackFlag.pos) > 3) {
@@ -141,7 +142,7 @@ var roleExplorer = () => {
       }
       
       // Priority 4: Navigate toward 'explore' flag
-      const exploreFlag = Game.flags['explore'];
+      const exploreFlag = flagManager.getExploreFlag();
       if (exploreFlag) {
         // Check if we're already at the explore flag location
         if (creep.pos.getRangeTo(exploreFlag.pos) <= 3) {

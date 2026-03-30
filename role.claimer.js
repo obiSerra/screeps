@@ -1,12 +1,13 @@
 const utils = require("utils");
 const baseCreep = require("baseCreep");
+const flagManager = require("./flagManager");
 
 var roleClaimer = () => {
   const base = baseCreep.baseCreep;
   return {
     run: function (creep) {
       // Find the claim flag
-      const claimFlag = Game.flags['claim'];
+      const claimFlag = flagManager.getClaimFlag();
       
       if (!claimFlag) {
         creep.say('No flag');

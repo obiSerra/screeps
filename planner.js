@@ -8,6 +8,8 @@
  *   N = unique identifier
  */
 
+const flagManager = require("./flagManager");
+
 // Structure type codes (3 letters)
 const STRUCTURE_CODES = {
   [STRUCTURE_SPAWN]: 'SPA',
@@ -306,24 +308,17 @@ function parseFlagName(flagName) {
  * @returns {Array} Array of {pos, structureType, stage, flagName}
  */
 function getPlannedStructures(room) {
-  const planned = [];
+  const plannedFlags = flagManager.getPlannerFlags(room);
   
-  for (const flagName in Game.flags) {
-    const flag = Game.flags[flagName];
-    if (flag.room && flag.room.name !== room.name) continue;
-    
-    const parsed = parseFlagName(flagName);
-    if (!parsed) continue;
-    
-    planned.push({
-      pos: flag.pos,
+  return plannedFlags.map(item => {
+    const parsed = parseFlagName(item.name);
+    return {
+      pos: item.flag.pos,
       structureType: parsed.structureType,
       stage: parsed.stage,
-      flagName: flagName,
-    });
-  }
-  
-  return planned;
+      flagName: item.name,
+    };
+  });
 }
 
 /**
@@ -352,7 +347,7 @@ function placeStructureFlag(room, x, y, structureType, stage, index) {
   const flagName = generateFlagName(structureType, stage, index);
   
   // Check if flag already exists
-  if (Game.flags[flagName]) {
+  if (flagManager.hasFlag(flagName)) {
     return false;
   }
   
@@ -367,14 +362,10 @@ function placeStructureFlag(room, x, y, structureType, stage, index) {
  * @param {Room} room - The room
  */
 function clearPlannerFlags(room) {
-  for (const flagName in Game.flags) {
-    const flag = Game.flags[flagName];
-    if (flag.room && flag.room.name !== room.name) continue;
-    
-    const parsed = parseFlagName(flagName);
-    if (parsed) {
-      flag.remove();
-    }
+  const plannedFlags = flagManager.getPlannerFlags(room);
+  
+  for (const item of plannedFlags) {
+    item.flag.remove();
   }
 }
 
@@ -781,7 +772,7 @@ function executeBuildPlan(room) {
     
     if (hasStructure) {
       // Remove flag if structure is built
-      const flag = Game.flags[flagName];
+      const flag = flagManager.getFlag(flagName);
       if (flag) flag.remove();
       continue;
     }

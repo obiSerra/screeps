@@ -4,6 +4,7 @@
  */
 
 const CONFIG = require("./config");
+const flagManager = require("./flagManager");
 const utils = require("./utils");
 const {
   findRepairTargets,
@@ -108,8 +109,7 @@ const getActionAvailability = (creep) => {
   const hasPriorityBuildTarget = priorityBuildTarget !== null;
 
   // Check for rally flag (rally point command - creeps gather and stay idle)
-  const rallyFlag = Game.flags['rally'];
-  const hasRallyFlag = rallyFlag !== null && rallyFlag !== undefined;
+  const hasRallyFlag = flagManager.isRallyModeActive();
 
   return {
     rally: hasRallyFlag,

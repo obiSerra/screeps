@@ -11,6 +11,7 @@ const terminalManager = require("./terminalManager");
 const stats = require("./stats");
 const spawner = require("./spawner");
 const errorTracker = require("./errorTracker");
+const flagManager = require("./flagManager");
 
 // ============================================================================
 // Memory Management
@@ -485,25 +486,12 @@ global.errorClear = function() {
  * Usage: attackStatus()
  */
 global.attackStatus = function() {
-  // Parse attack flags
-  const attackFlags = [];
-  for (const flagName in Game.flags) {
-    const flag = Game.flags[flagName];
-    let count = null;
-    
-    if (flagName === 'attack') {
-      count = CONFIG.OFFENSIVE.DEFAULT_ATTACK_COUNT;
-    } else {
-      const match = flagName.match(/^attack_(\d+)$/);
-      if (match) {
-        count = parseInt(match[1], 10);
-      }
-    }
-    
-    if (count !== null) {
-      attackFlags.push({ flagName, flag, count });
-    }
-  }
+  // Get attack flags from centralized manager
+  const attackFlags = flagManager.getAttackFlags().map(item => ({
+    flagName: item.name,
+    flag: item.flag,
+    count: item.count
+  }));
   
   // Count fighters by class
   const fighterCounts = {

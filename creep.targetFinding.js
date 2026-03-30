@@ -4,6 +4,7 @@
  */
 
 const CONFIG = require("./config");
+const flagManager = require("./flagManager");
 const {
   CRITICAL_HITS,
   WALL_MIN_HITS,
@@ -113,7 +114,7 @@ const findEnergyDepositTargets = (room) => {
  * @returns {Object|null} Structure at deconstruct flag or null
  */
 const findDeconstructTarget = (room) => {
-  const deconstructFlag = Game.flags["deconstruct"];
+  const deconstructFlag = flagManager.getDeconstructFlag();
   if (!deconstructFlag) {
     return null;
   }
@@ -143,7 +144,7 @@ const findDeconstructTarget = (room) => {
  * @returns {Object|null} Construction site at priority_build flag or null
  */
 const findPriorityBuildTarget = () => {
-  const priorityBuildFlag = Game.flags["priority_build"];
+  const priorityBuildFlag = flagManager.getPriorityBuildFlag();
   if (!priorityBuildFlag) {
     return null;
   }
@@ -175,19 +176,16 @@ const findPrioritizedAttackTarget = (creep) => {
   }
 
   // Priority 2: Check for attack flags to target structures (attack or attack_X pattern)
-  const attackFlags = Object.entries(Game.flags).filter(
-    ([name, flag]) => name === "attack" || name.startsWith("attack_"),
-  );
+  const attackFlags = flagManager.getAttackFlags();
 
   if (attackFlags.length === 0) {
     return null;
   }
 
   // Find the closest attack flag
-  const closestFlagEntry = creep.pos.findClosestByPath(
-    attackFlags.map(([name, flag]) => flag),
-  );
-  const attackFlag = closestFlagEntry || attackFlags[0][1];
+  const flagObjects = attackFlags.map(item => item.flag);
+  const closestFlagEntry = creep.pos.findClosestByPath(flagObjects);
+  const attackFlag = closestFlagEntry || flagObjects[0];
 
   if (!attackFlag) {
     return null;
@@ -505,19 +503,16 @@ const findRangedAttackTarget = (creep) => {
 
   // Priority 2: Check for attack flags to target structures
   // Reuse same logic as melee attackers
-  const attackFlags = Object.entries(Game.flags).filter(
-    ([name, flag]) => name === "attack" || name.startsWith("attack_"),
-  );
+  const attackFlags = flagManager.getAttackFlags();
 
   if (attackFlags.length === 0) {
     return null;
   }
 
   // Find the closest attack flag
-  const closestFlagEntry = creep.pos.findClosestByPath(
-    attackFlags.map(([name, flag]) => flag),
-  );
-  const attackFlag = closestFlagEntry || attackFlags[0][1];
+  const flagObjects = attackFlags.map(item => item.flag);
+  const closestFlagEntry = creep.pos.findClosestByPath(flagObjects);
+  const attackFlag = closestFlagEntry || flagObjects[0];
 
   if (!attackFlag) {
     return null;
@@ -572,20 +567,7 @@ const findRangedAttackTarget = (creep) => {
  * @returns {Flag|null} Nearest attack flag or null
  */
 const findNearestAttackFlag = (creep) => {
-  const attackFlags = Object.entries(Game.flags).filter(
-    ([name, flag]) => name === "attack" || name.startsWith("attack_"),
-  );
-
-  if (attackFlags.length === 0) {
-    return null;
-  }
-
-  // Find the closest attack flag by path
-  const flagObjects = attackFlags.map(([name, flag]) => flag);
-  const closest = creep.pos.findClosestByPath(flagObjects);
-
-  // If findClosestByPath fails (no path), fall back to range
-  return closest || creep.pos.findClosestByRange(flagObjects);
+  return flagManager.findNearestAttackFlag(creep);
 };
 
 module.exports = {
