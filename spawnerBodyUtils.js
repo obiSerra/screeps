@@ -942,44 +942,47 @@
     room,
     efficiencyMetrics = null,
   ) => {
+    // Cap energy at room's maximum capacity to prevent impossible body configurations
+    const maxEnergy = room ? Math.min(energyAvailable, room.energyCapacityAvailable) : energyAvailable;
+    
     const tier = getRCLTier(rcl);
 
     switch (role) {
       case "harvester":
-        return getGeneralistBody(rcl, energyAvailable, efficiencyMetrics);
+        return getGeneralistBody(rcl, maxEnergy, efficiencyMetrics);
 
       case "hauler":
-        return getHaulerBody(rcl, energyAvailable, efficiencyMetrics);
+        return getHaulerBody(rcl, maxEnergy, efficiencyMetrics);
 
       case "upgrader":
-        return getUpgraderBody(rcl, energyAvailable, efficiencyMetrics);
+        return getUpgraderBody(rcl, maxEnergy, efficiencyMetrics);
 
       case "builder":
-        return getBuilderBody(rcl, energyAvailable, efficiencyMetrics);
+        return getBuilderBody(rcl, maxEnergy, efficiencyMetrics);
 
       case "defender":
-        return getDefenderBody(rcl, energyAvailable);
+        return getDefenderBody(rcl, maxEnergy);
 
       case "fighter":
-        return getFighterCreepBody(energyAvailable);
+        return getFighterCreepBody(maxEnergy);
 
       case "explorer":
-        return getExplorerBody(rcl, energyAvailable);
+        return getExplorerBody(rcl, maxEnergy);
 
       case "claimer":
-        return getClaimerBody(rcl, energyAvailable);
+        return getClaimerBody(rcl, maxEnergy);
 
       case "transporter":
-        return getTransporterBody(energyAvailable);
+        return getTransporterBody(maxEnergy);
 
       case "miner":
-        return getMinerBody(rcl, energyAvailable, efficiencyMetrics);
+        return getMinerBody(rcl, maxEnergy, efficiencyMetrics);
 
       case "mineralExtractor":
-        return getMineralExtractorBody(rcl, energyAvailable);
+        return getMineralExtractorBody(rcl, maxEnergy);
 
       case "chemist":
-        return getChemistBody(rcl, energyAvailable);
+        return getChemistBody(rcl, maxEnergy);
 
       default:
         return undefined;

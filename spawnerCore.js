@@ -132,6 +132,7 @@ const trySpawn = (spawn, role, roomStatus, room, efficiencyMetrics = null, fight
   }
 
   if (!body || calculateBodyCost(body) > roomStatus.energyAvailable) {
+    // console.log(`Cannot spawn ${role} - ${JSON.stringify(body)} - Cost: ${calculateBodyCost(body)} - Available Energy: ${roomStatus.energyAvailable}`);
     return { spawned: false, role, reason: "insufficient_energy_or_no_body" };
   }
 
