@@ -42,7 +42,7 @@ You are invoked manually or by CI. On startup, always begin with:
 
 ## Output: `current-project-spec.md`
 
-Overwrite (do not append to) `current-project-spec.md` on every run.
+Overwrite (do not append to) `llm-prompts/current-project-spec.md` on every run.
 Use the structure below exactly.
 
 ~~~markdown

@@ -63,10 +63,18 @@ const rallyFlag = flagManager.getRallyFlag();
 - `attack`: Spawns default attack force (configured in `CONFIG.OFFENSIVE.DEFAULT_ATTACK_COUNT`)
 - `attack_X`: Spawns exactly X fighters to attack the flagged location
 - Multiple attack flags can be active simultaneously
-- Fighters move to the nearest attack flag and engage hostiles
-- **Fighter fallback**: When no targets visible, fighters use "rally" action to stay combat-ready (fixed March 30, 2026)
+- Fighters actively seek and move to attack flag positions (implemented via `movingToAttack` action)
+- **Positioning**: Ranged fighters (RANGED_ATTACK) position at range 3, melee fighters (ATTACK) at range 1
+- **Combat priority**: When enemies visible, fighters engage immediately; when no targets, maintain position at flag
+- **Visual indicator**: 🎯 icon appears above fighters moving to attack positions
 
-**Recent Fix**: Fighters no longer fall back to worker actions ("delivering", "transporting") when at attack flags with no visible enemies. They now maintain combat readiness via "rally" action.
+**Implementation Details** (March 30, 2026):
+The attack flag behavior is implemented through the `movingToAttack` action system:
+- Triggered in `baseCreep.workerActions()` when no combat targets visible but attack flag exists
+- Handler `handleMovingToAttack()` in `creep.actionHandlers.js` manages movement and positioning
+- Validates flag existence and clears memory if flag removed
+- Proper range-based positioning for different fighter types
+- Red path visualization (#ff0000) for clear visual feedback
 
 **Usage**:
 ```javascript
@@ -85,14 +93,17 @@ const totalFighters = flagManager.getTotalAttackForceSize();
 ```
 
 **Files Using**:
+- `baseCreep.js` - Detects attack flags and assigns `movingToAttack` action
+- `creep.actionHandlers.js` - Implements `handleMovingToAttack()` positioning logic
+- `creep.constants.js` - Defines `movingToAttack` action constants (icon, color, body requirements)
 - `creep.targetFinding.js` - Identifies attack targets and finds nearest attack flag
 - `role.explorer.js` - Explorers scout attack flag locations
 - `spawnerRoster.js` - Determines how many fighters to spawn
 - `main.js` - Global `attackStatus()` function for debugging
-- `role.fighterShooter.js` - Ranged attack fighters (fixed fallback behavior)
-- `role.fighterHealer.js` - Healer fighters (fixed fallback behavior)
-- `role.fighterFodder.js` - Melee fodder fighters (fixed fallback behavior)
-- `role.fighterInvader.js` - Balanced fighters (fixed fallback behavior)
+- `role.fighterShooter.js` - Ranged attack fighters
+- `role.fighterHealer.js` - Healer fighters
+- `role.fighterFodder.js` - Melee fodder fighters
+- `role.fighterInvader.js` - Balanced fighters
 
 ---
 
