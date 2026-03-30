@@ -227,6 +227,8 @@ const selectAction = (creep, priorityList) => {
 
     if (availability[action]) {
       switch (action) {
+        case "rally":
+          return { action: "rally", target: null };
         case "building":
           return { action: "building", target: selectBuildTarget(creep, targets.constructionSites) };
         case "repairing":
