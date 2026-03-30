@@ -12,6 +12,7 @@ const stats = require("./stats");
 const spawner = require("./spawner");
 const errorTracker = require("./errorTracker");
 const flagManager = require("./flagManager");
+const utils = require("./utils");
 
 // ============================================================================
 // Memory Management
@@ -160,6 +161,68 @@ const buildTargetingMap = () => {
 };
 
 // ============================================================================
+// Flag Behavior Monitoring
+// ============================================================================
+
+/**
+ * Log active flag-driven behaviors periodically
+ * Provides visibility into which flag systems are currently active
+ */
+const logActiveFlagBehaviors = () => {
+  const behaviors = [];
+  
+  // Check rally mode
+  if (flagManager.isRallyModeActive()) {
+    const rallyFlag = flagManager.getRallyFlag();
+    behaviors.push(`🚩 Rally Mode: ${rallyFlag.pos.roomName} [${rallyFlag.pos.x},${rallyFlag.pos.y}]`);
+  }
+  
+  // Check attack operations
+  if (flagManager.hasActiveAttackOperations()) {
+    const attackFlags = flagManager.getAttackFlags();
+    const totalForce = flagManager.getTotalAttackForceSize();
+    const flagSummary = attackFlags.map(f => `${f.name}(${f.count})`).join(', ');
+    behaviors.push(`⚔️ Attack Operations: ${flagSummary} | Total force: ${totalForce}`);
+  }
+  
+  // Check remote harvesting
+  if (flagManager.hasRemoteHarvestingFlags()) {
+    const remoteFlags = flagManager.getRemoteSourceFlags();
+    const flagNames = remoteFlags.map(f => f.name).join(', ');
+    behaviors.push(`⛏️ Remote Harvesting: ${remoteFlags.length} sources [${flagNames}]`);
+  }
+  
+  // Check claim flag
+  const claimFlag = flagManager.getClaimFlag();
+  if (claimFlag) {
+    behaviors.push(`🏴 Claim Operation: ${claimFlag.pos.roomName}`);
+  }
+  
+  // Check explore flag
+  const exploreFlag = flagManager.getExploreFlag();
+  if (exploreFlag) {
+    behaviors.push(`🔍 Explore Mission: ${exploreFlag.pos.roomName}`);
+  }
+  
+  // Check deconstruct flag
+  const deconstructFlag = flagManager.getDeconstructFlag();
+  if (deconstructFlag) {
+    behaviors.push(`🔨 Deconstruct Target: ${deconstructFlag.pos.roomName} [${deconstructFlag.pos.x},${deconstructFlag.pos.y}]`);
+  }
+  
+  // Check priority build flag
+  const priorityBuildFlag = flagManager.getPriorityBuildFlag();
+  if (priorityBuildFlag) {
+    behaviors.push(`🏗️ Priority Build: ${priorityBuildFlag.pos.roomName} [${priorityBuildFlag.pos.x},${priorityBuildFlag.pos.y}]`);
+  }
+  
+  // Log summary if any behaviors are active
+  if (behaviors.length > 0) {
+    utils.periodicLogger(`\n=== Active Flag Behaviors ===\n${behaviors.join('\n')}`, 25);
+  }
+};
+
+// ============================================================================
 // Main Game Loop
 // ============================================================================
 
@@ -170,6 +233,9 @@ module.exports.loop = function () {
     clearStaleRoomMemory();
     pruneCreepLosses();
   }
+  
+  // Log active flag-driven behaviors periodically
+  logActiveFlagBehaviors();
   
   // Build global targeting map once per tick
   buildTargetingMap();
