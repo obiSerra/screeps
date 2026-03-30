@@ -239,10 +239,10 @@ const selectAction = (creep, priorityList) => {
           return { action: "transporting", target: { id: targets.storage.id, pos: targets.storage.pos } };
         case "mining":
           return { action: "mining", target: null };
-        case "hauling":
-          return { action: "hauling", target: null };
         case "delivering":
           return { action: "delivering", target: null };
+        case "hauling":
+          return { action: "hauling", target: null };
         case "upgrading":
           return { action: "upgrading", target: null };
         case "deconstructing":

@@ -79,7 +79,7 @@ var roleHauler = () => {
       }
       
       // Haulers alternate between collecting and delivering energy
-      base.workerActions(creep, ["rally", "hauling", "delivering"]);
+      base.workerActions(creep, ["rally", "delivering", "hauling"]);
       
       base.performAction(creep, creep.memory.action);
     },
