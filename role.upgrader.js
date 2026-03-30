@@ -12,8 +12,8 @@ var roleUpgrader = () => {
       // In priority mode, act as harvester (prioritize energy delivery)
       // Otherwise, use normal upgrader priorities
       const priorityList = energyPriorityMode
-        ? ["harvesting", "upgrading", "repairing", "building"]
-        : ["repairCritical", "upgrading", "harvesting", "repairing", "building"];
+        ? ["rally", "harvesting", "upgrading", "repairing", "building"]
+        : ["rally", "repairCritical", "upgrading", "harvesting", "repairing", "building"];
       
       base.workerActions(creep, priorityList);
 

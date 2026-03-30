@@ -13,7 +13,7 @@ var roleHauler = () => {
     /** @param {Creep} creep **/
     run: function (creep) {
       // Haulers alternate between collecting and delivering energy
-      base.workerActions(creep, ["hauling", "delivering"]);
+      base.workerActions(creep, ["rally", "hauling", "delivering"]);
       
       base.performAction(creep, creep.memory.action);
     },

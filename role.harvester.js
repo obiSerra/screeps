@@ -7,7 +7,7 @@ var roleHarvester = () => {
     /** @param {Creep} creep **/
     run: function (creep) {
       
-      base.workerActions(creep, ["harvesting", "upgrading", "repairing", "building"]);
+      base.workerActions(creep, ["rally", "harvesting", "upgrading", "repairing", "building"]);
 
       base.performAction(creep, creep.memory.action);
     },

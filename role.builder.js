@@ -12,8 +12,8 @@ var roleBuilder = () => {
       // In priority mode, act as harvester (prioritize energy delivery)
       // Otherwise, use normal builder priorities
       const priorityList = energyPriorityMode
-        ? ["harvesting", "upgrading", "repairing", "building"]
-        : ["deconstructing", "repairCritical", "building", "repairing", "harvesting", "upgrading"];
+        ? ["rally", "harvesting", "upgrading", "repairing", "building"]
+        : ["rally", "deconstructing", "repairCritical", "building", "repairing", "harvesting", "upgrading"];
       
       base.workerActions(creep, priorityList);
       base.performAction(creep, creep.memory.action);

@@ -1056,11 +1056,37 @@ const handleRangingAttack = (creep) => {
   }
 };
 
+/**
+ * Handle rally action
+ * Move creeps to rally flag location
+ * Effectful function
+ * @param {Creep} creep
+ */
+const handleRally = (creep) => {
+  const rallyFlag = Game.flags['rally'];
+  
+  // If flag doesn't exist, clear action
+  if (!rallyFlag) {
+    clearCreepAction(creep);
+    return;
+  }
+  
+  // If already in the flag's room, mission complete
+  if (creep.pos.roomName === rallyFlag.pos.roomName) {
+    clearCreepAction(creep);
+    return;
+  }
+  
+  // Move towards the rally flag
+  moveToTarget(creep, rallyFlag, PATH_COLORS.rally);
+};
+
 // ============================================================================
 // Action Handler Registry
 // ============================================================================
 
 const ACTION_HANDLERS = {
+  rally: handleRally,
   gathering: handleGathering,
   building: handleBuilding,
   repairing: handleRepairing,
@@ -1081,6 +1107,7 @@ const ACTION_HANDLERS = {
 // ============================================================================
 
 module.exports = {
+  handleRally,
   handleGathering,
   handleBuilding,
   handleRepairing,

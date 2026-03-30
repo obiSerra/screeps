@@ -13,7 +13,7 @@ var roleMiner = () => {
     /** @param {Creep} creep **/
     run: function (creep) {
       // Miners focus exclusively on mining at their assigned source
-      base.workerActions(creep, ["mining"]);
+      base.workerActions(creep, ["rally", "mining"]);
       
       base.performAction(creep, creep.memory.action);
     },

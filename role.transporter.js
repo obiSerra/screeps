@@ -6,7 +6,7 @@ var roleTransporter = () => {
   return {
     /** @param {Creep} creep **/
     run: function (creep) {
-      base.workerActions(creep, ["transporting"]);
+      base.workerActions(creep, ["rally", "transporting"]);
       base.performAction(creep, creep.memory.action);
     },
   };

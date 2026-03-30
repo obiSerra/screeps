@@ -19,6 +19,7 @@ const STRUCTURE_MIN_HEALTH_PERCENT = CONFIG.REPAIR.STRUCTURE_MIN_HEALTH_PERCENT;
 // ============================================================================
 
 const ACTION_ICONS = {
+  rally: "🚩",
   gathering: "🔄",
   building: "🚧",
   repairing: "🛠",
@@ -36,6 +37,7 @@ const ACTION_ICONS = {
 };
 
 const PATH_COLORS = {
+  rally: "#ff00ff",
   gathering: "#ffaa00",
   building: "#ffffff",
   repairing: "#00ff22",
