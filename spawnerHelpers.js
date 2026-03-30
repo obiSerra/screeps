@@ -296,7 +296,7 @@ const checkMinimumFleetPriority = (spawn, room, currentCreeps, roomStatus, effic
  */
 const checkClaimerPriority = (spawn, room, currentCreeps, roomStatus, efficiencyMetrics) => {
   const { trySpawn } = getTrySpawn();
-  console.log(`Checking claimer priority - claim flag: ${flagManager.hasFlag("claim")}, current claimer count: ${currentCreeps.claimer || 0}`);
+  // console.log(`Checking claimer priority - claim flag: ${flagManager.hasFlag("claim")}, current claimer count: ${currentCreeps.claimer || 0}`);
   if (flagManager.hasFlag("claim") && !currentCreeps.claimer) {
     return trySpawn(spawn, "claimer", roomStatus, room, efficiencyMetrics);
   }

@@ -64,7 +64,7 @@ const spawnProcedure = (spawn, roster, roomStatus, efficiencyMetrics) => {
 
     for (const check of priorityChecks) {
       const result = check();
-      console.log(`Priority check result: ${result ? JSON.stringify(result) : 'no spawn'}`);
+      // console.log(`Priority check result: ${result ? JSON.stringify(result) : 'no spawn'}`);
       if (result) {
         displaySpawningVisual(spawn);
         return result;
