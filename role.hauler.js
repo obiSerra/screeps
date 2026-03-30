@@ -1,6 +1,8 @@
 const utils = require("utils");
 const baseCreep = require("baseCreep");
 const flagManager = require("flagManager");
+const { clear } = require("./errorTracker");
+const { clearCreepAction } = require("./creep.effects");
 
 /**
  * Hauler role - pure transport creep with no WORK parts
@@ -43,12 +45,10 @@ var roleHauler = () => {
                 const storageStructures = room.find(FIND_STRUCTURES, {
                   filter: (s) =>
                     (s.structureType === STRUCTURE_CONTAINER ||
-                    s.structureType === STRUCTURE_STORAGE) &&
+                      s.structureType === STRUCTURE_STORAGE) &&
                     s.store[RESOURCE_ENERGY] > 0,
                 });
-                console.log(
-                  `Remote hauler ${creep.name} found ${storageStructures.length} storage structures with energy near flag ${flag.name} in room ${room.name}`,
-                );
+                
 
                 const totalEnergy = storageStructures.reduce(
                   (sum, s) => sum + s.store[RESOURCE_ENERGY],
@@ -66,12 +66,37 @@ var roleHauler = () => {
               }
             }
 
-            if (targetFlag && creep.room.name !== targetFlag.pos.roomName) {
+            console.log(`Creep room ${creep.room.name} - Remote hauler ${creep.name} found max energy ${maxEnergy} at flag ${targetFlag ? targetFlag.name : "none"}`);
+
+            if (targetFlag) {
               creep.moveTo(targetFlag, {
                 visualizePathStyle: { stroke: "#ffaa00", opacity: 0.5 },
               });
               return;
+            } else if (targetFlag) {
+              console.log(
+                `Remote hauler ${creep.name} moving to remote flag ${targetFlag.name} in room ${targetFlag.pos.roomName} to collect energy`,
+              );
+              clearCreepAction(creep);
+              return;
             }
+          }
+
+          // If in the same room as a remote source flag, pick up energy
+          if (!isEmpty) {
+            // Already carrying something, don't try to pick up more
+            return;
+          }
+
+          // Check if creep is in same room as any remote source flag
+          const flagInRoom = remoteFlags.find(
+            (f) => f.flag.pos.roomName === creep.room.name,
+          );
+          if (flagInRoom && creep.store.getFreeCapacity() > 0) {
+            // Set to hauling mode so it picks up energy from containers/storage
+            creep.memory.action = "hauling";
+            base.performAction(creep, "hauling");
+            return;
           }
 
           // If full, return to spawn room to deliver
