@@ -1058,22 +1058,25 @@ const handleRangingAttack = (creep) => {
 
 /**
  * Handle rally action
- * Move creeps to rally flag location
+ * Move creeps to rally flag location and stay idle nearby
  * Effectful function
  * @param {Creep} creep
  */
 const handleRally = (creep) => {
   const rallyFlag = Game.flags['rally'];
   
-  // If flag doesn't exist, clear action
+  // If flag doesn't exist, clear action and resume normal duties
   if (!rallyFlag) {
     clearCreepAction(creep);
     return;
   }
   
-  // If already in the flag's room, mission complete
-  if (creep.pos.roomName === rallyFlag.pos.roomName) {
-    clearCreepAction(creep);
+  // Check if creep is near the flag (within range 3)
+  const distance = creep.pos.getRangeTo(rallyFlag);
+  
+  if (distance <= 3) {
+    // Already at rally point - stay idle
+    creep.say("🚩 rally");
     return;
   }
   

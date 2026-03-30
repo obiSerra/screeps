@@ -107,13 +107,12 @@ const getActionAvailability = (creep) => {
   const priorityBuildTarget = findPriorityBuildTarget();
   const hasPriorityBuildTarget = priorityBuildTarget !== null;
 
-  // Check for rally flag (migration command)
+  // Check for rally flag (rally point command - creeps gather and stay idle)
   const rallyFlag = Game.flags['rally'];
   const hasRallyFlag = rallyFlag !== null && rallyFlag !== undefined;
-  const isInDifferentRoom = hasRallyFlag && creep.pos.roomName !== rallyFlag.pos.roomName;
 
   return {
-    rally: isInDifferentRoom,
+    rally: hasRallyFlag,
     repairCritical: criticalRepairs.length > 0 && canPerformAction(creep, "repairing"),
     building: (constructionSites.length > 0 || hasPriorityBuildTarget) && canPerformAction(creep, "building"),
     repairing: repairTargets.length > 0 && canPerformAction(creep, "repairing"),
