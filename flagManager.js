@@ -15,17 +15,17 @@ const CONFIG = require("./config");
  */
 const FLAG_TYPES = {
   // Command flags - direct gameplay behaviors
-  RALLY: 'rally',
-  ATTACK: 'attack',
-  CLAIM: 'claim',
-  EXPLORE: 'explore',
-  DECONSTRUCT: 'deconstruct',
-  PRIORITY_BUILD: 'priority_build',
-  
+  RALLY: "rally",
+  ATTACK: "attack",
+  CLAIM: "claim",
+  EXPLORE: "explore",
+  DECONSTRUCT: "deconstruct",
+  PRIORITY_BUILD: "priority_build",
+
   // Pattern-based flags
-  ATTACK_NUMBERED: 'attack_numbered',  // attack_X pattern
-  REMOTE_SOURCE: 'remote_source',      // source_X pattern
-  PLANNER: 'planner',                  // XXX_S_N pattern (structure planning)
+  ATTACK_NUMBERED: "attack_numbered", // attack_X pattern
+  REMOTE_SOURCE: "remote_source", // source_X pattern
+  PLANNER: "planner", // XXX_S_N pattern (structure planning)
 };
 
 /**
@@ -34,7 +34,7 @@ const FLAG_TYPES = {
 const FLAG_PATTERNS = {
   ATTACK_NUMBERED: /^attack_(\d+)$/,
   REMOTE_SOURCE: /^source_(\d+)$/,
-  PLANNER: /^[A-Z]{3}_\d+_\d+$/,  // XXX_S_N format
+  PLANNER: /^[A-Z]{3}_\d+_\d+$/, // XXX_S_N format
 };
 
 // ============================================================================
@@ -106,7 +106,7 @@ const hasFlag = (name) => {
  * @returns {Array<Flag>} Array of flag objects (excludes non-existent flags)
  */
 const getFlags = (names) => {
-  return names.map(getFlag).filter(flag => flag !== null);
+  return names.map(getFlag).filter((flag) => flag !== null);
 };
 
 // ============================================================================
@@ -121,14 +121,14 @@ const getFlags = (names) => {
 const getFlagsByPattern = (pattern) => {
   const flags = getAllFlags();
   const results = [];
-  
+
   for (const [name, flag] of Object.entries(flags)) {
     const match = name.match(pattern);
     if (match) {
       results.push({ name, flag, match });
     }
   }
-  
+
   return results;
 };
 
@@ -138,15 +138,15 @@ const getFlagsByPattern = (pattern) => {
  */
 const getAttackFlags = () => {
   ensureCache();
-  const cacheKey = 'attack_flags';
-  
+  const cacheKey = "attack_flags";
+
   if (!cachedFlags.byType[cacheKey]) {
     const results = [];
     const flags = getAllFlags();
-    
+
     for (const [name, flag] of Object.entries(flags)) {
       // Match "attack" flag (default count)
-      if (name === 'attack') {
+      if (name === "attack") {
         results.push({
           name,
           flag,
@@ -165,10 +165,10 @@ const getAttackFlags = () => {
         }
       }
     }
-    
+
     cachedFlags.byType[cacheKey] = results;
   }
-  
+
   return cachedFlags.byType[cacheKey];
 };
 
@@ -178,19 +178,19 @@ const getAttackFlags = () => {
  */
 const getRemoteSourceFlags = () => {
   ensureCache();
-  const cacheKey = 'remote_source_flags';
-  
+  const cacheKey = "remote_source_flags";
+
   if (!cachedFlags.byType[cacheKey]) {
     const pattern = FLAG_PATTERNS.REMOTE_SOURCE;
     const matches = getFlagsByPattern(pattern);
-    
+
     cachedFlags.byType[cacheKey] = matches.map(({ name, flag, match }) => ({
       name,
       flag,
       sourceId: parseInt(match[1], 10),
     }));
   }
-  
+
   return cachedFlags.byType[cacheKey];
 };
 
@@ -200,15 +200,15 @@ const getRemoteSourceFlags = () => {
  * @returns {Array<{name: string, flag: Flag, structureCode: string, stage: number, id: number}>}
  */
 const getPlannerFlags = (room = null) => {
-  const cacheKey = room ? `planner_flags_${room.name}` : 'planner_flags_all';
+  const cacheKey = room ? `planner_flags_${room.name}` : "planner_flags_all";
   ensureCache();
-  
+
   if (!cachedFlags.byType[cacheKey]) {
     const pattern = FLAG_PATTERNS.PLANNER;
     const matches = getFlagsByPattern(pattern);
-    
+
     let results = matches.map(({ name, flag }) => {
-      const parts = name.split('_');
+      const parts = name.split("_");
       return {
         name,
         flag,
@@ -217,15 +217,15 @@ const getPlannerFlags = (room = null) => {
         id: parseInt(parts[2], 10),
       };
     });
-    
+
     // Filter by room if specified
     if (room) {
-      results = results.filter(item => item.flag.pos.roomName === room.name);
+      results = results.filter((item) => item.flag.pos.roomName === room.name);
     }
-    
+
     cachedFlags.byType[cacheKey] = results;
   }
-  
+
   return cachedFlags.byType[cacheKey];
 };
 
@@ -237,31 +237,31 @@ const getPlannerFlags = (room = null) => {
  * Get the rally flag
  * @returns {Flag|null} Rally flag or null
  */
-const getRallyFlag = () => getFlag('rally');
+const getRallyFlag = () => getFlag("rally");
 
 /**
  * Get the claim flag
  * @returns {Flag|null} Claim flag or null
  */
-const getClaimFlag = () => getFlag('claim');
+const getClaimFlag = () => getFlag("claim");
 
 /**
  * Get the explore flag
  * @returns {Flag|null} Explore flag or null
  */
-const getExploreFlag = () => getFlag('explore');
+const getExploreFlag = () => getFlag("explore");
 
 /**
  * Get the deconstruct flag
  * @returns {Flag|null} Deconstruct flag or null
  */
-const getDeconstructFlag = () => getFlag('deconstruct');
+const getDeconstructFlag = () => getFlag("deconstruct");
 
 /**
  * Get the priority build flag
  * @returns {Flag|null} Priority build flag or null
  */
-const getPriorityBuildFlag = () => getFlag('priority_build');
+const getPriorityBuildFlag = () => getFlag("priority_build");
 
 // ============================================================================
 // Proximity & Distance Helpers
@@ -276,7 +276,18 @@ const getPriorityBuildFlag = () => getFlag('priority_build');
  */
 const findNearestFlag = (pos, flags, usePath = true) => {
   if (!flags || flags.length === 0) return null;
-  
+
+  let currentRoom = [];
+  for (const flag of flags) {
+    if (flag.pos.roomName === pos.roomName) {
+      currentRoom.push(flag);
+    }
+  }
+
+  if (currentRoom.length === 0) {
+    return flags[0]; // No flags in the same room, return the first one (could be improved to find closest by range)
+  }
+
   if (usePath) {
     return pos.findClosestByPath(flags) || pos.findClosestByRange(flags);
   }
@@ -290,9 +301,10 @@ const findNearestFlag = (pos, flags, usePath = true) => {
  */
 const findNearestAttackFlag = (creep) => {
   const attackFlags = getAttackFlags();
+
   if (attackFlags.length === 0) return null;
-  
-  const flags = attackFlags.map(item => item.flag);
+
+  const flags = attackFlags.map((item) => item.flag);
   return findNearestFlag(creep.pos, flags);
 };
 
@@ -320,11 +332,11 @@ const isFlagInRoom = (flag, roomOrPos) => {
  */
 const getDistanceToFlag = (pos, flag, linear = true) => {
   if (!flag) return Infinity;
-  
+
   if (linear) {
     return pos.getRangeTo(flag);
   }
-  
+
   const path = pos.findPathTo(flag);
   return path.length > 0 ? path.length : Infinity;
 };
@@ -337,7 +349,7 @@ const getDistanceToFlag = (pos, flag, linear = true) => {
  * Check if rally mode is active
  * @returns {boolean} True if rally flag exists
  */
-const isRallyModeActive = () => hasFlag('rally');
+const isRallyModeActive = () => hasFlag("rally");
 
 /**
  * Check if there are any active attack operations
@@ -350,8 +362,11 @@ const hasActiveAttackOperations = () => getAttackFlags().length > 0;
  * @returns {boolean} True if remote harvesting is configured
  */
 const hasRemoteHarvestingFlags = () => {
-  return CONFIG.REMOTE_HARVESTING && CONFIG.REMOTE_HARVESTING.ENABLED && 
-         getRemoteSourceFlags().length > 0;
+  return (
+    CONFIG.REMOTE_HARVESTING &&
+    CONFIG.REMOTE_HARVESTING.ENABLED &&
+    getRemoteSourceFlags().length > 0
+  );
 };
 
 /**
@@ -370,32 +385,32 @@ module.exports = {
   // Constants
   FLAG_TYPES,
   FLAG_PATTERNS,
-  
+
   // Core access
   getFlag,
   hasFlag,
   getFlags,
   getAllFlags,
-  
+
   // Pattern-based queries
   getFlagsByPattern,
   getAttackFlags,
   getRemoteSourceFlags,
   getPlannerFlags,
-  
+
   // Command flag accessors
   getRallyFlag,
   getClaimFlag,
   getExploreFlag,
   getDeconstructFlag,
   getPriorityBuildFlag,
-  
+
   // Proximity & distance
   findNearestFlag,
   findNearestAttackFlag,
   isFlagInRoom,
   getDistanceToFlag,
-  
+
   // Flag state queries
   isRallyModeActive,
   hasActiveAttackOperations,

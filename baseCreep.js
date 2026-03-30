@@ -40,6 +40,7 @@ const workerActions = (creep, priorityList) => {
 
   // Check for combat actions based on fighter class
   if (isFighter(creep)) {
+
     // Healers: find damaged allies to heal
     if (isHealer(creep)) {
       const healTarget = findHealTarget(creep);
@@ -72,10 +73,9 @@ const workerActions = (creep, priorityList) => {
     
     // If no combat targets found, check for attack flags
     // Fighters should move to attack flag positions even without visible enemies
-    const flagManager = require("./flagManager");
     const { findNearestAttackFlag } = require("./creep.targetFinding");
     const attackFlag = findNearestAttackFlag(creep);
-    
+
     if (attackFlag) {
       // Set action to move to attack flag
       setCreepAction(creep, "movingToAttack", { 
