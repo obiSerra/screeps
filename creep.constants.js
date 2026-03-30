@@ -27,6 +27,7 @@ const ACTION_ICONS = {
   harvesting: "⛏",
   claiming: "📜",
   attacking: "⚔️",
+  movingToAttack: "🎯",
   healing: "💊",
   rangingAttack: "🎯",
   transporting: "📦",
@@ -44,6 +45,7 @@ const PATH_COLORS = {
   upgrading: "#ffaa00",
   harvesting: "#0004ff",
   attacking: "#ff0000",
+  movingToAttack: "#ff0000",
   healing: "#4CAF50",
   rangingAttack: "#2196F3",
   transporting: "#ff8800",
@@ -71,6 +73,7 @@ const ACTION_BODY_REQUIREMENTS = {
   rangingAttack: [RANGED_ATTACK],
   delivering: [CARRY],
   attacking: [ATTACK, RANGED_ATTACK], // Requires at least one
+  movingToAttack: [ATTACK, RANGED_ATTACK, HEAL], // Fighters moving to attack position
 };
 
 // ============================================================================

@@ -69,6 +69,23 @@ const workerActions = (creep, priorityList) => {
         return;
       }
     }
+    
+    // If no combat targets found, check for attack flags
+    // Fighters should move to attack flag positions even without visible enemies
+    const flagManager = require("./flagManager");
+    const { findNearestAttackFlag } = require("./creep.targetFinding");
+    const attackFlag = findNearestAttackFlag(creep);
+    
+    if (attackFlag) {
+      // Set action to move to attack flag
+      setCreepAction(creep, "movingToAttack", { 
+        flagName: attackFlag.name,
+        pos: attackFlag.pos,
+        roomName: attackFlag.pos.roomName
+      });
+      sayAction(creep, "movingToAttack");
+      return;
+    }
   }
 
   // If was attacking but no more targets, reset action

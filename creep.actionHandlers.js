@@ -410,6 +410,51 @@ const handleAttacking = (creep) => {
 };
 
 /**
+ * Handle moving to attack flag
+ * Used when fighters need to position at attack flag but no targets are visible yet
+ * Effectful function
+ * @param {Creep} creep
+ */
+const handleMovingToAttack = (creep) => {
+  const { actionTarget } = creep.memory;
+  
+  if (!actionTarget || !actionTarget.pos) {
+    clearCreepAction(creep);
+    return;
+  }
+  
+  // Get flag to verify it still exists
+  const flagManager = require("./flagManager");
+  const attackFlags = flagManager.getAttackFlags();
+  
+  if (attackFlags.length === 0) {
+    // No attack flags anymore, clear action
+    clearCreepAction(creep);
+    return;
+  }
+  
+  // Create RoomPosition from stored position
+  const targetPos = new RoomPosition(
+    actionTarget.pos.x,
+    actionTarget.pos.y,
+    actionTarget.pos.roomName || actionTarget.roomName
+  );
+  
+  // Move to the flag position
+  // Get within range 3 for ranged fighters, range 1 for melee
+  const hasRangedAttack = creep.body.some(part => part.type === RANGED_ATTACK);
+  const targetRange = hasRangedAttack ? 3 : 1;
+  const currentRange = creep.pos.getRangeTo(targetPos);
+  
+  if (currentRange > targetRange) {
+    creep.moveTo(targetPos, {
+      visualizePathStyle: { stroke: "#ff0000", opacity: 0.5 },
+      reusePath: 10
+    });
+  }
+};
+
+/**
  * Handle transporting action (move energy from containers to storage)
  * Effectful function
  * @param {Creep} creep
@@ -1097,6 +1142,7 @@ const ACTION_HANDLERS = {
   upgrading: handleUpgrading,
   harvesting: handleHarvesting,
   attacking: handleAttacking,
+  movingToAttack: handleMovingToAttack,
   healing: handleHealing,
   rangingAttack: handleRangingAttack,
   transporting: handleTransporting,
@@ -1118,6 +1164,7 @@ module.exports = {
   handleUpgrading,
   handleHarvesting,
   handleAttacking,
+  handleMovingToAttack,
   handleHealing,
   handleRangingAttack,
   handleTransporting,
