@@ -82,7 +82,12 @@
 
     // Apply RCL multiplier and cap at maximum
     const targetSets = Math.floor(baseSets * rclMultiplier);
-    return Math.min(targetSets, maxSets, maxAffordable);
+    const result = Math.min(targetSets, maxSets, maxAffordable);
+    
+    // Final safety check: ensure result never exceeds what's affordable
+    // This prevents any edge cases from config or calculation errors
+    const safeResult = Math.min(result, Math.floor(energyAvailable / setCost));
+    return safeResult;
   };
 
   /**
@@ -128,6 +133,12 @@
     for (let i = 0; i < sets; i++) body.push(WORK);
     for (let i = 0; i < sets; i++) body.push(CARRY);
     for (let i = 0; i < sets; i++) body.push(MOVE);
+
+    // Validate final cost doesn't exceed available energy
+    if (calculateBodyCost(body) > energyAvailable) {
+      console.log(`ERROR: Generalist body cost ${calculateBodyCost(body)} exceeds available energy ${energyAvailable}`);
+      return undefined;
+    }
 
     return body;
   };
@@ -183,17 +194,15 @@
       body.push(MOVE); // Add MOVE at end
     }
 
-    return body;
+  // Validate final cost doesn't exceed available energy
+  if (calculateBodyCost(body) > energyAvailable) {
+    console.log(`ERROR: Miner body cost ${calculateBodyCost(body)} exceeds available energy ${energyAvailable}`);
+    return undefined;
+  }
+
+  return body;
   };
 
-  /**
-   * Get hauler body (pure transport, no WORK parts)
-   * Pure function - no side effects
-   * @param {number} rcl - Room Control Level
-   * @param {number} energyAvailable - Current energy available
-   * @param {Object} efficiencyMetrics - Optional efficiency metrics for adaptive sizing
-   * @returns {Array} Body parts array
-   */
   const getHaulerBody = (rcl, energyAvailable, efficiencyMetrics = null) => {
     const tier = getRCLTier(rcl);
 
@@ -233,6 +242,12 @@
     // Add all MOVE parts
     for (let i = 0; i < sets; i++) {
       body.push(MOVE);
+    }
+
+    // Validate final cost doesn't exceed available energy
+    if (calculateBodyCost(body) > energyAvailable) {
+      console.log(`ERROR: Hauler body cost ${calculateBodyCost(body)} exceeds available energy ${energyAvailable}`);
+      return undefined;
     }
 
     return body;
@@ -278,6 +293,12 @@
       for (let i = 0; i < sets * 2; i++) body.push(CARRY);
       for (let i = 0; i < sets * 3; i++) body.push(MOVE);
 
+      // Validate final cost doesn't exceed available energy
+      if (calculateBodyCost(body) > energyAvailable) {
+        console.log(`ERROR: Late upgrader body cost ${calculateBodyCost(body)} exceeds available energy ${energyAvailable}`);
+        return undefined;
+      }
+
       return body;
     }
 
@@ -303,6 +324,12 @@
     for (let i = 0; i < sets; i++) body.push(WORK);
     for (let i = 0; i < sets; i++) body.push(CARRY);
     for (let i = 0; i < sets * 2; i++) body.push(MOVE);
+
+    // Validate final cost doesn't exceed available energy
+    if (calculateBodyCost(body) > energyAvailable) {
+      console.log(`ERROR: Mid upgrader body cost ${calculateBodyCost(body)} exceeds available energy ${energyAvailable}`);
+      return undefined;
+    }
 
     return body;
   };
@@ -345,6 +372,12 @@
     for (let i = 0; i < sets; i++) body.push(WORK);
     for (let i = 0; i < sets; i++) body.push(CARRY);
     for (let i = 0; i < sets * 2; i++) body.push(MOVE);
+
+    // Validate final cost doesn't exceed available energy
+    if (calculateBodyCost(body) > energyAvailable) {
+      console.log(`ERROR: Builder body cost ${calculateBodyCost(body)} exceeds available energy ${energyAvailable}`);
+      return undefined;
+    }
 
     return body;
   };
@@ -944,7 +977,7 @@
   ) => {
     // Cap energy at room's maximum capacity to prevent impossible body configurations
     const maxEnergy = room ? Math.min(energyAvailable, room.energyCapacityAvailable) : energyAvailable;
-    
+    console.log(`Calculating body for role ${role} with energy ${maxEnergy} at RCL ${rcl}`);
     const tier = getRCLTier(rcl);
 
     switch (role) {
