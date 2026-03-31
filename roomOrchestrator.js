@@ -486,7 +486,7 @@ const handleExecutingMode = (room, roomStatus) => {
     Memory.rooms[room.name] = {};
   }
   
-  if (efficiencyMetrics && efficiencyMetrics.timeToFillCapacity !== undefined) {
+  if (CONFIG.ENERGY.PRIORITY_MODE.ENABLED && efficiencyMetrics && efficiencyMetrics.timeToFillCapacity !== undefined) {
     const threshold = CONFIG.ENERGY.PRIORITY_MODE.CRITICAL_TIME_TO_FILL_CAPACITY;
     const currentMode = Memory.rooms[room.name].energyPriorityMode || false;
     
