@@ -48,7 +48,6 @@ var roleHauler = () => {
                       s.structureType === STRUCTURE_STORAGE) &&
                     s.store[RESOURCE_ENERGY] > 0,
                 });
-                
 
                 const totalEnergy = storageStructures.reduce(
                   (sum, s) => sum + s.store[RESOURCE_ENERGY],
@@ -66,18 +65,14 @@ var roleHauler = () => {
               }
             }
 
-            console.log(`Creep room ${creep.room.name} - Remote hauler ${creep.name} found max energy ${maxEnergy} at flag ${targetFlag ? targetFlag.name : "none"}`);
+            console.log(
+              `Creep room ${creep.room.name} - Remote hauler ${creep.name} found max energy ${maxEnergy} at flag ${targetFlag ? targetFlag.name : "none"}`,
+            );
 
-            if (targetFlag) {
+            if (targetFlag && creep.room.name !== targetFlag.pos.roomName) {
               creep.moveTo(targetFlag, {
                 visualizePathStyle: { stroke: "#ffaa00", opacity: 0.5 },
               });
-              return;
-            } else if (targetFlag) {
-              console.log(
-                `Remote hauler ${creep.name} moving to remote flag ${targetFlag.name} in room ${targetFlag.pos.roomName} to collect energy`,
-              );
-              clearCreepAction(creep);
               return;
             }
           }
@@ -95,7 +90,14 @@ var roleHauler = () => {
           if (flagInRoom && creep.store.getFreeCapacity() > 0) {
             // Set to hauling mode so it picks up energy from containers/storage
             creep.memory.action = "hauling";
-            base.performAction(creep, "hauling");
+            creep.memory.actionTarget = {
+              id: room.find(FIND_STRUCTURES, {
+                filter: (s) =>
+                  (s.structureType === STRUCTURE_CONTAINER ||
+                    s.structureType === STRUCTURE_STORAGE) &&
+                  s.store[RESOURCE_ENERGY] > 0,
+              })[0].id,
+            };
             return;
           }
 

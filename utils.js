@@ -211,8 +211,6 @@ const areThereInvaders = (room) => {
   return areInvaders;
 };
 
-
-
 /**
  * Find nearest container with available capacity
  * Pure function (query only, no side effects)
@@ -247,10 +245,20 @@ function findBestSourceForCreep(creep) {
         structure.store.getCapacity(RESOURCE_ENERGY) * 0.75,
   });
 
+  const tombstones = creep.room.find(FIND_TOMBSTONES, {
+    filter: (tombstone) => tombstone.store[RESOURCE_ENERGY] > 0,
+  });
+
+  const ruins = creep.room.find(FIND_RUINS, {
+    filter: (ruin) => ruin.store[RESOURCE_ENERGY] > 0,
+  });
+
   // Filter out depleted sources
   const allSources = localSources.filter((source) => source.energy > 0);
 
-  const targets = [...allSources, ...containers];
+  // const targets = [...allSources, ...containers, ...tombstones, ...ruins];
+
+  const targets = [...allSources, ...containers, ...ruins];
 
   // Scoring weights from CONFIG
   const DISTANCE_WEIGHT = CONFIG.UTILITY.DISTANCE_WEIGHT;
@@ -260,10 +268,8 @@ function findBestSourceForCreep(creep) {
   for (const target of targets) {
     const creepsTargeting = countCreepsTargetingSource(target.id);
     const energyAvailable =
-      target.energy ||
-      (target.store && target.store[RESOURCE_ENERGY]) ||
-      0;
-      
+      target.energy || (target.store && target.store[RESOURCE_ENERGY]) || 0;
+
     const distance = creep.pos.getRangeTo(target);
 
     const score =
@@ -302,6 +308,27 @@ const actions = {
   upgrading: "⚡ upgrading",
   harvesting: "⛏ harvesting",
 };
+
+const errors = {
+  0: "OK",
+  "-1": "ERR_NOT_OWNER",
+  "-2": "ERR_NO_PATH",
+  "-3": "ERR_NAME_EXISTS",
+  "-4": "ERR_BUSY",
+  "-5": "ERR_NOT_FOUND",
+  "-6": "ERR_NOT_ENOUGH_EXTENSIONS",
+  "-7": "ERR_INVALID_TARGET",
+  "-8": "ERR_FULL",
+  "-9": "ERR_NOT_IN_RANGE",
+  "-10": "ERR_INVALID_ARGS",
+  "-11": "ERR_TIRED",
+  "-12": "ERR_NO_BODYPART",
+  "-14": "ERR_RCL_NOT_ENOUGH",
+  "-15": "ERR_GCL_NOT_ENOUGH",
+};
+
+const getErrorString = (code) =>
+  errors[parseInt(code, 10)] || `Unknown error code: ${code}`;
 
 // ============================================================================
 // Functional Programming Utilities
@@ -401,6 +428,8 @@ const utils = {
   actions,
   areThereInvaders,
   findNearestContainerWithSpace,
+
+  getErrorString,
 
   // Functional utilities
   pipe,

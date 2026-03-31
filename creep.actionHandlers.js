@@ -26,7 +26,7 @@ const {
 } = require("./creep.effects");
 const { hasActiveLinkNetwork, getLinkNearPosition } = require("./linkManager");
 const { clear } = require("./errorTracker");
-
+const { getErrorString } = require("./utils");
 // ============================================================================
 // Action Handlers - Composed Effectful Functions
 // ============================================================================
@@ -77,6 +77,8 @@ const handleGathering = (creep) => {
   // Check if the target is a dropped resource
   const isDroppedResource = source instanceof Resource;
 
+  const isRuin = source instanceof Ruin;
+
   // Check if the target is a container or storage
   const isContainer =
     source.structureType === STRUCTURE_CONTAINER ||
@@ -94,6 +96,16 @@ const handleGathering = (creep) => {
       clearCreepAction(creep);
     }
     return;
+  } else if (isRuin) {
+    const result = creep.withdraw(source, RESOURCE_ENERGY);
+    if (result === ERR_NOT_IN_RANGE) {
+      moveToTarget(creep, source, PATH_COLORS.gathering);
+    } else if (result === OK || result === ERR_FULL) {
+      clearCreepAction(creep);
+    } else {
+      // Ruin no longer available or error
+      clearCreepAction(creep);
+    }
   }
 
   // Check if source is empty
@@ -126,7 +138,7 @@ const handleGathering = (creep) => {
       clearCreepAction(creep);
     } else {
       console.log(
-        `Error harvesting from source ${source.id} for creep ${creep.name} - Room ${creep.room.name}: ${result}`,
+        `Error harvesting from source ${typeof source} - for creep ${creep.name} - Room ${creep.room.name}: ${getErrorString(result)}`,
       );
       clearCreepAction(creep);
     }
@@ -417,39 +429,41 @@ const handleAttacking = (creep) => {
  */
 const handleMovingToAttack = (creep) => {
   const { actionTarget } = creep.memory;
-  
+
   if (!actionTarget || !actionTarget.pos) {
     clearCreepAction(creep);
     return;
   }
-  
+
   // Get flag to verify it still exists
   const flagManager = require("./flagManager");
   const attackFlags = flagManager.getAttackFlags();
-  
+
   if (attackFlags.length === 0) {
     // No attack flags anymore, clear action
     clearCreepAction(creep);
     return;
   }
-  
+
   // Create RoomPosition from stored position
   const targetPos = new RoomPosition(
     actionTarget.pos.x,
     actionTarget.pos.y,
-    actionTarget.pos.roomName || actionTarget.roomName
+    actionTarget.pos.roomName || actionTarget.roomName,
   );
-  
+
   // Move to the flag position
   // Get within range 3 for ranged fighters, range 1 for melee
-  const hasRangedAttack = creep.body.some(part => part.type === RANGED_ATTACK);
+  const hasRangedAttack = creep.body.some(
+    (part) => part.type === RANGED_ATTACK,
+  );
   const targetRange = hasRangedAttack ? 3 : 1;
   const currentRange = creep.pos.getRangeTo(targetPos);
-  
+
   if (currentRange > targetRange) {
     creep.moveTo(targetPos, {
       visualizePathStyle: { stroke: "#ff0000", opacity: 0.5 },
-      reusePath: 10
+      reusePath: 10,
     });
   }
 };
@@ -1110,22 +1124,22 @@ const handleRangingAttack = (creep) => {
  */
 const handleRally = (creep) => {
   const rallyFlag = flagManager.getRallyFlag();
-  
+
   // If flag doesn't exist, clear action and resume normal duties
   if (!rallyFlag) {
     clearCreepAction(creep);
     return;
   }
-  
+
   // Check if creep is near the flag (within range 3)
   const distance = creep.pos.getRangeTo(rallyFlag);
-  
+
   if (distance <= 3) {
     // Already at rally point - stay idle
     creep.say("🚩 rally");
     return;
   }
-  
+
   // Move towards the rally flag
   moveToTarget(creep, rallyFlag, PATH_COLORS.rally);
 };
