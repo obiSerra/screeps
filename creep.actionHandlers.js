@@ -137,9 +137,9 @@ const handleGathering = (creep) => {
     } else if (result === ERR_NO_BODYPART) {
       clearCreepAction(creep);
     } else {
-      console.log(
-        `Error harvesting from source ${typeof source} - for creep ${creep.name} - Room ${creep.room.name}: ${getErrorString(result)}`,
-      );
+      // console.log(
+      //   `Error harvesting from source ${typeof source} - for creep ${creep.name} - Room ${creep.room.name}: ${getErrorString(result)}`,
+      // );
       clearCreepAction(creep);
     }
   }

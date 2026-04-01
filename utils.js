@@ -245,10 +245,6 @@ function findBestSourceForCreep(creep) {
         structure.store.getCapacity(RESOURCE_ENERGY) * 0.75,
   });
 
-  const tombstones = creep.room.find(FIND_TOMBSTONES, {
-    filter: (tombstone) => tombstone.store[RESOURCE_ENERGY] > 0,
-  });
-
   const ruins = creep.room.find(FIND_RUINS, {
     filter: (ruin) => ruin.store[RESOURCE_ENERGY] > 0,
   });
