@@ -6,18 +6,15 @@ This is a project for the game screeps (ref: https://docs.screeps.com/)
 
 ## Task
 
-Update the flags-driven behaviour by:
-- make sure the `remote_source` flag is actually used
-- fix the `attack` flag behaviour, currently some category of fighter creeps (lile `RANGED_ATTACK`) ignore the attack target and start behave like  normal workers.
-
-Once done, update all the related `md` files in the `llm-prompts` directory
+...
 
 ## Agent instructions
 
-Split the task in smaller sub-task when appropriate
+Split the task in smaller sub-task when appropriate. Generate a markdown file called `tmp_task.md` where you keep track of the steps planned and those already done. This file will be used by other LLM agents to continue the development if you cannot complete it in one single pass
 Look for established tactics and strategies for the game Screep on internet
-Generate a md file in the `llm-prompts` directory with the details of your update; the file will be used by human for review and by other LLM agents to perform further implementations
 
+
+Use `docs/current-project-spec.md` as reference for the whole project and keep it up-to-date after your updates. In general use all the markdown files in the `docs` directory as documentation for the project
 
 ## Tech Requirements
 

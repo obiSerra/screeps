@@ -343,7 +343,7 @@ stateDiagram-v2
 - `rally` — Move to rally flag and idle (flag-driven coordination)
 - `gathering` — Collect energy from sources, containers, links, dropped resources, and ruins
 - `mining` — Stationary source harvesting (miners)
-- `hauling` — Container/storage logistics, supports remote hauling via `isRemoteHauler` memory flag
+- `hauling` — Container/storage logistics, supports remote hauling via `isRemoteHauler` + `remoteFlagName` memory
 - `transporting` — Energy distribution to spawn/extensions
 - `delivering` — Targeted energy delivery to specific structures
 - `building` — Construction site work
@@ -555,7 +555,7 @@ flowchart TB
 
 **Infrastructure:** [linkManager.js](linkManager.js) • [labManager.js](labManager.js) • [terminalManager.js](terminalManager.js)
 
-**Flag System:** [flagManager.js](flagManager.js) • [llm-prompts/flag-system-documentation.md](llm-prompts/flag-system-documentation.md)
+**Flag System:** [flagManager.js](flagManager.js) • [flag-system-documentation.md](flag-system-documentation.md)
 
 **Roles (24 total):** 6 economic + 6 combat + 4 specialist + explorer/claimer
 
@@ -641,17 +641,19 @@ flowchart TB
 
 ---
 
-### 🚚 IMPROVED FEATURE: Remote Hauling & Mining
-**Status:** Enhanced ✅  
-**Implementation:** 2026-03-31 (commits `075b78d`, `0aa7be2`)
+### 🚚 IMPROVED FEATURE: Remote Hauling (Simplified)
+**Status:** Refactored ✅  
 
-**Improvements:**
-- Remote Hauler Detection via `isRemoteHauler` memory flag
-- Dynamic Room Selection scanning all active flags for highest energy
-- Multi-Structure Support for CONTAINER and STORAGE
-- Fallback Logic to local hauling when no remote flags active
+**Design:** Each `source_X` flag assigns exactly 1 remote hauler — no remote miners.
+- **Per-flag assignment** via `remoteFlagName` and `remoteRoom` in hauler memory
+- **Closest spawn selection** using `findClosestSpawn()` (picks spawn nearest exit toward target room)
+- **Priority collection** in remote room: Tombstones → Ruins → Dropped Resources → Containers → Storage
+- **Fallback** to local hauling when assigned flag is removed
+- **Cross-room dedup** — global `Game.creeps` scan prevents duplicate haulers per flag
 
-**Flow:** Remote Source (Container) → Remote Hauler → Home Storage → Local Haulers
+**Config:** `CONFIG.REMOTE_HARVESTING` — `ENABLED`, `AVOID_HOSTILE_ROOMS`, `FLAG_PATTERN`
+
+**Flow:** Remote Room (Tombstone/Ruins/Container) → Remote Hauler → Home Room → Normal Delivery Priority
 
 ---
 
@@ -866,13 +868,26 @@ flowchart LR
 ## Appendix: Quick Navigation
 
 **Documentation Files:**
-- [llm-prompts/cpu-optimization.md](llm-prompts/cpu-optimization.md) — Detailed optimization phases
-- [llm-prompts/flag-system-documentation.md](llm-prompts/flag-system-documentation.md) — Flag system guide
-- [llm-prompts/screeps.md](llm-prompts/screeps.md) — Screeps context
-- [llm-prompts/prompt-template.md](llm-prompts/prompt-template.md) — Prompt boilerplate
+- [cpu-optimization.md](cpu-optimization.md) — Detailed optimization phases
+- [flag-system-documentation.md](flag-system-documentation.md) — Flag system guide
+- [screeps.md](screeps.md) — Screeps context
+- [prompt-template.md](prompt-template.md) — Prompt boilerplate
 
 **All Files:** See Part 1, Section 3 for complete Architecture table
 
 ---
 
 **End of Reorganized Project Spec**
+
+# Part 4: FUTURE IMPROVEMENTS AND IDEAS
+
+## 1. Efficient Hauling from other rooms
+
+## 2. Slow down defendender spawning reaction time
+Usually the defender get spawned after the invader is already dead
+
+## 3. Improve upgrading when other major tasks are completed
+
+## 4. Limit the number of creeps on higher RCL
+
+To avoid having a lot of small creeps

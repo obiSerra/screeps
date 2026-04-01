@@ -199,8 +199,9 @@ const checkOffensiveFighterPriority = (spawn, room, currentCreeps, roomStatus, e
 };
 
 /**
- * Check if remote harvesting miners/haulers should be spawned (Priority 2.5)
- * Spawns miners and haulers for remote source flags
+ * Check if remote haulers should be spawned (Priority 2.5)
+ * Spawns exactly 1 hauler per remote source flag, assigned to a specific flag
+ * Checks globally across all creeps to prevent duplicate assignments
  * @param {StructureSpawn} spawn - The spawn structure
  * @param {Room} room - The room object
  * @param {Object} currentCreeps - Current creep counts by role
@@ -212,54 +213,74 @@ const checkRemoteHarvestingPriority = (spawn, room, currentCreeps, roomStatus, e
   const { getRemoteHarvestingNeeds } = getRosterFunctions();
   const { trySpawn } = getTrySpawn();
   
-  const needs = getRemoteHarvestingNeeds(room);
+  const needs = getRemoteHarvestingNeeds();
   
-  if (needs.miners === 0 && needs.haulers === 0) {
+  if (needs.haulers === 0) {
     return null;
   }
   
-  // Count current remote miners and haulers
-  const currentRemoteMiners = Object.values(Game.creeps).filter(
-    c => c.memory.spawnRoom === roomStatus.roomName && 
-         c.memory.role === 'miner' && 
-         c.memory.remoteSourceId !== undefined
-  ).length;
+  // Get all flag names already assigned to living haulers (global check)
+  const assignedFlags = Object.values(Game.creeps)
+    .filter(c => c.memory.role === 'hauler' && c.memory.isRemoteHauler === true && c.memory.remoteFlagName)
+    .map(c => c.memory.remoteFlagName);
   
-  const currentRemoteHaulers = Object.values(Game.creeps).filter(
-    c => c.memory.spawnRoom === roomStatus.roomName && 
-         c.memory.role === 'hauler' && 
-         c.memory.isRemoteHauler === true
-  ).length;
+  // Find the first unassigned source flag
+  const unassignedSource = needs.sources.find(s => !assignedFlags.includes(s.flagName));
   
-  // Priority: miners first, then haulers
-  if (currentRemoteMiners < needs.miners) {
-    // Find next unassigned remote source
-    const assignedSourceIds = Object.values(Game.creeps)
-      .filter(c => c.memory.spawnRoom === roomStatus.roomName && 
-                   c.memory.role === 'miner' && 
-                   c.memory.remoteSourceId !== undefined)
-      .map(c => c.memory.remoteSourceId);
-    
-    const nextSource = needs.sources.find(s => !assignedSourceIds.includes(s.sourceId));
-    
-    if (nextSource) {
-      console.log(
-        `⛏️ Spawning remote miner (${currentRemoteMiners + 1}/${needs.miners}) for ${nextSource.flagName}`
-      );
-      const extraMemory = { remoteSourceId: nextSource.sourceId, remoteFlagName: nextSource.flagName };
-      return trySpawn(spawn, "miner", roomStatus, room, efficiencyMetrics, null, extraMemory);
-    }
+  if (!unassignedSource) {
+    return null;
   }
   
-  if (currentRemoteHaulers < needs.haulers) {
-    console.log(
-      `🚚 Spawning remote hauler (${currentRemoteHaulers + 1}/${needs.haulers})`
-    );
-    const extraMemory = { isRemoteHauler: true };
-    return trySpawn(spawn, "hauler", roomStatus, room, efficiencyMetrics, null, extraMemory);
+  // Pick the closest spawn in this room to the flag's room
+  const selectedSpawn = findClosestSpawn(room, unassignedSource.roomName);
+  
+  // Only spawn from this room's spawn if it's the selected one (or if no better option)
+  if (selectedSpawn && selectedSpawn.id !== spawn.id) {
+    return null;
   }
   
-  return null;
+  console.log(
+    `🚚 Spawning remote hauler for ${unassignedSource.flagName} (room: ${unassignedSource.roomName})`
+  );
+  const extraMemory = {
+    isRemoteHauler: true,
+    remoteFlagName: unassignedSource.flagName,
+    remoteRoom: unassignedSource.roomName,
+  };
+  return trySpawn(spawn, "hauler", roomStatus, room, efficiencyMetrics, null, extraMemory);
+};
+
+/**
+ * Find the closest spawn in a room to a remote flag's room
+ * Uses linear room distance for cross-room comparison
+ * @param {Room} room - The room containing spawns
+ * @param {string} targetRoomName - The remote room name
+ * @returns {StructureSpawn|null} The closest spawn or null
+ */
+const findClosestSpawn = (room, targetRoomName) => {
+  const spawns = room.find(FIND_MY_SPAWNS);
+  if (spawns.length <= 1) {
+    return spawns[0] || null;
+  }
+  
+  // For multi-spawn rooms, find the spawn closest to the room exit toward the target
+  const exitDir = room.findExitTo(targetRoomName);
+  if (exitDir < 0) {
+    return spawns[0];
+  }
+  
+  const exitPositions = room.find(exitDir);
+  if (exitPositions.length === 0) {
+    return spawns[0];
+  }
+  
+  // Pick the spawn nearest to any exit position toward the target room
+  const midExit = exitPositions[Math.floor(exitPositions.length / 2)];
+  return spawns.reduce((closest, s) => {
+    const dist = s.pos.getRangeTo(midExit);
+    const closestDist = closest.pos.getRangeTo(midExit);
+    return dist < closestDist ? s : closest;
+  }, spawns[0]);
 };
 
 /**

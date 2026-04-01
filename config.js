@@ -393,10 +393,8 @@ const CONFIG = {
     // ===========================
     REMOTE_HARVESTING: {
         ENABLED: true,                          // Enable remote harvesting via source_X flags
-        DISTANCE_PENALTY_MULTIPLIER: 1.5,       // Multiply distance weight by this for remote sources
         AVOID_HOSTILE_ROOMS: false,              // Skip remote sources in rooms with hostiles
-        FLAG_PATTERN: /^source_\d+$/,            // Flag naming pattern: source_1, source_2, etc.
-        DEFAULT_DISTANCE: 100
+        FLAG_PATTERN: /^source_\d+$/             // Flag naming pattern: source_1, source_2, etc.
     }
 };
 

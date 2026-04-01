@@ -139,15 +139,13 @@ const trySpawn = (spawn, role, roomStatus, room, efficiencyMetrics = null, fight
   // Extra memory based on role
   let extraMemory = { ...additionalMemory };
   
-  // Handle miner assignment - prioritize remote source if specified
+  // Handle miner source assignment (local miners only)
   if (role === "miner") {
-    if (!extraMemory.remoteSourceId) {
-      const existingMiners = Object.values(Game.creeps).filter(
-        (c) => c.memory.role === "miner" && c.memory.spawnRoom === room.name,
-      );
-      const sourceId = findUnassignedSource(room, existingMiners);
-      extraMemory.assignedSource = sourceId;
-    }
+    const existingMiners = Object.values(Game.creeps).filter(
+      (c) => c.memory.role === "miner" && c.memory.spawnRoom === room.name,
+    );
+    const sourceId = findUnassignedSource(room, existingMiners);
+    extraMemory.assignedSource = sourceId;
   }
   
   if (role === "fighter" && fighterClass) {
