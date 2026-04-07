@@ -1,7 +1,7 @@
 # Project Spec — Reorganized by Importance
 
-> **Last updated:** 2026-04-01 18:00 UTC  
-> **Updated by:** maintainer agent  
+> **Last updated:** 2026-04-07 UTC  
+> **Updated by:** copilot agent  
 > **Structure:** General Info → Criticalities & Issues → Latest Updates & History
 
 ---
@@ -341,7 +341,7 @@ stateDiagram-v2
 ```
 
 - `rally` — Move to rally flag and idle (flag-driven coordination)
-- `gathering` — Collect energy from sources, containers, links, dropped resources, and ruins
+- `gathering` — Collect energy from sources, containers, links, dropped resources, ruins, and **storage when >70% full** (overflow threshold, max 3 gatherers via contention check)
 - `mining` — Stationary source harvesting (miners)
 - `hauling` — Container/storage logistics, supports remote hauling via `isRemoteHauler` + `remoteFlagName` memory
 - `transporting` — Energy distribution to spawn/extensions

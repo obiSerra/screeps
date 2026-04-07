@@ -191,7 +191,18 @@ const selectGatheringTarget = (creep) => {
     }
   }
 
-  // Priority 2: Use smart source selection from findBestSourceForCreep
+  // Priority 2: Storage overflow — gather from storage when it exceeds threshold
+  const storage = creep.room.storage;
+  if (
+    storage &&
+    storage.store[RESOURCE_ENERGY] >= storage.store.getCapacity() * CONFIG.ENERGY.STORAGE.OVERFLOW_THRESHOLD &&
+    storage.store[RESOURCE_ENERGY] >= CONFIG.ENERGY.STORAGE.MIN_FOR_PICKUP &&
+    countCreepsTargeting(storage.id) < CONFIG.ENERGY.STORAGE.MAX_GATHERERS_FROM_STORAGE
+  ) {
+    return { id: storage.id, pos: storage.pos };
+  }
+
+  // Priority 3: Use smart source selection from findBestSourceForCreep
   const bestSource = utils.findBestSourceForCreep(creep);
   if (!bestSource) {
     return null;

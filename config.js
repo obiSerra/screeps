@@ -169,7 +169,9 @@ const CONFIG = {
 
         // Storage thresholds
         STORAGE: {
-            MIN_FOR_PICKUP: 50000            // Min storage energy before upgraders pull from it
+            MIN_FOR_PICKUP: 50000,           // Min storage energy before upgraders pull from it
+            OVERFLOW_THRESHOLD: 0.7,         // Gather from storage when energy exceeds 70% capacity
+            MAX_GATHERERS_FROM_STORAGE: 3    // Max creeps gathering from storage simultaneously
         },
 
         // Link transfers
