@@ -45,8 +45,6 @@ const moveToTarget = (creep, target, color = "#ffffff") => {
     const cache = global.roomCache && global.roomCache[creep.room.name];
     const hostiles = cache ? cache.hostileCreeps : creep.room.find(FIND_HOSTILE_CREEPS);
 
-    options.avoid = hostiles;
-
     // If there are hostiles, increase the cost of moving near them
     options.costCallback = function(roomName, costMatrix) {
       const cbCache = global.roomCache && global.roomCache[roomName];
