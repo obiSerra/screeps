@@ -1,5 +1,6 @@
 const baseCreep = require("baseCreep");
 const flagManager = require("flagManager");
+const utils = require("utils");
 
 /**
  * Finds the best energy source in a remote room.
@@ -23,7 +24,7 @@ function findRemoteEnergySource(room) {
   }
 
   const dropped = room.find(FIND_DROPPED_RESOURCES, {
-    filter: (r) => r.resourceType === RESOURCE_ENERGY && r.amount > 0,
+    filter: (r) => r.resourceType === RESOURCE_ENERGY && r.amount > 0 && !utils.isOnMapEdge(r.pos),
   });
   if (dropped.length > 0) {
     return { target: dropped[0], action: "pickup" };

@@ -618,10 +618,11 @@ const handleHauling = (creep) => {
     const droppedResources = cache ? cache.droppedResources : creep.room.find(FIND_DROPPED_RESOURCES);
     const allStructures = cache ? cache.allStructures : creep.room.find(FIND_STRUCTURES);
 
-    // Priority 1: Dropped energy (before it decays)
+    // Priority 1: Dropped energy (before it decays) - avoid edges
     const droppedEnergy = droppedResources.filter(
       (r) => r.resourceType === RESOURCE_ENERGY &&
-        r.amount > CONFIG.ENERGY.CONTAINER.MIN_DROPPED_RESOURCE
+        r.amount > CONFIG.ENERGY.CONTAINER.MIN_DROPPED_RESOURCE &&
+        !utils.isOnMapEdge(r.pos)
     );
 
     if (droppedEnergy.length > 0) {

@@ -176,12 +176,13 @@ const selectBuildTarget = (creep, constructionSites) => {
  * @returns {Object|null} { id, pos } of selected source or null if none available
  */
 const selectGatheringTarget = (creep) => {
-  // Priority 1: Check for dropped energy NOT targeted by other creeps
+  // Priority 1: Check for dropped energy NOT targeted by other creeps and NOT on map edges
   const droppedEnergy = creep.room.find(FIND_DROPPED_RESOURCES, {
     filter: (r) => 
       r.resourceType === RESOURCE_ENERGY && 
       r.amount > CONFIG.ENERGY.CONTAINER.MIN_DROPPED_RESOURCE &&
-      countCreepsTargeting(r.id) === 0,
+      countCreepsTargeting(r.id) === 0 &&
+      !utils.isOnMapEdge(r.pos),
   });
 
   if (droppedEnergy.length > 0) {

@@ -120,7 +120,7 @@ const initializeRoomCache = (room) => {
     // Resource caches
     sources: room.find(FIND_SOURCES),
     sourcesActive: room.find(FIND_SOURCES_ACTIVE),
-    droppedResources: room.find(FIND_DROPPED_RESOURCES),
+    droppedResources: room.find(FIND_DROPPED_RESOURCES).filter(r => !utils.isOnMapEdge(r.pos)),
   };
   
   // Generate derived caches for common filters

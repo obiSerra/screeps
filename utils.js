@@ -214,6 +214,16 @@ const areThereInvaders = (room) => {
 };
 
 /**
+ * Check if a position is on the map edge
+ * Pure function
+ * @param {RoomPosition} pos
+ * @returns {boolean}
+ */
+function isOnMapEdge(pos) {
+  return pos.x === 0 || pos.x === 49 || pos.y === 0 || pos.y === 49;
+}
+
+/**
  * Find nearest container with available capacity
  * Pure function (query only, no side effects)
  * @param {Creep} creep
@@ -434,6 +444,7 @@ const utils = {
   actions,
   areThereInvaders,
   findNearestContainerWithSpace,
+  isOnMapEdge,
 
   getErrorString,
 
