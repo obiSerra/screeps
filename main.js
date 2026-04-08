@@ -302,6 +302,9 @@ module.exports.loop = function () {
         console.log(error.stack);
       }
     });
+
+  // Handle all creeps once per tick (moved from per-room orchestration to avoid N× iteration)
+  roomOrchestrator.handleCreeps();
 };
 
 // ============================================================================

@@ -1,8 +1,8 @@
 # CPU Optimization Plan for Screeps Project
 
-**Status**: Phase 3 (High RCL Creep Count Reduction) **IMPLEMENTED** ✅  
+**Status**: Phase 3.5 (Uncached find() Mop-Up) **IMPLEMENTED** ✅  
 **Estimated Total Savings**: 60-85% CPU reduction from baseline  
-**Implementation Date**: 2026-03-29  
+**Implementation Date**: 2026-04-08  
 
 ---
 
@@ -10,7 +10,7 @@
 
 This plan addresses critical CPU bottlenecks in the Screeps bot through memory caching, reducing redundant room scans, optimizing creep counts at high RCL, and implementing periodic execution for non-critical operations. The optimizations are organized into 5 independent phases for iterative implementation.
 
-**Current Progress**: Phase 1 + Phase 2 + Phase 3 complete (est. -43 to -64 CPU/tick total savings)
+**Current Progress**: Phase 1 + Phase 2 + Phase 3 + Phase 3.5 complete (est. -55 to -90 CPU/tick total savings)
 
 ---
 
@@ -254,6 +254,118 @@ This plan addresses critical CPU bottlenecks in the Screeps bot through memory c
 
 ---
 
+## Phase 3.5: Uncached find() Mop-Up ✅ IMPLEMENTED
+
+**Goal**: Systematically replace all remaining uncached `room.find()` calls with room cache lookups  
+**Est. Savings**: -12 to -26 CPU/tick  
+**Status**: ✅ Complete  
+**Implementation Date**: 2026-04-08
+
+### Implemented Changes
+
+#### 1. moveToTarget Invader Avoidance Cache ✅
+**File**: [creep.effects.js](creep.effects.js)
+- `moveToTarget()` now uses `cache.hostileCreeps` instead of `room.find(FIND_HOSTILE_CREEPS)`
+- `costCallback` inside pathfinder also uses cache instead of per-room find()
+- Previously: 2-4× `FIND_HOSTILE_CREEPS` per creep per tick when invaders present
+- Called by every moving creep every tick
+
+**Benefits**:
+- With 15 moving creeps and invaders present: eliminates 30-60 find() calls per tick
+- Saves 5-15 CPU/tick during invasions (highest single-function impact)
+
+#### 2. Repair/Deposit Target Finding Cache ✅
+**File**: [creep.targetFinding.js](creep.targetFinding.js)
+- Added `getCachedStructures()` shared helper: returns `cache.allStructures` or falls back to `room.find(FIND_STRUCTURES)`
+- `findWallsNeedingRepair()`, `findRampartsNeedingRepair()`, `findStructuresNeedingRepair()` now filter from cached structures instead of 3 separate `room.find()` calls
+- `findEnergyDepositTargets()` now filters from cached structures instead of `room.find()`
+- These are called per-creep via `getActionAvailability()` and `findRepairTargets()`
+
+**Benefits**:
+- With 15 creeps: eliminates 45-60 `FIND_STRUCTURES` calls per tick
+- Saves 2-4 CPU/tick
+
+#### 3. handleHauling Cascading find() Cache ✅
+**File**: [creep.actionHandlers.js](creep.actionHandlers.js)
+- `handleHauling()` now uses `cache.droppedResources` and `cache.allStructures` at top of function
+- Replaced 5 sequential `room.find()` calls (dropped energy, containers, dropped minerals, mineral containers) with single cache lookups + filters
+- `handleMining()` now uses `cache.sources` instead of `room.find(FIND_SOURCES)`
+
+**Benefits**:
+- Per hauler: eliminates up to 5 find() calls per tick
+- With 3 haulers: eliminates 15 find() calls per tick
+- Saves 1-3 CPU/tick
+
+#### 4. Utils Helper Functions Cache ✅
+**File**: [utils.js](utils.js)
+- `areThereInvaders()`: uses `cache.hostileCreeps` instead of `room.find(FIND_HOSTILE_CREEPS)`
+- `findNearestContainerWithSpace()`: uses `cache.containers` instead of `room.find(FIND_STRUCTURES)`
+- `findBestSourceForCreep()`: uses `cache.sources` and `cache.allStructures` instead of 3 separate `room.find()` calls
+- `findNearestEnergySource()`: uses `cache.sources`
+
+**Benefits**:
+- `areThereInvaders()` is called by `moveToTarget()` as a gate check — eliminates redundant hostile scan
+- `findBestSourceForCreep()` called by harvesters — eliminates 3 find() calls per harvester per tick
+- Saves 0.5-1 CPU/tick
+
+#### 5. spawnerCombat Cache ✅
+**File**: [spawnerCombat.js](spawnerCombat.js)
+- `analyzeInvasionThreat()`: uses `cache.hostileCreeps`
+- `estimateInvaderThreat()`: uses `cache.myStructures`
+- `calculateTowerDefensiveCapacity()`: uses `cache.towers`
+- `shouldSpawnDefenders()`: uses `cache.hostileCreeps` (was doing a 4th redundant find())
+
+**Benefits**:
+- Eliminates 5 uncached find() calls per room per tick
+- Saves 0.5-1 CPU/tick
+
+#### 6. handleCreeps Moved to main.js ✅
+**Files**: [roomOrchestrator.js](roomOrchestrator.js), [main.js](main.js)
+- `handleCreeps()` previously iterated `Object.values(Game.creeps)` inside `handleExecutingMode()` — called once per owned room
+- With 2 rooms: every creep was processed 2× per tick
+- Moved to `main.js` — now called once after all room processing
+- `handleCreeps()` signature changed from `(room)` to `()` (no room parameter needed)
+
+**Benefits**:
+- With 2 rooms and 30 total creeps: eliminates 30 redundant handler calls per tick
+- Saves 1-2 CPU/tick
+
+#### 7. getSourceCount Permanent Cache ✅
+**File**: [roomOrchestrator.js](roomOrchestrator.js)
+- Sources never change position — now cached in `Memory.rooms[roomName].sourceCount`
+- First call does find(), subsequent calls return from Memory
+- Used by `calculateRoster()` every tick
+
+**Benefits**:
+- Eliminates 1 `FIND_SOURCES` per room per tick (permanent savings)
+- Saves 0.1 CPU/tick
+
+#### 8. Mineral ID Permanent Cache ✅
+**File**: [role.mineralExtractor.js](role.mineralExtractor.js)
+- `findRoomMineral()` now caches mineral ID in `Memory.rooms[roomName].mineralId`
+- Minerals never move — cache is permanent
+- Falls back to find() if cached ID returns null (destroyed)
+- Lab delivery also uses `cache.labs` instead of `room.find()`
+
+**Benefits**:
+- Eliminates 1 `FIND_MINERALS` per mineral extractor per tick
+- Saves 0.1 CPU/tick
+
+#### 9. spawnerHelpers + role.defender Cache ✅
+**Files**: [spawnerHelpers.js](spawnerHelpers.js), [role.defender.js](role.defender.js)
+- `findUnassignedSource()`: uses `cache.sources`
+- `findLabs()`: uses `cache.labs`
+- `findMineralInRoom()`: uses Memory mineral cache
+- `findClosestSpawn()`: uses `cache.spawns`
+- `handleExecutingMode()`: spawn lookup uses `cache.spawns[0]`
+- Defender patrol: spawn lookup uses `cache.spawns[0]`
+
+**Benefits**:
+- Eliminates 4-6 find() calls per room per tick in spawning path
+- Saves 0.3-0.5 CPU/tick
+
+---
+
 ## Phase 4: Periodic Execution Optimizations (NOT YET IMPLEMENTED)
 
 **Goal**: Run non-critical operations less frequently, throttle calculations  
@@ -289,29 +401,25 @@ This plan addresses critical CPU bottlenecks in the Screeps bot through memory c
 
 ---
 
-## Phase 5: Additional Optimizations (NOT YET IMPLEMENTED)
+## Phase 5: Additional Optimizations (PARTIALLY IMPLEMENTED)
 
 **Goal**: Small wins and edge case optimizations  
 **Est. Savings**: -2 to -5 CPU/tick  
-**Status**: ⏳ Planned
+**Status**: ⏳ Partially complete (items 1-3 done in Phase 3.5)
 
-### 1. Cache Minerals per Room
-**File**: [role.mineralExtractor.js](role.mineralExtractor.js#L21)
-- Minerals never move position
-- Cache in `Memory.rooms[roomName].minerals` once
-- Low impact but trivial fix
+### 1. Cache Minerals per Room ✅ (Done in Phase 3.5)
+**File**: [role.mineralExtractor.js](role.mineralExtractor.js)
+- Cached mineral ID in `Memory.rooms[roomName].mineralId` (permanent)
+- Also used by `spawnerHelpers.findMineralInRoom()`
 
-### 2. Optimize findRepairTargets Caching
-**File**: [creep.targetFinding.js](creep.targetFinding.js#L163-L178)
-- Cache repair targets per room per tick in global cache
-- Sort once per tick instead of per creep
-- Saves 1-2 CPU/tick
+### 2. Optimize findRepairTargets Caching ✅ (Done in Phase 3.5)
+**File**: [creep.targetFinding.js](creep.targetFinding.js)
+- Now uses `getCachedStructures()` helper — filters from room cache instead of separate find() calls
+- All 3 repair finder functions share the same cached structure list
 
-### 3. Cache findEnergyDepositTargets
-**File**: [creep.targetFinding.js](creep.targetFinding.js#L43-L93)
-- Pre-sort deposit targets per room per tick
-- Reuse sorted list for all creeps
-- Saves 1-2 CPU/tick
+### 3. Cache findEnergyDepositTargets ✅ (Done in Phase 3.5)
+**File**: [creep.targetFinding.js](creep.targetFinding.js)
+- Now filters from `getCachedStructures()` instead of `room.find(FIND_STRUCTURES)`
 
 ### 4. Verify Path Reuse Implementation
 **File**: [creep.effects.js](creep.effects.js), [config.js](config.js#L335)
@@ -358,9 +466,10 @@ console.log(`Room ${room.name} CPU: ${(cpuAfter - cpuBefore).toFixed(2)}`);
 | Phase 1 ✅ | 120-200 | 80-160 | -30 to -40 | 20-30 |
 | Phase 2 ✅ | 80-160 | 77-156 | -3 to -4 | 20-30 |
 | Phase 3 ✅ | 77-156 | 67-136 | -10 to -20 | 10-15 |
-| Phase 4 | 67-136 | 62-128 | -5 to -8 | 10-15 |
-| Phase 5 | 62-128 | 60-123 | -2 to -5 | 10-15 |
-| **TOTAL** | **120-200** | **20-30** | **-60 to -85%** | **-50% creeps** |
+| Phase 3.5 ✅ | 67-136 | 55-110 | -12 to -26 | 10-15 |
+| Phase 4 | 55-110 | 50-102 | -5 to -8 | 10-15 |
+| Phase 5 | 50-102 | 49-100 | -1 to -2 | 10-15 |
+| **TOTAL** | **120-200** | **49-100** | **-60 to -85%** | **-50% creeps** |
 
 ---
 
@@ -386,7 +495,7 @@ console.log(`Room ${room.name} CPU: ${(cpuAfter - cpuBefore).toFixed(2)}`);
 
 **Room scanning**:
 ```javascript
-const cache = global.roomCache[room.name];
+const cache = global.roomCache && global.roomCache[room.name];
 const structures = cache ? cache.allStructures : room.find(FIND_STRUCTURES);
 ```
 
@@ -398,6 +507,13 @@ const creepsTargeting = global.targetingCounts[targetId] || 0;
 **Throttled execution**:
 ```javascript
 if (Game.time % interval !== 0) return;
+```
+
+**Permanent Memory cache (for immutable data like sources, minerals)**:
+```javascript
+if (Memory.rooms[roomName] && Memory.rooms[roomName].sourceCount !== undefined) {
+  return Memory.rooms[roomName].sourceCount;
+}
 ```
 
 ---
@@ -442,7 +558,7 @@ if (Game.time % interval !== 0) return;
 - **Current**: Using 5 ticks. Monitor market trading and consider increasing to 10 if prices remain stable.
 
 ### Role-specific find() caching opportunities
-- **Mineral extractors**: Cache `room.find(FIND_MINERALS)` (never changes)
+- **Mineral extractors**: ✅ Cached `FIND_MINERALS` in Memory (permanent, done in Phase 3.5)
 - **Explorers**: Cache room terrain data
 - **Fighters**: Cache hostile structure locations per room
 - **Impact**: Low per role, but cumulative benefit
@@ -486,10 +602,23 @@ if (Game.time % interval !== 0) return;
 - [spawnerRoster.js](spawnerRoster.js) — `getUpgraderWorkPartCount(roomName)` helper added and exported (15 lines added)
 - [roomOrchestrator.js](roomOrchestrator.js) — Roster scaling applied in `calculateRoster` for RCL 6-8; upgrade cap check at RCL 8; added `getUpgraderWorkPartCount` import (35 lines modified)
 
+### Modified Files (Phase 3.5 ✅)
+- [creep.effects.js](creep.effects.js) — `moveToTarget()` uses cache for hostile creeps in avoid + costCallback (10 lines modified)
+- [creep.targetFinding.js](creep.targetFinding.js) — Added `getCachedStructures()` helper; repair finders + `findEnergyDepositTargets()` filter from cache (30 lines modified)
+- [creep.actionHandlers.js](creep.actionHandlers.js) — `handleHauling()` uses cache for dropped resources + structures; `handleMining()` uses cache for sources (20 lines modified)
+- [utils.js](utils.js) — `areThereInvaders()`, `findNearestContainerWithSpace()`, `findBestSourceForCreep()`, `findNearestEnergySource()` use cache (20 lines modified)
+- [spawnerCombat.js](spawnerCombat.js) — All 4 functions use cache for hostiles, structures, towers (10 lines modified)
+- [roomOrchestrator.js](roomOrchestrator.js) — `handleCreeps()` moved to main.js call; `getSourceCount()` permanent Memory cache; spawn lookup uses cache (15 lines modified)
+- [main.js](main.js) — Calls `handleCreeps()` once after room loop (2 lines added)
+- [stats.js](stats.js) — `updateCreepStats()` uses cache for my creeps (2 lines modified)
+- [role.mineralExtractor.js](role.mineralExtractor.js) — `findRoomMineral()` permanent Memory cache; lab delivery uses cache (15 lines modified)
+- [spawnerHelpers.js](spawnerHelpers.js) — Sources, labs, minerals, spawns use cache (10 lines modified)
+- [role.defender.js](role.defender.js) — Patrol spawn lookup uses cache (2 lines modified)
+
 ### Files to Modify (Phases 4-5)
 - [spawnerBodyUtils.js](spawnerBodyUtils.js) — Cached efficiency tier
 - [stats.js](stats.js) — Efficiency metrics caching
-- [role.mineralExtractor.js](role.mineralExtractor.js) — Mineral caching
+- ~~[role.mineralExtractor.js](role.mineralExtractor.js) — Mineral caching~~ ✅ Done in Phase 3.5
 
 ---
 
@@ -510,6 +639,6 @@ if (Game.time % interval !== 0) return;
 
 ---
 
-**Document Version**: 1.2  
-**Last Updated**: 2026-03-29  
+**Document Version**: 1.3  
+**Last Updated**: 2026-04-08  
 **Next Review**: After Phase 4 implementation

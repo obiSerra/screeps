@@ -37,7 +37,8 @@ const getInvaderAttackPower = (hostile) => {
  * @returns {Object} Threat analysis: { invaderCount, totalAttackPower, hasKilledCreeps, avgInvaderHP, locations }
  */
 const analyzeInvasionThreat = (room) => {
-  const hostiles = room.find(FIND_HOSTILE_CREEPS);
+  const cache = global.roomCache && global.roomCache[room.name];
+  const hostiles = cache ? cache.hostileCreeps : room.find(FIND_HOSTILE_CREEPS);
 
   if (hostiles.length === 0) {
     return {
@@ -99,7 +100,8 @@ const estimateInvaderThreat = (hostiles, recentLosses, room) => {
   let multiplier = 1.0;
 
   // Check if invaders are near structures (within 3 tiles)
-  const structures = room.find(FIND_MY_STRUCTURES);
+  const cache = global.roomCache && global.roomCache[room.name];
+  const structures = cache ? cache.myStructures : room.find(FIND_MY_STRUCTURES);
   const nearStructures = hostiles.some((hostile) =>
     structures.some((structure) => hostile.pos.getRangeTo(structure) <= 3)
   );
@@ -123,7 +125,8 @@ const estimateInvaderThreat = (hostiles, recentLosses, room) => {
  * @returns {Object} Defensive capacity: { towerCount, avgEnergyPercent, estimatedDPS, canHandleThreat }
  */
 const calculateTowerDefensiveCapacity = (room) => {
-  const towers = room.find(FIND_MY_STRUCTURES, {
+  const cache = global.roomCache && global.roomCache[room.name];
+  const towers = cache ? cache.towers : room.find(FIND_MY_STRUCTURES, {
     filter: (s) => s.structureType === STRUCTURE_TOWER,
   });
 
@@ -177,7 +180,8 @@ const shouldSpawnDefenders = (room, currentCreeps) => {
   const recentLosses = (roomMemory && roomMemory.recentCreepLosses) || [];
 
   // Get weighted threat level
-  const hostiles = room.find(FIND_HOSTILE_CREEPS);
+  const cache = global.roomCache && global.roomCache[room.name];
+  const hostiles = cache ? cache.hostileCreeps : room.find(FIND_HOSTILE_CREEPS);
   const invaderThreat = estimateInvaderThreat(hostiles, recentLosses, room);
 
   // Calculate tower defensive power

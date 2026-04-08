@@ -31,7 +31,8 @@ var roleDefender = () => {
       } else {
         // No invaders: patrol defensive positions
         // Patrol near spawn or controller as defensive position
-        const spawn = creep.room.find(FIND_MY_SPAWNS)[0];
+        const cache = global.roomCache && global.roomCache[creep.room.name];
+        const spawn = cache ? cache.spawns[0] : creep.room.find(FIND_MY_SPAWNS)[0];
         const controller = creep.room.controller;
         
         // Alternate patrol positions for coverage

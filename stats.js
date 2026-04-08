@@ -323,7 +323,8 @@ const stats = {
         
         if (!room) return;
         
-        const creeps = room.find(FIND_MY_CREEPS);
+        const cache = global.roomCache && global.roomCache[roomName];
+        const creeps = cache ? cache.myCreeps : room.find(FIND_MY_CREEPS);
         current.creeps.totalCount += creeps.length;
         current.creeps.ticksCounted++;
         

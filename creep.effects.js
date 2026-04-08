@@ -40,18 +40,18 @@ const sayAction = (creep, action) => {
 const moveToTarget = (creep, target, color = "#ffffff") => {
   const options = { visualizePathStyle: { stroke: color } };
 
-  // Non-fighters avoid enemy creeps
+  // Non-fighters avoid enemy creeps (use room cache to avoid redundant find() calls)
   if (!isFighter(creep) && utils.areThereInvaders(creep.room)) {
-    // Add avoid option for hostile creeps
-    options.avoid = creep.room.find(FIND_HOSTILE_CREEPS);
-    
+    const cache = global.roomCache && global.roomCache[creep.room.name];
+    const hostiles = cache ? cache.hostileCreeps : creep.room.find(FIND_HOSTILE_CREEPS);
+
+    options.avoid = hostiles;
+
     // If there are hostiles, increase the cost of moving near them
     options.costCallback = function(roomName, costMatrix) {
-      const room = Game.rooms[roomName];
-      if (!room) return costMatrix;
-
-      const hostiles = room.find(FIND_HOSTILE_CREEPS);
-      hostiles.forEach((hostile) => {
+      const cbCache = global.roomCache && global.roomCache[roomName];
+      const cbHostiles = cbCache ? cbCache.hostileCreeps : (Game.rooms[roomName] ? Game.rooms[roomName].find(FIND_HOSTILE_CREEPS) : []);
+      cbHostiles.forEach((hostile) => {
         // Mark tiles around hostile as high cost (avoid within 3 tiles)
         for (let dx = -3; dx <= 3; dx++) {
           for (let dy = -3; dy <= 3; dy++) {

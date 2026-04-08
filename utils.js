@@ -204,7 +204,9 @@ function countCreepsTargetingSource(sourceId) {
  * @returns {boolean} True if there are hostile creeps in the same room
  */
 const areThereInvaders = (room) => {
-  const areInvaders = room.find(FIND_HOSTILE_CREEPS).length > 0;
+  const cache = global.roomCache && global.roomCache[room.name];
+  const hostiles = cache ? cache.hostileCreeps : room.find(FIND_HOSTILE_CREEPS);
+  const areInvaders = hostiles.length > 0;
   if (areInvaders) {
     periodicLogger(`Invaders detected in room ${room.name}!`, 10);
   }
@@ -218,11 +220,14 @@ const areThereInvaders = (room) => {
  * @returns {StructureContainer|null} Closest container with space, or null
  */
 function findNearestContainerWithSpace(creep) {
-  const containers = creep.room.find(FIND_STRUCTURES, {
-    filter: (structure) =>
-      structure.structureType === STRUCTURE_CONTAINER &&
-      structure.store.getFreeCapacity(RESOURCE_ENERGY) > 0,
-  });
+  const cache = global.roomCache && global.roomCache[creep.room.name];
+  const containers = cache
+    ? cache.containers.filter((s) => s.store.getFreeCapacity(RESOURCE_ENERGY) > 0)
+    : creep.room.find(FIND_STRUCTURES, {
+        filter: (structure) =>
+          structure.structureType === STRUCTURE_CONTAINER &&
+          structure.store.getFreeCapacity(RESOURCE_ENERGY) > 0,
+      });
 
   if (containers.length === 0) {
     return null;
@@ -234,16 +239,20 @@ function findNearestContainerWithSpace(creep) {
 function findBestSourceForCreep(creep) {
   const CONFIG = require("./config");
 
+  // Use cached room data
+  const cache = global.roomCache && global.roomCache[creep.room.name];
+
   // Get local sources
-  const localSources = creep.room.find(FIND_SOURCES);
+  const localSources = cache ? cache.sources : creep.room.find(FIND_SOURCES);
 
   // Get local containers with high fill threshold
-  const containers = creep.room.find(FIND_STRUCTURES, {
-    filter: (structure) =>
+  const allStructures = cache ? cache.allStructures : creep.room.find(FIND_STRUCTURES);
+  const containers = allStructures.filter(
+    (structure) =>
       structure.structureType === STRUCTURE_CONTAINER &&
       structure.store[RESOURCE_ENERGY] >=
-        structure.store.getCapacity(RESOURCE_ENERGY) * 0.75,
-  });
+        structure.store.getCapacity(RESOURCE_ENERGY) * 0.75
+  );
 
   const ruins = creep.room.find(FIND_RUINS, {
     filter: (ruin) => ruin.store[RESOURCE_ENERGY] > 0,
@@ -281,7 +290,8 @@ function findBestSourceForCreep(creep) {
 }
 
 function findNearestEnergySource(creep) {
-  const sources = creep.room.find(FIND_SOURCES);
+  const cache = global.roomCache && global.roomCache[creep.room.name];
+  const sources = cache ? cache.sources : creep.room.find(FIND_SOURCES);
   let nearestSource = null;
   let minDistance = Infinity;
 

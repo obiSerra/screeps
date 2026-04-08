@@ -527,7 +527,8 @@ const handleMining = (creep) => {
 
   // If no assigned source or source no longer exists, find nearest
   if (!source) {
-    const sources = creep.room.find(FIND_SOURCES);
+    const cache = global.roomCache && global.roomCache[creep.room.name];
+    const sources = cache ? cache.sources : creep.room.find(FIND_SOURCES);
     if (sources.length > 0) {
       source = creep.pos.findClosestByPath(sources);
       if (source) {
@@ -612,12 +613,16 @@ const handleHauling = (creep) => {
 
   // Find target if not set
   if (!actionTarget) {
+    // Use cached room data to avoid redundant find() calls
+    const cache = global.roomCache && global.roomCache[creep.room.name];
+    const droppedResources = cache ? cache.droppedResources : creep.room.find(FIND_DROPPED_RESOURCES);
+    const allStructures = cache ? cache.allStructures : creep.room.find(FIND_STRUCTURES);
+
     // Priority 1: Dropped energy (before it decays)
-    const droppedEnergy = creep.room.find(FIND_DROPPED_RESOURCES, {
-      filter: (r) =>
-        r.resourceType === RESOURCE_ENERGY &&
-        r.amount > CONFIG.ENERGY.CONTAINER.MIN_DROPPED_RESOURCE,
-    });
+    const droppedEnergy = droppedResources.filter(
+      (r) => r.resourceType === RESOURCE_ENERGY &&
+        r.amount > CONFIG.ENERGY.CONTAINER.MIN_DROPPED_RESOURCE
+    );
 
     if (droppedEnergy.length > 0) {
       const sorted = sortByContention(creep, droppedEnergy, false);
@@ -649,10 +654,9 @@ const handleHauling = (creep) => {
     }
 
     // Priority 3: Containers with energy (for spawns/extensions)
-    const energyContainers = creep.room.find(FIND_STRUCTURES, {
-      filter: (s) =>
-        s.structureType === STRUCTURE_CONTAINER && s.store[RESOURCE_ENERGY] > 0,
-    });
+    const energyContainers = allStructures.filter(
+      (s) => s.structureType === STRUCTURE_CONTAINER && s.store[RESOURCE_ENERGY] > 0
+    );
 
     if (energyContainers.length > 0) {
       const sorted = sortByContention(creep, energyContainers, false);
@@ -665,11 +669,10 @@ const handleHauling = (creep) => {
     }
 
     // Priority 4: Dropped minerals (RCL 6+)
-    const droppedMinerals = creep.room.find(FIND_DROPPED_RESOURCES, {
-      filter: (r) =>
-        r.resourceType !== RESOURCE_ENERGY &&
-        r.amount > CONFIG.ENERGY.CONTAINER.MIN_DROPPED_RESOURCE,
-    });
+    const droppedMinerals = droppedResources.filter(
+      (r) => r.resourceType !== RESOURCE_ENERGY &&
+        r.amount > CONFIG.ENERGY.CONTAINER.MIN_DROPPED_RESOURCE
+    );
 
     if (droppedMinerals.length > 0) {
       const sorted = sortByContention(creep, droppedMinerals, false);
@@ -682,17 +685,15 @@ const handleHauling = (creep) => {
     }
 
     // Priority 5: Containers with minerals (RCL 6+)
-    const mineralContainers = creep.room.find(FIND_STRUCTURES, {
-      filter: (s) => {
-        if (s.structureType !== STRUCTURE_CONTAINER) return false;
-        // Check if container has any non-energy resources
-        for (const resourceType in s.store) {
-          if (resourceType !== RESOURCE_ENERGY && s.store[resourceType] > 0) {
-            return true;
-          }
+    const mineralContainers = allStructures.filter((s) => {
+      if (s.structureType !== STRUCTURE_CONTAINER) return false;
+      // Check if container has any non-energy resources
+      for (const resourceType in s.store) {
+        if (resourceType !== RESOURCE_ENERGY && s.store[resourceType] > 0) {
+          return true;
         }
-        return false;
-      },
+      }
+      return false;
     });
 
     if (mineralContainers.length > 0) {

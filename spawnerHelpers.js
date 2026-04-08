@@ -61,7 +61,8 @@ const getEmergencyReserve = (energyCapacity) => {
  * @returns {string|null} Source ID or null
  */
 const findUnassignedSource = (room, existingMiners) => {
-  const sources = room.find(FIND_SOURCES);
+  const cache = global.roomCache && global.roomCache[room.name];
+  const sources = cache ? cache.sources : room.find(FIND_SOURCES);
   const assignedSources = existingMiners
     .map((m) => m.memory.assignedSource)
     .filter(Boolean);
@@ -82,11 +83,11 @@ const findUnassignedSource = (room, existingMiners) => {
  * @returns {Array} Array of lab objects with id and position
  */
 const findLabs = (room) => {
-  return room
-    .find(FIND_STRUCTURES, {
-      filter: (s) => s.structureType === STRUCTURE_LAB,
-    })
-    .map((lab) => ({
+  const cache = global.roomCache && global.roomCache[room.name];
+  const labs = cache ? cache.labs : room.find(FIND_STRUCTURES, {
+    filter: (s) => s.structureType === STRUCTURE_LAB,
+  });
+  return labs.map((lab) => ({
       id: lab.id,
       pos: lab.pos,
       mineralType: lab.mineralType,
@@ -102,6 +103,11 @@ const findLabs = (room) => {
  * @returns {string|null} Mineral type or null
  */
 const findMineralInRoom = (room) => {
+  // Check Memory cache (minerals never move)
+  if (Memory.rooms && Memory.rooms[room.name] && Memory.rooms[room.name].mineralId) {
+    const mineral = Game.getObjectById(Memory.rooms[room.name].mineralId);
+    if (mineral) return mineral.mineralType;
+  }
   const minerals = room.find(FIND_MINERALS);
   if (minerals.length > 0) {
     return minerals[0].mineralType;
@@ -258,7 +264,8 @@ const checkRemoteHarvestingPriority = (spawn, room, currentCreeps, roomStatus, e
  * @returns {StructureSpawn|null} The closest spawn or null
  */
 const findClosestSpawn = (room, targetRoomName) => {
-  const spawns = room.find(FIND_MY_SPAWNS);
+  const cache = global.roomCache && global.roomCache[room.name];
+  const spawns = cache ? cache.spawns : room.find(FIND_MY_SPAWNS);
   if (spawns.length <= 1) {
     return spawns[0] || null;
   }

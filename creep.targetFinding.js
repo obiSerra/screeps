@@ -19,42 +19,50 @@ const { moveToTarget } = require("./creep.effects");
 // ============================================================================
 
 /**
+ * Get all structures for a room, preferring cache
+ * @param {Room} room
+ * @returns {Array} All structures in the room
+ */
+const getCachedStructures = (room) => {
+  const cache = global.roomCache && global.roomCache[room.name];
+  return cache ? cache.allStructures : room.find(FIND_STRUCTURES);
+};
+
+/**
  * Find walls that need repair
- * Pure function
+ * Pure function - uses room cache
  * @param {Room} room
  * @returns {Array} Wall structures below minimum hits
  */
 const findWallsNeedingRepair = (room) =>
-  room.find(FIND_STRUCTURES, {
-    filter: (s) => s.structureType === STRUCTURE_WALL && s.hits < WALL_MIN_HITS,
-  });
+  getCachedStructures(room).filter(
+    (s) => s.structureType === STRUCTURE_WALL && s.hits < WALL_MIN_HITS
+  );
 
 /**
  * Find ramparts that need repair
- * Pure function
+ * Pure function - uses room cache
  * @param {Room} room
  * @returns {Array} Rampart structures below health threshold
  */
 const findRampartsNeedingRepair = (room) =>
-  room.find(FIND_STRUCTURES, {
-    filter: (s) =>
-      s.structureType === STRUCTURE_RAMPART &&
-      s.hits < s.hitsMax * RAMPART_MIN_HEALTH_PERCENT,
-  });
+  getCachedStructures(room).filter(
+    (s) => s.structureType === STRUCTURE_RAMPART &&
+      s.hits < s.hitsMax * RAMPART_MIN_HEALTH_PERCENT
+  );
 
 /**
  * Find non-wall structures that need repair
- * Pure function
+ * Pure function - uses room cache
  * @param {Room} room
  * @returns {Array} Structures below health threshold
  */
 const findStructuresNeedingRepair = (room) =>
-  room.find(FIND_STRUCTURES, {
-    filter: (s) =>
-      s.structureType !== STRUCTURE_WALL &&
+  getCachedStructures(room).filter(
+    (s) => s.structureType !== STRUCTURE_WALL &&
       s.structureType !== STRUCTURE_RAMPART &&
-      s.hits < s.hitsMax * STRUCTURE_MIN_HEALTH_PERCENT,
-  });
+      s.hits < s.hitsMax * STRUCTURE_MIN_HEALTH_PERCENT
+  );
 
 /**
  * Find energy deposit targets (spawns, extensions, towers)
@@ -67,32 +75,33 @@ const findEnergyDepositTargets = (room) => {
   const roomMemory = Memory.rooms && Memory.rooms[room.name];
   const energyPriorityMode = roomMemory && roomMemory.energyPriorityMode;
 
-  const structures = room.find(FIND_STRUCTURES, {
-    filter: (s) => {
-      // In priority mode, only target spawns and extensions
-      // Exception: Also include towers below minimum energy threshold
-      if (energyPriorityMode) {
-        const minTowerEnergy =
-          CONFIG.ENERGY.PRIORITY_MODE.MIN_TOWER_ENERGY_PERCENT;
-        return (
-          ((s.structureType === STRUCTURE_EXTENSION ||
-            s.structureType === STRUCTURE_SPAWN) &&
-            s.store.getFreeCapacity(RESOURCE_ENERGY) > 0) ||
-          (s.structureType === STRUCTURE_TOWER &&
-            s.store.getFreeCapacity(RESOURCE_ENERGY) > 0 &&
-            s.store[RESOURCE_ENERGY] <
-              s.store.getCapacity(RESOURCE_ENERGY) * minTowerEnergy)
-        );
-      }
+  // Use cached structures to avoid redundant find() calls
+  const allStructures = getCachedStructures(room);
 
-      // Normal mode: include towers as well
+  const structures = allStructures.filter((s) => {
+    // In priority mode, only target spawns and extensions
+    // Exception: Also include towers below minimum energy threshold
+    if (energyPriorityMode) {
+      const minTowerEnergy =
+        CONFIG.ENERGY.PRIORITY_MODE.MIN_TOWER_ENERGY_PERCENT;
       return (
-        (s.structureType === STRUCTURE_EXTENSION ||
-          s.structureType === STRUCTURE_SPAWN ||
-          s.structureType === STRUCTURE_TOWER) &&
-        s.store.getFreeCapacity(RESOURCE_ENERGY) > 0
+        ((s.structureType === STRUCTURE_EXTENSION ||
+          s.structureType === STRUCTURE_SPAWN) &&
+          s.store.getFreeCapacity(RESOURCE_ENERGY) > 0) ||
+        (s.structureType === STRUCTURE_TOWER &&
+          s.store.getFreeCapacity(RESOURCE_ENERGY) > 0 &&
+          s.store[RESOURCE_ENERGY] <
+            s.store.getCapacity(RESOURCE_ENERGY) * minTowerEnergy)
       );
-    },
+    }
+
+    // Normal mode: include towers as well
+    return (
+      (s.structureType === STRUCTURE_EXTENSION ||
+        s.structureType === STRUCTURE_SPAWN ||
+        s.structureType === STRUCTURE_TOWER) &&
+      s.store.getFreeCapacity(RESOURCE_ENERGY) > 0
+    );
   });
 
   // Sort by priority: Spawn > Tower > Extension

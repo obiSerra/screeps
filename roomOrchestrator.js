@@ -137,13 +137,23 @@ const getRoomStatus = (room) => {
 
 /**
  * Get the number of energy sources in a room
+ * Caches in Memory since sources never change position
  * @param {string} roomName - Room name
  * @returns {number} Number of sources (typically 1-2)
  */
 const getSourceCount = (roomName) => {
+  // Check Memory cache first (sources never move)
+  if (Memory.rooms && Memory.rooms[roomName] && Memory.rooms[roomName].sourceCount !== undefined) {
+    return Memory.rooms[roomName].sourceCount;
+  }
   const room = Game.rooms[roomName];
   if (!room) return 2; // Default assumption
-  return room.find(FIND_SOURCES).length;
+  const cache = global.roomCache && global.roomCache[roomName];
+  const count = cache ? cache.sources.length : room.find(FIND_SOURCES).length;
+  // Persist in Memory (permanent cache — sources never change)
+  if (!Memory.rooms[roomName]) Memory.rooms[roomName] = {};
+  Memory.rooms[roomName].sourceCount = count;
+  return count;
 };
 
 /**
@@ -371,11 +381,11 @@ const getCreepRoleHandler = (creep) => {
 };
 
 /**
- * Handle all creeps in the room
+ * Handle all creeps once per tick
+ * Called from main.js after all room processing to avoid N× iteration
  * Effectful function
- * @param {Room} room - The room (currently unused, handles all creeps)
  */
-const handleCreeps = (room) => {
+const handleCreeps = () => {
   // Note: Attack flag coordination is now handled automatically via creep role files
   // and target finding functions (findPrioritizedAttackTarget, findRangedAttackTarget, findHealTarget)
   // which detect attack/attack_X flags and route fighters appropriately
@@ -521,7 +531,8 @@ const handleExecutingMode = (room, roomStatus) => {
   utils.periodicLogger(`Roster ${room.name} status: ${JSON.stringify(roster)}`, 20);
 
   // Get spawn and execute spawn procedure
-  const spawn = room.find(FIND_MY_SPAWNS)[0];
+  const cache = global.roomCache[room.name];
+  const spawn = cache ? cache.spawns[0] : room.find(FIND_MY_SPAWNS)[0];
   if (spawn) {
     spawner.spawnProcedure(spawn, roster, roomStatus, efficiencyMetrics);
   }
@@ -557,8 +568,7 @@ const handleExecutingMode = (room, roomStatus) => {
   // Handle towers
   handleTowers(room);
 
-  // Handle creeps
-  handleCreeps(room);
+  // Note: Creep handling moved to main.js to avoid processing all creeps once per room
 };
 
 // ============================================================================

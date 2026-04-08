@@ -1,6 +1,6 @@
 # Project Spec — Reorganized by Importance
 
-> **Last updated:** 2026-04-07 UTC  
+> **Last updated:** 2026-04-08 UTC  
 > **Updated by:** copilot agent  
 > **Structure:** General Info → Criticalities & Issues → Latest Updates & History
 
@@ -119,8 +119,8 @@ flowchart LR
 3. **Roster Calculation** — Calculate desired creep counts per role with RCL scaling (via spawnerRoster)
 4. **Spawn Execution** — Attempt to spawn highest priority role (via spawner)
 5. **Tower Control** — Defensive firing, emergency repairs (optimized: single scan before loop)
-6. **Creep Routing** — Execute all creeps' assigned actions (via baseCreep)
-7. **Visual Display** — Room info, efficiency metrics
+6. **Visual Display** — Room info, efficiency metrics
+7. **Creep Routing** (called once from main.js after all rooms) — Execute all creeps' assigned actions (via baseCreep)
 
 ```mermaid
 flowchart TD
@@ -700,6 +700,8 @@ flowchart TB
 
 **Phase 3:** RCL-Based Roster Scaling (0.4× to 0.8× at high RCL) — *-10 to -20 CPU/tick*
 
+**Phase 3.5:** Uncached find() Mop-Up (11 files, handleCreeps N× fix, permanent caches) — *-12 to -26 CPU/tick*
+
 ### 🚩 Centralized Flag Management System
 **Module:** [flagManager.js](flagManager.js) (419 lines)
 
@@ -780,7 +782,8 @@ flowchart LR
 
 ## 10. Historical Context & Git Timeline
 
-### Performance Optimization Phase (6 commits)
+### Performance Optimization Phase (7+ commits)
+- *(pending)* CPU optimization phase 3.5 (uncached find() mop-up, 11 files)
 - `f5f4653` CPU optimization phase 3 (roster scaling)
 - `66d8cca` CPU optimization phase 2 (manager caching)
 - `10a9bd6` CPU optimization phase 1 (room cache)
@@ -827,7 +830,10 @@ flowchart LR
 - **Room Cache:** 200+ redundant find() calls → 5-8 calls/tick ✅
 - **Targeting Map:** O(n×m) complexity → O(n) ✅
 - **Creep Count (RCL 8):** 20-30 creeps → 10-15 creeps (roster scaling 0.4×) ✅
-- **Estimated Total Savings:** 60-85% CPU reduction ✅
+- **Phase 3.5 — Uncached find() mop-up:** 60+ remaining find() calls cached across 11 files ✅
+- **handleCreeps fix:** Eliminated N× redundant creep iteration (was called once per owned room) ✅
+- **Permanent caches:** Source count + mineral ID stored in Memory (survive global resets) ✅
+- **Estimated Total Savings:** 55-90 CPU/tick (60-85% reduction from baseline) ✅
 
 ---
 

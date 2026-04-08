@@ -11,15 +11,28 @@ const baseCreep = require("./baseCreep");
 
 /**
  * Find the mineral deposit in the creep's assigned room
+ * Caches mineral ID in Memory (minerals never move)
  * @param {Creep} creep - The creep
  * @returns {Mineral|null} The mineral or null
  */
 const findRoomMineral = (creep) => {
-  const room = Game.rooms[creep.memory.assignedRoom || creep.room.name];
+  const roomName = creep.memory.assignedRoom || creep.room.name;
+  const room = Game.rooms[roomName];
   if (!room) return null;
 
+  // Check Memory cache first (minerals never change position)
+  if (Memory.rooms && Memory.rooms[roomName] && Memory.rooms[roomName].mineralId) {
+    const mineral = Game.getObjectById(Memory.rooms[roomName].mineralId);
+    if (mineral) return mineral;
+  }
+
   const minerals = room.find(FIND_MINERALS);
-  return minerals.length > 0 ? minerals[0] : null;
+  if (minerals.length === 0) return null;
+
+  // Cache in Memory (permanent — minerals never move)
+  if (!Memory.rooms[roomName]) Memory.rooms[roomName] = {};
+  Memory.rooms[roomName].mineralId = minerals[0].id;
+  return minerals[0];
 };
 
 /**
@@ -150,11 +163,14 @@ const findLabForDelivery = (creep) => {
 
   if (!mineralType) return null;
 
-  const labs = creep.room.find(FIND_STRUCTURES, {
-    filter: (s) =>
-      s.structureType === STRUCTURE_LAB &&
-      s.store.getFreeCapacity(mineralType) > 0,
-  });
+  const cache = global.roomCache && global.roomCache[creep.room.name];
+  const labs = cache
+    ? cache.labs.filter((s) => s.store.getFreeCapacity(mineralType) > 0)
+    : creep.room.find(FIND_STRUCTURES, {
+        filter: (s) =>
+          s.structureType === STRUCTURE_LAB &&
+          s.store.getFreeCapacity(mineralType) > 0,
+      });
 
   if (labs.length === 0) return null;
 
