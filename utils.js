@@ -296,6 +296,16 @@ function findBestSourceForCreep(creep) {
   }
 
   targets.sort((a, b) => b.score - a.score);
+
+  // Debug logging for rooms E2S54/E1S54
+  const debugRooms = ["E2S54", "E1S54"];
+  if (debugRooms.includes(creep.pos.roomName)) {
+    const topTargets = targets.slice(0, 3).map(t => {
+      return `${t.id}(room=${t.pos.roomName},energy=${t.energy || (t.store && t.store[RESOURCE_ENERGY]) || 0},score=${t.score && t.score.toFixed(2)},isFlag=${!!t.isFlag})`;
+    });
+    console.log(`[BEST-SOURCE] ${creep.name} in ${creep.pos.roomName} - ${targets.length} candidates, top: ${topTargets.join(" | ")}`);
+  }
+
   return targets.length > 0 ? targets[0] : null;
 }
 

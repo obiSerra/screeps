@@ -123,6 +123,9 @@ const workerActions = (creep, priorityList) => {
   // Legacy behavior for generalist workers (harvesters, upgraders, builders)
   // Check if creep needs to gather
   if (needsToGather(creep) && creep.memory.action !== "gathering") {
+    const debugRooms = ["E2S54", "E1S54"];
+    const isDebug = debugRooms.includes(creep.pos.roomName);
+    if (isDebug) console.log(`[BASE-CREEP] ${creep.name} in ${creep.pos.roomName} - needsToGather=true, currentAction=${creep.memory.action}, energy=${creep.store[RESOURCE_ENERGY]}/${creep.store.getCapacity()}`);
     let target;
     if (isTransporter) {
       // Transporters gather from containers at 50%+ capacity

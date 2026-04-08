@@ -176,6 +176,9 @@ const selectBuildTarget = (creep, constructionSites) => {
  * @returns {Object|null} { id, pos } of selected source or null if none available
  */
 const selectGatheringTarget = (creep) => {
+  const debugRooms = ["E2S54", "E1S54"];
+  const isDebug = debugRooms.includes(creep.pos.roomName);
+
   // Priority 1: Check for dropped energy NOT targeted by other creeps and NOT on map edges
   const droppedEnergy = creep.room.find(FIND_DROPPED_RESOURCES, {
     filter: (r) => 
@@ -188,6 +191,7 @@ const selectGatheringTarget = (creep) => {
   if (droppedEnergy.length > 0) {
     const closest = creep.pos.findClosestByPath(droppedEnergy);
     if (closest) {
+      if (isDebug) console.log(`[GATHER-TARGET] ${creep.name} in ${creep.pos.roomName} - picked dropped energy id=${closest.id} amount=${closest.amount}`);
       return { id: closest.id, pos: closest.pos };
     }
   }
@@ -200,15 +204,18 @@ const selectGatheringTarget = (creep) => {
     storage.store[RESOURCE_ENERGY] >= CONFIG.ENERGY.STORAGE.MIN_FOR_PICKUP &&
     countCreepsTargeting(storage.id) < CONFIG.ENERGY.STORAGE.MAX_GATHERERS_FROM_STORAGE
   ) {
+    if (isDebug) console.log(`[GATHER-TARGET] ${creep.name} in ${creep.pos.roomName} - picked storage overflow id=${storage.id} energy=${storage.store[RESOURCE_ENERGY]}`);
     return { id: storage.id, pos: storage.pos };
   }
 
   // Priority 3: Use smart source selection from findBestSourceForCreep
   const bestSource = utils.findBestSourceForCreep(creep);
   if (!bestSource) {
+    if (isDebug) console.log(`[GATHER-TARGET] ${creep.name} in ${creep.pos.roomName} - no targets found at all`);
     return null;
   }
 
+  if (isDebug) console.log(`[GATHER-TARGET] ${creep.name} in ${creep.pos.roomName} - picked bestSource id=${bestSource.id} room=${bestSource.pos.roomName} isFlag=${!!bestSource.isFlag} score=${bestSource.score}`);
   return { id: bestSource.id, pos: bestSource.pos, isFlag: !!bestSource.isFlag };
 };
 

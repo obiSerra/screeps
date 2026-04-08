@@ -37,8 +37,12 @@ const { getErrorString } = require("./utils");
  * @param {Creep} creep
  */
 const handleGathering = (creep) => {
+  const debugRooms = ["E2S54", "E1S54"];
+  const isDebug = debugRooms.includes(creep.pos.roomName) || (creep.memory.actionTarget && creep.memory.actionTarget.pos && debugRooms.includes(creep.memory.actionTarget.pos.roomName));
+
   // Validate creep can perform this action
   if (!canPerformAction(creep, "gathering")) {
+    if (isDebug) console.log(`[GATHER-DEBUG] ${creep.name} in ${creep.pos.roomName} (${creep.pos.x},${creep.pos.y}) - canPerformAction=false, clearing action`);
     clearCreepAction(creep);
     return;
   }
@@ -46,23 +50,30 @@ const handleGathering = (creep) => {
   const { actionTarget } = creep.memory;
   if (!actionTarget) {
     // No target set, find one and set it
+    if (isDebug) console.log(`[GATHER-DEBUG] ${creep.name} in ${creep.pos.roomName} - no actionTarget, selecting new target`);
     const target = selectGatheringTarget(creep);
     if (!target) {
       // No gathering targets available
+      if (isDebug) console.log(`[GATHER-DEBUG] ${creep.name} in ${creep.pos.roomName} - no gathering target found, clearing action`);
       clearCreepAction(creep);
       return;
     }
+    if (isDebug) console.log(`[GATHER-DEBUG] ${creep.name} in ${creep.pos.roomName} - new target selected: id=${target.id} pos=${target.pos.roomName}(${target.pos.x},${target.pos.y}) isFlag=${!!target.isFlag}`);
     setCreepAction(creep, "gathering", target);
     return;
   }
 
+  if (isDebug) console.log(`[GATHER-DEBUG] ${creep.name} in ${creep.pos.roomName} (${creep.pos.x},${creep.pos.y}) - target: id=${actionTarget.id} room=${actionTarget.pos && actionTarget.pos.roomName} isFlag=${!!actionTarget.isFlag} energy=${creep.store[RESOURCE_ENERGY]}/${creep.store.getCapacity()}`);
+
   if (actionTarget.isFlag && creep.pos.roomName !== actionTarget.pos.roomName) {
+    if (isDebug) console.log(`[GATHER-DEBUG] ${creep.name} - moving to flag in different room ${actionTarget.pos.roomName}`);
     moveToTarget(creep, actionTarget, PATH_COLORS.gathering);
     return;
   } else if (
     actionTarget.isFlag &&
     creep.pos.roomName === actionTarget.pos.roomName
   ) {
+    if (isDebug) console.log(`[GATHER-DEBUG] ${creep.name} - arrived at flag room ${creep.pos.roomName}, clearing action`);
     clearCreepAction(creep);
     return;
   }
