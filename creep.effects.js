@@ -40,27 +40,46 @@ const sayAction = (creep, action) => {
 const moveToTarget = (creep, target, color = "#ffffff") => {
   const options = { visualizePathStyle: { stroke: color } };
 
-  // Non-fighters avoid enemy creeps (use room cache to avoid redundant find() calls)
-  if (!isFighter(creep) && utils.areThereInvaders(creep.room)) {
-    const cache = global.roomCache && global.roomCache[creep.room.name];
-    const hostiles = cache ? cache.hostileCreeps : creep.room.find(FIND_HOSTILE_CREEPS);
+  // Determine if we need custom pathfinding costs
+  const hasHostiles = !isFighter(creep) && utils.areThereInvaders(creep.room);
+  const targetRoomName = target.pos ? target.pos.roomName : target.roomName;
+  const isCrossRoom = targetRoomName && targetRoomName !== creep.room.name;
+  const shouldAvoidEdges = !isCrossRoom;
 
-    // If there are hostiles, increase the cost of moving near them
+  // Apply custom cost callback if needed (hostile avoidance or edge avoidance)
+  if (hasHostiles || shouldAvoidEdges) {
     options.costCallback = function(roomName, costMatrix) {
-      const cbCache = global.roomCache && global.roomCache[roomName];
-      const cbHostiles = cbCache ? cbCache.hostileCreeps : (Game.rooms[roomName] ? Game.rooms[roomName].find(FIND_HOSTILE_CREEPS) : []);
-      cbHostiles.forEach((hostile) => {
-        // Mark tiles around hostile as high cost (avoid within 3 tiles)
-        for (let dx = -3; dx <= 3; dx++) {
-          for (let dy = -3; dy <= 3; dy++) {
-            const x = hostile.pos.x + dx;
-            const y = hostile.pos.y + dy;
-            if (x >= 0 && x < 50 && y >= 0 && y < 50) {
-              costMatrix.set(x, y, 10);
+      // Edge avoidance: avoid room edges when target is in same room
+      if (shouldAvoidEdges && roomName === creep.room.name) {
+        // Mark edge tiles (x/y = 0, 1, 48, 49) as moderate cost
+        for (let x = 0; x < 50; x++) {
+          for (let y = 0; y < 50; y++) {
+            // Check if position is near edge (within 2 tiles of boundary)
+            if (x <= 1 || x >= 48 || y <= 1 || y >= 48) {
+              costMatrix.set(x, y, 5);
             }
           }
         }
-      });
+      }
+
+      // Hostile avoidance: avoid tiles near enemy creeps
+      if (hasHostiles) {
+        const cbCache = global.roomCache && global.roomCache[roomName];
+        const cbHostiles = cbCache ? cbCache.hostileCreeps : (Game.rooms[roomName] ? Game.rooms[roomName].find(FIND_HOSTILE_CREEPS) : []);
+        cbHostiles.forEach((hostile) => {
+          // Mark tiles around hostile as high cost (avoid within 3 tiles)
+          for (let dx = -3; dx <= 3; dx++) {
+            for (let dy = -3; dy <= 3; dy++) {
+              const x = hostile.pos.x + dx;
+              const y = hostile.pos.y + dy;
+              if (x >= 0 && x < 50 && y >= 0 && y < 50) {
+                costMatrix.set(x, y, 10);
+              }
+            }
+          }
+        });
+      }
+
       return costMatrix;
     };
   }
